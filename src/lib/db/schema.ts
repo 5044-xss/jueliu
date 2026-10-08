@@ -56,6 +56,8 @@ CREATE TABLE IF NOT EXISTS asset (
   type TEXT NOT NULL,
   name TEXT NOT NULL,
   base_prompt TEXT NOT NULL DEFAULT '',
+  original_name TEXT,
+  original_base_prompt TEXT,
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
@@ -65,6 +67,8 @@ CREATE TABLE IF NOT EXISTS variant (
   asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,
   label TEXT NOT NULL,
   prompt TEXT NOT NULL DEFAULT '',
+  original_label TEXT,
+  original_prompt TEXT,
   sort_order INTEGER NOT NULL DEFAULT 0
 );
 
@@ -73,6 +77,8 @@ CREATE TABLE IF NOT EXISTS view (
   variant_id TEXT NOT NULL REFERENCES variant(id) ON DELETE CASCADE,
   label TEXT NOT NULL,
   prompt TEXT NOT NULL DEFAULT '',
+  original_label TEXT,
+  original_prompt TEXT,
   image_path TEXT,
   sort_order INTEGER NOT NULL DEFAULT 0
 );
@@ -85,6 +91,7 @@ CREATE TABLE IF NOT EXISTS segment (
   generation_mode TEXT NOT NULL DEFAULT 'multi-shot',
   target_ms INTEGER NOT NULL DEFAULT 10000,
   first_frame_id TEXT,
+  hard_cut INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'draft',
   video_path TEXT,
   created_at TEXT NOT NULL,
@@ -100,7 +107,10 @@ CREATE TABLE IF NOT EXISTS shot (
   lighting TEXT NOT NULL DEFAULT '',
   action TEXT NOT NULL DEFAULT '',
   dialogue TEXT NOT NULL DEFAULT '',
-  expression TEXT NOT NULL DEFAULT ''
+  dialogue_json TEXT NOT NULL DEFAULT '[]',
+  expression TEXT NOT NULL DEFAULT '',
+  subject_node_ids_json TEXT NOT NULL DEFAULT '[]',
+  original_json TEXT
 );
 
 CREATE TABLE IF NOT EXISTS shot_ref (
@@ -164,6 +174,11 @@ CREATE TABLE IF NOT EXISTS composition (
   name TEXT NOT NULL DEFAULT '',
   segment_ids_json TEXT NOT NULL DEFAULT '[]',
   export_path TEXT,
+  transition TEXT NOT NULL DEFAULT 'fade',
+  transition_ms INTEGER NOT NULL DEFAULT 500,
+  status TEXT NOT NULL DEFAULT 'ready',
+  error TEXT,
+  duration_ms INTEGER,
   created_at TEXT NOT NULL
 );
 
@@ -175,6 +190,16 @@ CREATE TABLE IF NOT EXISTS stale_mark (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS job (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'running',
+  message TEXT NOT NULL DEFAULT '',
+  started_at TEXT NOT NULL,
+  finished_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_scene_script ON scene(script_id);
 CREATE INDEX IF NOT EXISTS idx_segment_scene ON segment(scene_id);
 CREATE INDEX IF NOT EXISTS idx_shot_segment ON shot(segment_id);
@@ -182,4 +207,5 @@ CREATE INDEX IF NOT EXISTS idx_shot_ref_shot ON shot_ref(shot_id);
 CREATE INDEX IF NOT EXISTS idx_variant_asset ON variant(asset_id);
 CREATE INDEX IF NOT EXISTS idx_view_variant ON view(variant_id);
 CREATE INDEX IF NOT EXISTS idx_asset_project ON asset(project_id);
+CREATE INDEX IF NOT EXISTS idx_job_project ON job(project_id);
 `;

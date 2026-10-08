@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createProject, listProjectSummaries } from "@/lib/projects";
+import {
+  createProject,
+  listProjectGroups,
+  listProjectSummaries,
+} from "@/lib/projects";
 
 const createSchema = z.object({
   name: z.string().min(1, "项目名不能为空"),
@@ -8,10 +12,14 @@ const createSchema = z.object({
   styleId: z.string().nullable().optional(),
   aspectRatio: z.string().optional(),
   defaultSegmentMs: z.number().int().positive().optional(),
+  group: z.string().optional(),
 });
 
 export async function GET() {
-  return NextResponse.json({ projects: listProjectSummaries() });
+  return NextResponse.json({
+    projects: listProjectSummaries(),
+    groups: listProjectGroups(),
+  });
 }
 
 export async function POST(request: Request) {

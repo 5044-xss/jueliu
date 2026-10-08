@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, Sparkles, Trash2 } from "lucide-react";
@@ -13,7 +13,39 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { useProjectJobs, isJobRunning } from "@/lib/use-jobs";
+import { Elapsed } from "@/components/elapsed";
+import { CopyButton } from "@/components/copy-button";
 import type { StoredScript } from "@/lib/script";
+
+function scriptToText(script: StoredScript): string {
+  const lines: string[] = [];
+  if (script.title) lines.push(script.title, "");
+  for (const scene of script.scenes) {
+    const meta = [
+      scene.location,
+      scene.timeOfDay,
+      scene.interiorExterior,
+    ].filter(Boolean);
+    lines.push(
+      `${scene.slug || `第${scene.index}场`}${meta.length ? ` ${meta.join(" · ")}` : ""}`,
+    );
+    if (scene.characters.length > 0) {
+      lines.push(`人物：${scene.characters.join("、")}`);
+    }
+    if (scene.summary) lines.push(scene.summary);
+    lines.push("");
+    for (const beat of scene.beats) {
+      if (beat.type === "dialogue") {
+        lines.push(`${beat.character || "旁白"}：「${beat.text}」`);
+      } else {
+        lines.push(beat.text);
+      }
+    }
+    lines.push("");
+  }
+  return lines.join("\n").trim();
+}
 
 export default function ScriptPage() {
   const { id } = useParams<{ id: string }>();
@@ -22,20 +54,47 @@ export default function ScriptPage() {
   const [generating, setGenerating] = useState(false);
   const [extra, setExtra] = useState("");
 
-  useEffect(() => {
-    fetch(`/api/projects/${id}/script`)
+  const load = useCallback(async () => {
+    const data = await fetch(`/api/projects/${id}/script`)
       .then((r) => r.json())
-      .then((data) => {
-        setScript(data.script ?? null);
-        setLoaded(true);
-      })
-      .catch(() => toast.error("读取剧本失败"));
+      .catch(() => null);
+    return (data?.script ?? null) as StoredScript | null;
   }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await load();
+        if (cancelled) return;
+        setScript(result);
+        setLoaded(true);
+      } catch {
+        if (!cancelled) toast.error("读取剧本失败");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [load]);
+
+  const { jobs } = useProjectJobs(id, (job) => {
+    if (job.kind !== "story-to-script" || job.status === "running") return;
+    load().then(setScript);
+  });
+
+  const running = isJobRunning(jobs, "story-to-script");
+  const runningJob =
+    jobs.find((j) => j.kind === "story-to-script" && j.status === "running") ??
+    null;
+  const busy = generating || running;
 
   async function generate() {
     if (
       script &&
-      !window.confirm("重新生成将覆盖当前剧本及其下游内容，确定继续？")
+      !window.confirm(
+        "重新生成将覆盖当前剧本，并清空下游的「资产」和「分镜」，确定继续？",
+      )
     ) {
       return;
     }
@@ -87,13 +146,16 @@ export default function ScriptPage() {
         </div>
         <div className="flex items-center gap-2">
           {script && (
-            <Button variant="outline" onClick={clear} disabled={generating}>
+            <CopyButton text={scriptToText(script)} label="复制剧本" />
+          )}
+          {script && (
+            <Button variant="outline" onClick={clear} disabled={busy}>
               <Trash2 className="size-4" />
               清空
             </Button>
           )}
-          <Button onClick={generate} disabled={generating}>
-            {generating ? (
+          <Button onClick={generate} disabled={busy}>
+            {busy ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <Sparkles className="size-4" />
@@ -119,16 +181,17 @@ export default function ScriptPage() {
         </Card>
       )}
 
-      {generating && (
+      {busy && (
         <Card>
-          <CardContent className="flex items-center gap-2 py-8 text-muted-foreground">
+          <CardContent className="flex flex-wrap items-center gap-2 py-8 text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
-            正在调用 LLM 生成剧本，请稍候…
+            正在调用 LLM 生成剧本，请稍候…（可切换页面，完成后会自动刷新）
+            <Elapsed startedAt={runningJob?.startedAt} />
           </CardContent>
         </Card>
       )}
 
-      {script && !generating && (
+      {script && !busy && (
         <>
           {script.title && (
             <h3 className="text-lg font-semibold">{script.title}</h3>

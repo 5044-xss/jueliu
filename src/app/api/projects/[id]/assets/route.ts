@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAssets, saveAssetDrafts } from "@/lib/assets";
-import { getProjectDb } from "@/lib/db";
+import { getAssets, saveAssetDrafts, clearAssets } from "@/lib/assets";
+import { clearStoryboard } from "@/lib/storyboard";
 import { projectExists } from "@/lib/projects";
 import { assetsDraftSchema } from "@/lib/schemas/assets";
 
@@ -24,7 +24,10 @@ export async function PUT(request: Request, { params }: Ctx) {
   if (!parsed.success) {
     return NextResponse.json({ error: "参数不合法" }, { status: 400 });
   }
-  return NextResponse.json({ assets: saveAssetDrafts(id, parsed.data.assets) });
+  const stored = saveAssetDrafts(id, parsed.data.assets);
+  // 失效级联：资产变了 → 分镜引用失效，清空分镜。
+  clearStoryboard(id);
+  return NextResponse.json({ assets: stored });
 }
 
 export async function DELETE(_request: Request, { params }: Ctx) {
@@ -32,6 +35,8 @@ export async function DELETE(_request: Request, { params }: Ctx) {
   if (!projectExists(id)) {
     return NextResponse.json({ error: "项目不存在" }, { status: 404 });
   }
-  getProjectDb(id).prepare("DELETE FROM asset WHERE project_id = ?").run(id);
+  clearAssets(id);
+  // 失效级联：资产清空 → 分镜引用失效，一并清空。
+  clearStoryboard(id);
   return NextResponse.json({ ok: true });
 }

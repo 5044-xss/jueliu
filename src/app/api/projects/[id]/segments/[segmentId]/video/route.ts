@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { getSegmentVideoPath, setSegmentVideo } from "@/lib/frames";
+import {
+  anchorNextSegment,
+  getSegmentVideoPath,
+  setSegmentVideo,
+} from "@/lib/frames";
 import { getProjectDb } from "@/lib/db";
 import { getSegmentVideoPath as getPath } from "@/lib/paths";
 
@@ -75,7 +79,14 @@ export async function POST(request: Request, { params }: Ctx) {
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, Buffer.from(await file.arrayBuffer()));
   setSegmentVideo(id, segmentId, dest);
-  return NextResponse.json({ videoPath: dest, status: "returned" });
+  // 回传后自动把尾帧锚定到同场下一连续段，省掉手动「批量锚定」。
+  let anchor: { anchored: boolean; reason?: string } = { anchored: false };
+  try {
+    anchor = await anchorNextSegment(id, segmentId);
+  } catch {
+    // 锚定失败不影响视频回传
+  }
+  return NextResponse.json({ videoPath: dest, status: "returned", anchor });
 }
 
 export async function DELETE(_request: Request, { params }: Ctx) {

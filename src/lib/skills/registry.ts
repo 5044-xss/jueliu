@@ -2,6 +2,7 @@ import type { SkillDefinition } from "@/lib/skills/types";
 import { storyToScriptSkill } from "@/lib/skills/story-to-script";
 import { scriptToAssetsSkill } from "@/lib/skills/script-to-assets";
 import { scriptToStoryboardSkill } from "@/lib/skills/script-to-storyboard";
+import { storyboardToAiPromptSkill } from "@/lib/skills/storyboard-to-ai-prompt";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const registry = new Map<string, SkillDefinition<any, any>>();
@@ -21,3 +22,4 @@ export function listSkills(): SkillDefinition[] {
 registerSkill(storyToScriptSkill);
 registerSkill(scriptToAssetsSkill);
 registerSkill(scriptToStoryboardSkill);
+registerSkill(storyboardToAiPromptSkill);

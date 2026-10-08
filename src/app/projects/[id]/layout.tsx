@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { getProject } from "@/lib/projects";
 import { ProjectTabs } from "@/components/project-tabs";
+import { ProjectJobsBar } from "@/components/project-jobs-bar";
+import { ProjectStyleSwitcher } from "@/components/project-style-switcher";
 import { Badge } from "@/components/ui/badge";
 
 export default async function ProjectLayout({
@@ -21,12 +23,22 @@ export default async function ProjectLayout({
           <h1 className="text-xl font-semibold">{project.name}</h1>
           <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
             <Badge variant="secondary">{project.aspectRatio}</Badge>
-            {project.style && <span>{project.style}</span>}
+            <ProjectStyleSwitcher
+              projectId={id}
+              styleId={project.styleId}
+              style={project.style}
+            />
             <span>默认段时长 {(project.defaultSegmentMs / 1000).toFixed(1)}s</span>
           </div>
         </div>
       </div>
-      <ProjectTabs projectId={id} />
+      {/* 顶部导航已固定，这里让标签与任务条一起吸顶，滚动时不跟着走。 */}
+      <div className="sticky top-14 z-40 -mx-4 bg-background px-4 pt-3">
+        <ProjectTabs projectId={id} />
+        <div className="pt-2">
+          <ProjectJobsBar projectId={id} />
+        </div>
+      </div>
       {children}
     </div>
   );

@@ -3,16 +3,18 @@ import { z } from "zod";
 import { getProject, getStory } from "@/lib/projects";
 import { getSkill } from "@/lib/skills/registry";
 import { saveScript, getStoredScript } from "@/lib/script";
-import { saveAssetDrafts, getAssets } from "@/lib/assets";
+import { saveAssetDrafts, getAssets, clearAssets } from "@/lib/assets";
 import {
   saveStoryboard,
   getContinuityRules,
+  clearStoryboard,
 } from "@/lib/storyboard";
 import {
   isScript,
   isAssetsDraft,
   isStoryboardDraft,
 } from "@/lib/schemas/guards";
+import { startJob, finishJob } from "@/lib/jobs";
 
 export const maxDuration = 300;
 
@@ -45,11 +47,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "输入不合法" }, { status: 400 });
   }
 
+  const jobId = startJob(projectId, skillId);
   try {
     const story = getStory(projectId).content;
     const script = getStoredScript(projectId);
     const assets = getAssets(projectId);
-    const rules = getContinuityRules(projectId);
+    const rules = getContinuityRules();
     const output = await skill.run(
       { projectId, project, story, script, assets, rules },
       inputParsed.data,
@@ -57,24 +60,32 @@ export async function POST(request: Request) {
 
     if (skillId === "story-to-script" && isScript(output)) {
       const stored = saveScript(projectId, output);
-      return NextResponse.json({ result: stored });
+      // 失效级联：剧本变了 → 下游资产、分镜全部失效并清空。
+      clearAssets(projectId);
+      clearStoryboard(projectId);
+      finishJob(projectId, jobId, "succeeded");
+      return NextResponse.json({ result: stored, cleared: ["assets", "storyboard"] });
     }
 
     if (skillId === "script-to-assets" && isAssetsDraft(output)) {
       const stored = saveAssetDrafts(projectId, output.assets);
-      return NextResponse.json({ result: stored });
+      // 失效级联：资产变了 → 分镜引用失效，清空分镜。
+      clearStoryboard(projectId);
+      finishJob(projectId, jobId, "succeeded");
+      return NextResponse.json({ result: stored, cleared: ["storyboard"] });
     }
 
     if (skillId === "script-to-storyboard" && isStoryboardDraft(output)) {
       const stored = saveStoryboard(projectId, output, assets);
+      finishJob(projectId, jobId, "succeeded");
       return NextResponse.json({ result: stored });
     }
 
+    finishJob(projectId, jobId, "succeeded");
     return NextResponse.json({ result: output });
   } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message || "技能执行失败" },
-      { status: 500 },
-    );
+    const message = (error as Error).message || "技能执行失败";
+    finishJob(projectId, jobId, "failed", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

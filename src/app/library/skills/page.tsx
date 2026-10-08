@@ -7,17 +7,22 @@ import {
   ChevronRight,
   Loader2,
   Lock,
+  Pencil,
   Plus,
+  RotateCcw,
   Save,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -53,8 +58,7 @@ function SchemaViewer({ kind }: { kind: KindInfo }) {
       {open && (
         <div className="mt-2 grid gap-2">
           <p className="text-[11px] leading-5 text-muted-foreground">
-            无论上面的提示词怎么写，系统都会强制附加该 JSON Schema 作为输出契约，
-            并在解析失败时自动重试。提示词只影响内容，不影响结构。
+            无论提示词怎么写，系统都会强制附加该 JSON Schema 作为输出契约，并在解析失败时自动重试。提示词只影响内容，不影响结构。
           </p>
           <div className="grid gap-2 lg:grid-cols-2">
             <div>
@@ -70,42 +74,38 @@ function SchemaViewer({ kind }: { kind: KindInfo }) {
               </pre>
             </div>
           </div>
-          <details className="text-[11px] text-muted-foreground">
-            <summary className="cursor-pointer">查看内置默认提示词</summary>
-            <pre className="mt-1 max-h-52 overflow-auto whitespace-pre-wrap rounded-md border bg-background p-2 leading-4">
-              {kind.defaultPrompt}
-            </pre>
-          </details>
         </div>
       )}
     </div>
   );
 }
 
-function SkillEntry({
+function SkillDialog({
   skill,
-  defaultPrompt,
+  kind,
+  onOpenChange,
   onChanged,
-  onDeleted,
 }: {
-  skill: LibrarySkill;
-  defaultPrompt: string;
+  skill: LibrarySkill | null;
+  kind: KindInfo | undefined;
+  onOpenChange: (open: boolean) => void;
   onChanged: () => void;
-  onDeleted: () => void;
 }) {
-  const [name, setName] = useState(skill.name);
-  const [prompt, setPrompt] = useState(skill.prompt);
+  const [name, setName] = useState(skill?.name ?? "");
+  const [prompt, setPrompt] = useState(skill?.prompt ?? "");
   const [temperature, setTemperature] = useState(
-    skill.temperature?.toString() ?? "",
+    skill?.temperature?.toString() ?? "",
   );
   const [saving, setSaving] = useState(false);
-  const effectivePrompt = prompt.trim() ? prompt : defaultPrompt;
-  const dirty =
-    name !== skill.name ||
-    prompt !== skill.prompt ||
-    temperature !== (skill.temperature?.toString() ?? "");
+
+  const dirty = skill
+    ? name !== skill.name ||
+      prompt !== skill.prompt ||
+      temperature !== (skill.temperature?.toString() ?? "")
+    : false;
 
   async function save() {
+    if (!skill) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/library/skills/${skill.id}`, {
@@ -121,6 +121,7 @@ function SkillEntry({
       if (!res.ok) throw new Error(data.error || "保存失败");
       toast.success("已保存");
       onChanged();
+      onOpenChange(false);
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
@@ -128,75 +129,93 @@ function SkillEntry({
     }
   }
 
-  async function setDefault() {
-    await fetch(`/api/library/skills/${skill.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isDefault: true }),
-    });
-    toast.success("已设为当前使用");
-    onChanged();
-  }
-
   async function remove() {
+    if (!skill) return;
     if (!window.confirm(`确定删除技能「${skill.name}」？`)) return;
     const res = await fetch(`/api/library/skills/${skill.id}`, {
       method: "DELETE",
     });
     if (res.ok) {
       toast.success("已删除");
-      onDeleted();
+      onChanged();
+      onOpenChange(false);
     } else {
       toast.error("删除失败");
     }
   }
 
+  function restoreBuiltin() {
+    if (!kind) return;
+    setName("内置默认");
+    setPrompt(kind.defaultPrompt);
+    toast.info("已填入内置提示词，点击「保存」生效");
+  }
+
   return (
-    <Card className={skill.isDefault ? "ring-2 ring-primary/40" : undefined}>
-      <CardHeader>
-        <CardTitle className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              name={`active-${skill.kind}`}
-              checked={skill.isDefault}
-              onChange={setDefault}
-            />
-            <span className="text-sm">使用中</span>
-          </label>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="h-7 max-w-[220px] text-sm"
-          />
-          {!prompt.trim() && <Badge variant="outline">内置提示词</Badge>}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <Textarea
-          value={effectivePrompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          className="min-h-[220px] font-mono text-xs"
-        />
-        <p className="text-[11px] text-muted-foreground">
-          提示词只描述“内容与风格要求”，不要写 JSON 结构；结构由内置契约保证。
-        </p>
-        <div className="flex flex-wrap items-end gap-4">
+    <Dialog open={skill !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] w-full sm:max-w-5xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex flex-wrap items-center gap-2">
+            <span>{skill?.name || "技能"}</span>
+            {skill?.builtin ? (
+              <Badge variant="secondary">内置</Badge>
+            ) : (
+              <Badge variant="outline">自定义</Badge>
+            )}
+            {kind && <Badge variant="outline">{kind.label}</Badge>}
+          </DialogTitle>
+          <DialogDescription>
+            提示词只描述「内容与风格要求」，不要写 JSON 结构；结构由内置契约保证。
+            {skill?.builtin &&
+              " 内置条目会随内置版本升级自动更新，需要长期自定义请用「新增技能」复制一份。"}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="grid flex-1 gap-1.5">
+              <label className="text-xs font-medium">名称</label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <label className="text-xs font-medium">Temperature（留空用全局）</label>
+              <Input
+                type="number"
+                min={0}
+                max={2}
+                step={0.1}
+                value={temperature}
+                onChange={(e) => setTemperature(e.target.value)}
+                className="h-8 w-28 text-sm"
+              />
+            </div>
+          </div>
           <div className="grid gap-1.5">
-            <label className="text-xs font-medium">
-              Temperature（留空用全局）
-            </label>
-            <Input
-              type="number"
-              min={0}
-              max={2}
-              step={0.1}
-              value={temperature}
-              onChange={(e) => setTemperature(e.target.value)}
-              className="h-8 w-28 text-sm"
+            <label className="text-xs font-medium">提示词</label>
+            <Textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="留空则生成时无系统提示词"
+              className="min-h-[380px] font-mono text-xs"
             />
           </div>
-          <Button size="sm" onClick={save} disabled={!dirty || saving}>
+          {kind && <SchemaViewer kind={kind} />}
+        </div>
+        <DialogFooter className="sm:justify-between">
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={restoreBuiltin}>
+              <RotateCcw className="size-3.5" />
+              恢复内置
+            </Button>
+            <Button variant="destructive" onClick={remove}>
+              <Trash2 className="size-3.5" />
+              删除
+            </Button>
+          </div>
+          <Button onClick={save} disabled={!dirty || saving}>
             {saving ? (
               <Loader2 className="size-3.5 animate-spin" />
             ) : (
@@ -204,13 +223,9 @@ function SkillEntry({
             )}
             保存
           </Button>
-          <Button size="sm" variant="destructive" onClick={remove}>
-            <Trash2 className="size-3.5" />
-            删除
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -219,6 +234,7 @@ export default function SkillsPage() {
   const [kinds, setKinds] = useState<KindInfo[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [creatingKind, setCreatingKind] = useState<string | null>(null);
+  const [editing, setEditing] = useState<LibrarySkill | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/library/skills");
@@ -269,11 +285,26 @@ export default function SkillsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "创建失败");
       await refresh();
+      setEditing(data.skill as LibrarySkill);
       toast.success("已新增技能，可在该类型下选用");
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
       setCreatingKind(null);
+    }
+  }
+
+  async function setDefault(skill: LibrarySkill) {
+    const res = await fetch(`/api/library/skills/${skill.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isDefault: true }),
+    });
+    if (res.ok) {
+      toast.success("已设为当前使用");
+      await refresh();
+    } else {
+      toast.error("设置失败");
     }
   }
 
@@ -288,8 +319,7 @@ export default function SkillsPage() {
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm text-muted-foreground">
-        每类能力可维护多个技能条目（不同提示词），勾选「使用中」的那条会被生成时采用。
-        输出结构由内置契约强制，不受提示词影响。
+        每类能力可维护多个技能条目（不同提示词），选中「使用中」的那条会在生成时采用。输出结构由内置契约强制，不受提示词影响。
       </p>
       {kinds.map((kind) => {
         const list = skills.filter((s) => s.kind === kind.kind);
@@ -321,22 +351,73 @@ export default function SkillsPage() {
                 新增技能
               </Button>
             </div>
-            <SchemaViewer kind={kind} />
-            <div className="grid gap-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {list.map((skill) => (
-                <SkillEntry
+                <Card
                   key={skill.id}
-                  skill={skill}
-                  defaultPrompt={kind.defaultPrompt}
-                  onChanged={refresh}
-                  onDeleted={refresh}
-                />
+                  size="sm"
+                  className={
+                    skill.isDefault ? "ring-2 ring-primary/40" : undefined
+                  }
+                >
+                  <CardContent className="flex items-start gap-2">
+                    <input
+                      type="radio"
+                      name={`active-${skill.kind}`}
+                      checked={skill.isDefault}
+                      onChange={() => setDefault(skill)}
+                      aria-label="使用中"
+                      className="mt-1"
+                    />
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 text-left"
+                      onClick={() => setEditing(skill)}
+                    >
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="truncate text-sm font-medium">
+                          {skill.name}
+                        </span>
+                        {skill.builtin ? (
+                          <Badge variant="secondary">内置</Badge>
+                        ) : (
+                          <Badge variant="outline">自定义</Badge>
+                        )}
+                        {skill.temperature !== null && (
+                          <Badge variant="outline">
+                            T={skill.temperature}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                        {skill.prompt.trim() || "未填写提示词"}
+                      </p>
+                    </button>
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label="编辑"
+                      onClick={() => setEditing(skill)}
+                    >
+                      <Pencil />
+                    </Button>
+                  </CardContent>
+                </Card>
               ))}
             </div>
             <Separator />
           </section>
         );
       })}
+      <SkillDialog
+        key={editing?.id ?? "closed"}
+        skill={editing}
+        kind={kinds.find((k) => k.kind === editing?.kind)}
+        onOpenChange={(open) => {
+          if (!open) setEditing(null);
+        }}
+        onChanged={refresh}
+      />
     </div>
   );
 }

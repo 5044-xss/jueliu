@@ -59,6 +59,16 @@ export const TEMPLATE_VARIABLES = [
 export const DEFAULT_NEGATIVE_TEXT =
   "禁止：换脸/换发型/换服装、站位翻转、跳轴、多手多脚、肢体粘连、画面畸变、文字水印、场景突变、光线跳变、角色消失或重复。";
 
+// 单段视频时长的下限（毫秒）。平台一次生成一般有最短时长，低于此值应并入上一段。
+export const MIN_SEGMENT_MS = 3000;
+
+// 道具资产建议上限。道具会占参考图槽位，只应保留「跨镜复用且外观一致」的关键道具。
+export const MAX_PROP_ASSETS = 6;
+
+// 单段参考图建议上限。视频平台参考图槽位有限（常见 3~4 张），
+// 超出部分会被平台丢弃，导致角色没有参考图、换脸或服装不一致。
+export const MAX_REF_IMAGES = 4;
+
 export const DEFAULT_TEMPLATES: PromptTemplateSeed[] = [
   {
     platform: "doubao",

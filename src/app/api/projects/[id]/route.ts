@@ -5,6 +5,7 @@ import {
   getProject,
   updateProject,
 } from "@/lib/projects";
+import { stripStyleFromAssetPrompts } from "@/lib/assets";
 
 const patchSchema = z.object({
   name: z.string().min(1).optional(),
@@ -12,6 +13,7 @@ const patchSchema = z.object({
   styleId: z.string().nullable().optional(),
   aspectRatio: z.string().optional(),
   defaultSegmentMs: z.number().int().positive().optional(),
+  group: z.string().optional(),
 });
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -32,9 +34,16 @@ export async function PATCH(request: Request, { params }: Ctx) {
   if (!parsed.success) {
     return NextResponse.json({ error: "参数不合法" }, { status: 400 });
   }
+  const before = getProject(id);
+  if (!before) {
+    return NextResponse.json({ error: "项目不存在" }, { status: 404 });
+  }
   const project = updateProject(id, parsed.data);
   if (!project) {
     return NextResponse.json({ error: "项目不存在" }, { status: 404 });
+  }
+  if (before.style !== project.style) {
+    stripStyleFromAssetPrompts(id, before.style);
   }
   return NextResponse.json({ project });
 }

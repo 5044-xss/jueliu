@@ -19,6 +19,7 @@ export interface ProjectSummary {
   id: string;
   name: string;
   createdAt: string;
+  group?: string;
 }
 
 export interface Project {
@@ -38,6 +39,7 @@ export interface CreateProjectInput {
   styleId?: string | null;
   aspectRatio?: string;
   defaultSegmentMs?: number;
+  group?: string;
 }
 
 interface ProjectRow {
@@ -66,36 +68,129 @@ function mapProject(row: ProjectRow): Project {
 
 /* ---------------- registry ---------------- */
 
-function readRegistry(): ProjectSummary[] {
+interface ProjectRegistry {
+  groups: string[];
+  projects: ProjectSummary[];
+}
+
+function normalizeGroup(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readRegistry(): ProjectRegistry {
   const file = getProjectsRegistryPath();
-  if (!fs.existsSync(file)) return [];
+  if (!fs.existsSync(file)) return { groups: [], projects: [] };
   try {
     const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-    return Array.isArray(parsed) ? (parsed as ProjectSummary[]) : [];
+    // 兼容旧格式：顶层直接是项目数组，没有分组信息。
+    if (Array.isArray(parsed)) {
+      return {
+        groups: [],
+        projects: (parsed as ProjectSummary[]).map((p) => ({
+          ...p,
+          group: normalizeGroup(p.group),
+        })),
+      };
+    }
+    if (parsed && typeof parsed === "object") {
+      const projects = Array.isArray(parsed.projects)
+        ? (parsed.projects as ProjectSummary[])
+        : [];
+      const groups = Array.isArray(parsed.groups) ? parsed.groups : [];
+      return {
+        groups: groups.map(normalizeGroup).filter(Boolean),
+        projects: projects.map((p) => ({
+          ...p,
+          group: normalizeGroup(p.group),
+        })),
+      };
+    }
+    return { groups: [], projects: [] };
   } catch {
-    return [];
+    return { groups: [], projects: [] };
   }
 }
 
-function writeRegistry(projects: ProjectSummary[]): void {
+function writeRegistry(registry: ProjectRegistry): void {
   ensureWorkspace();
   const file = getProjectsRegistryPath();
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(projects, null, 2), "utf8");
+  const groups = [
+    ...new Set(registry.groups.map(normalizeGroup).filter(Boolean)),
+  ];
+  fs.writeFileSync(
+    file,
+    JSON.stringify({ groups, projects: registry.projects }, null, 2),
+    "utf8",
+  );
 }
 
 export function listProjectSummaries(): ProjectSummary[] {
-  return readRegistry().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return readRegistry().projects.sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt),
+  );
+}
+
+export function listProjectGroups(): string[] {
+  const registry = readRegistry();
+  const referenced = registry.projects
+    .map((p) => normalizeGroup(p.group))
+    .filter(Boolean);
+  return [...new Set([...registry.groups, ...referenced])];
+}
+
+export function createProjectGroup(name: string): string[] {
+  const group = normalizeGroup(name);
+  if (!group) return listProjectGroups();
+  const registry = readRegistry();
+  if (!registry.groups.includes(group)) registry.groups.push(group);
+  writeRegistry(registry);
+  return listProjectGroups();
+}
+
+export function renameProjectGroup(name: string, nextName: string): string[] {
+  const from = normalizeGroup(name);
+  const to = normalizeGroup(nextName);
+  if (!from || !to || from === to) return listProjectGroups();
+  const registry = readRegistry();
+  registry.groups = registry.groups.map((g) => (g === from ? to : g));
+  registry.projects = registry.projects.map((p) =>
+    normalizeGroup(p.group) === from ? { ...p, group: to } : p,
+  );
+  writeRegistry(registry);
+  return listProjectGroups();
+}
+
+export function deleteProjectGroup(name: string): string[] {
+  const group = normalizeGroup(name);
+  if (!group) return listProjectGroups();
+  const registry = readRegistry();
+  registry.groups = registry.groups.filter((g) => g !== group);
+  registry.projects = registry.projects.map((p) =>
+    normalizeGroup(p.group) === group ? { ...p, group: "" } : p,
+  );
+  writeRegistry(registry);
+  return listProjectGroups();
 }
 
 function upsertRegistry(summary: ProjectSummary): void {
-  const projects = readRegistry().filter((p) => p.id !== summary.id);
-  projects.push(summary);
-  writeRegistry(projects);
+  const registry = readRegistry();
+  const group = normalizeGroup(summary.group);
+  const projects = registry.projects.filter((p) => p.id !== summary.id);
+  projects.push({ ...summary, group });
+  const groups =
+    group && !registry.groups.includes(group)
+      ? [...registry.groups, group]
+      : registry.groups;
+  writeRegistry({ groups, projects });
 }
 
 function dropRegistry(id: string): void {
-  writeRegistry(readRegistry().filter((p) => p.id !== id));
+  const registry = readRegistry();
+  writeRegistry({
+    ...registry,
+    projects: registry.projects.filter((p) => p.id !== id),
+  });
 }
 
 export function projectExists(id: string): boolean {
@@ -127,7 +222,12 @@ export function createProject(input: CreateProjectInput): Project {
     `INSERT INTO story (id, project_id, content, updated_at) VALUES (?, ?, '', ?)`,
   ).run(newId(), id, now);
   seedProjectDefaults(db, id);
-  upsertRegistry({ id, name: input.name.trim() || "未命名项目", createdAt: now });
+  upsertRegistry({
+    id,
+    name: input.name.trim() || "未命名项目",
+    createdAt: now,
+    group: normalizeGroup(input.group),
+  });
   return getProject(id)!;
 }
 
@@ -172,7 +272,17 @@ export function updateProject(
     nowIso(),
     id,
   );
-  upsertRegistry({ id, name: next.name, createdAt: current.createdAt });
+  const currentSummary = readRegistry().projects.find((p) => p.id === id);
+  const nextGroup =
+    patch.group !== undefined
+      ? normalizeGroup(patch.group)
+      : normalizeGroup(currentSummary?.group);
+  upsertRegistry({
+    id,
+    name: next.name,
+    createdAt: current.createdAt,
+    group: nextGroup,
+  });
   return getProject(id);
 }
 

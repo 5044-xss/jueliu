@@ -14,7 +14,9 @@ export default function LibraryLayout({
           workspace/library/。
         </p>
       </div>
-      <LibraryTabs />
+      <div className="sticky top-14 z-40 -mx-4 bg-background px-4">
+        <LibraryTabs />
+      </div>
       {children}
     </div>
   );

@@ -10,46 +10,13 @@ import {
   getActiveSkillPrompt,
   getActiveSkillTemperature,
 } from "@/lib/library/skills";
+import { SCRIPT_TO_ASSETS_PROMPT } from "@/lib/skills/prompts";
 
 const inputSchema = z.object({
   extraInstructions: z.string().optional().default(""),
 });
 
 type Input = z.infer<typeof inputSchema>;
-
-const SYSTEM_PROMPT = `你是漫剧项目的资产设计师。根据结构化剧本，提取所有需要单独生成参考图的资产：角色、场景、道具。
-
-只输出 JSON，不要任何解释或代码块标记。结构必须严格为：
-{
-  "assets": [
-    {
-      "type": "character" | "scene" | "prop",
-      "name": "资产名（角色用剧本中的姓名）",
-      "basePrompt": "该资产的基础外观描述，包含项目风格关键词",
-      "variants": [
-        {
-          "label": "变体名",
-          "prompt": "该变体完整生成提示词",
-          "views": [
-            { "label": "视角名", "prompt": "该视角完整生成提示词" }
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-规则：
-1. 角色（character）：
-   - 从剧本台词与动作中推断年龄、性别、发型发色、体型、服装、气质，写成稳定的外观锚点。
-   - 每个角色默认 1 个变体「日常装」；若剧情需要（受伤/礼服/职业装等）可加变体。
-   - 每个变体的 views 必须只有 1 项，label 固定为「四视图」，prompt 要求在同一张图内呈现正面、侧面、背面、45°四个角度，纯色背景，全身，五官发型服装完全一致。
-2. 场景（scene）：
-   - 按「地点」去重；不同时间/天气作为变体（如「白天」「夜晚」）。
-   - 每个变体的 views 至少包含「全景」，可按需要加「反打」「左」「右」。
-3. 道具（prop）：只提取剧情中关键、会反复出现的道具；1 个变体，views 用「正面」。
-4. 所有 prompt 必须使用中文，且包含项目风格关键词，可直接用于文生图。
-5. 不要遗漏出场角色；不要把群众角色单独建为资产。`;
 
 function scriptToText(script: StoredScript): string {
   const lines: string[] = [];
@@ -76,16 +43,34 @@ export const scriptToAssetsSkill: SkillDefinition<Input, AssetsDraft> = {
   name: "剧本 → 资产",
   description: "从剧本提取角色/场景/道具，产出四视图与变体提示词",
   version: "1",
-  systemPrompt: SYSTEM_PROMPT,
+  systemPrompt: SCRIPT_TO_ASSETS_PROMPT,
   inputSchema,
   outputSchema: assetsDraftSchema,
   async run(ctx, input) {
     if (!ctx.script) {
       throw new Error("尚未生成剧本，请先生成剧本。");
     }
+    // 显式列出地点/角色清单，强制模型逐个覆盖，避免漏建资产（模型常漏掉某一两个）。
+    const locations = [
+      ...new Set(ctx.script.scenes.map((s) => s.location.trim()).filter(Boolean)),
+    ];
+    const characters = [
+      ...new Set(
+        ctx.script.scenes
+          .flatMap((s) => s.characters)
+          .map((c) => c.trim())
+          .filter(Boolean),
+      ),
+    ];
     const user = [
-      `【项目风格】${ctx.project.style || "未指定"}`,
-      `【画面比例】${ctx.project.aspectRatio}`,
+      `【风格说明】项目风格为「${ctx.project.style || "未指定"}」，但**不要把它或任何其他画风词写进 prompt**；风格由系统在展示/复制时自动附加。`,
+      `【参考图比例】角色四视图用正方形（1:1）横排四个角度；场景用横版（16:9）或正方形；道具用正方形。这些是给模型看的参考图，不要用成片视频的 ${ctx.project.aspectRatio} 竖版比例。`,
+      "",
+      `【必须覆盖的地点清单】共 ${locations.length} 个：每个地点都必须建一个场景资产，name 用该地点名，不得遗漏、不得合并：`,
+      locations.map((l) => `- ${l}`).join("\n"),
+      "",
+      `【必须覆盖的角色清单】共 ${characters.length} 个：每个角色都必须建一个角色资产（画外音/电话角色除外）：`,
+      characters.map((c) => `- ${c}`).join("\n"),
       "",
       "【结构化剧本】",
       scriptToText(ctx.script),
@@ -96,7 +81,7 @@ export const scriptToAssetsSkill: SkillDefinition<Input, AssetsDraft> = {
 
     return generateStructured({
       schema: assetsDraftSchema,
-      system: getActiveSkillPrompt("script-to-assets") ?? SYSTEM_PROMPT,
+      system: getActiveSkillPrompt("script-to-assets"),
       temperature: getActiveSkillTemperature("script-to-assets"),
       user,
     });

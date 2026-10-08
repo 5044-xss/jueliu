@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getStoredScript } from "@/lib/script";
 import { getProjectDb } from "@/lib/db";
+import { clearAssets } from "@/lib/assets";
+import { clearStoryboard } from "@/lib/storyboard";
 import { projectExists } from "@/lib/projects";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -19,5 +21,8 @@ export async function DELETE(_request: Request, { params }: Ctx) {
     return NextResponse.json({ error: "项目不存在" }, { status: 404 });
   }
   getProjectDb(id).prepare("DELETE FROM script WHERE project_id = ?").run(id);
+  // 失效级联：剧本清空 → 下游资产、分镜一并清空。
+  clearAssets(id);
+  clearStoryboard(id);
   return NextResponse.json({ ok: true });
 }

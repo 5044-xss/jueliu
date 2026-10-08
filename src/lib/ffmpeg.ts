@@ -44,19 +44,13 @@ export async function extractFrame(
   output: string,
   kind: "first" | "last",
 ): Promise<void> {
-  const seekArgs =
-    kind === "last" ? ["-sseof", "-0.1"] : [];
-  const { code, stderr } = await runFfmpeg(binPath, [
-    "-y",
-    ...seekArgs,
-    "-i",
-    input,
-    "-frames:v",
-    "1",
-    "-q:v",
-    "2",
-    output,
-  ]);
+  // 尾帧：从结尾前 0.5s 的窗口里用 thumbnail 取「最具代表性」的一帧，
+  // 避免直接取最后一帧时截到黑帧、淡出帧或下一镜的画面。
+  const args =
+    kind === "last"
+      ? ["-y", "-sseof", "-0.5", "-i", input, "-vf", "thumbnail", "-frames:v", "1", "-q:v", "2", output]
+      : ["-y", "-i", input, "-frames:v", "1", "-q:v", "2", output];
+  const { code, stderr } = await runFfmpeg(binPath, args);
   if (code !== 0) {
     throw new Error(`ffmpeg 截帧失败：${stderr.split("\n").slice(-3).join(" ")}`);
   }

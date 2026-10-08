@@ -15,7 +15,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" className="h-full">
       <body className="min-h-full flex flex-col bg-background text-foreground antialiased">
-        <header className="border-b">
+        <header className="sticky top-0 z-50 border-b bg-background">
           <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4">
             <Link href="/" className="flex items-center gap-2 font-semibold">
               <Clapperboard className="size-5" />

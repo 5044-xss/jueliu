@@ -33,11 +33,15 @@ export type AssetsDraft = z.infer<typeof assetsDraftSchema>;
 export interface StoredView extends AssetViewDraft {
   id: string;
   imagePath: string | null;
+  originalLabel: string | null;
+  originalPrompt: string | null;
 }
 
 export interface StoredVariant extends Omit<AssetVariantDraft, "views"> {
   id: string;
   views: StoredView[];
+  originalLabel: string | null;
+  originalPrompt: string | null;
 }
 
 export interface StoredAsset {
@@ -46,4 +50,6 @@ export interface StoredAsset {
   name: string;
   basePrompt: string;
   variants: StoredVariant[];
+  originalName: string | null;
+  originalBasePrompt: string | null;
 }

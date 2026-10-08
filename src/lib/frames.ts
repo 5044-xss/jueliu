@@ -4,6 +4,7 @@ import { getProjectDb, newId, nowIso } from "@/lib/db";
 import { getFramePath } from "@/lib/paths";
 import { extractFrame } from "@/lib/ffmpeg";
 import { readGlobalSettings } from "@/lib/settings";
+import { getStoryboard } from "@/lib/storyboard";
 
 export interface StoredFrame {
   id: string;
@@ -157,4 +158,75 @@ export function confirmFrame(
     confirmed ? 1 : 0,
     frameId,
   );
+}
+
+export interface AnchorNextResult {
+  anchored: boolean;
+  reason?: string;
+  frameId?: string;
+}
+
+// 回传某段视频后，自动把它的尾帧设为「同场下一段（连续段）」的首帧。
+// 硬切段、场次最后一段不做锚定。
+export async function anchorNextSegment(
+  projectId: string,
+  segmentId: string,
+): Promise<AnchorNextResult> {
+  const scenes = getStoryboard(projectId);
+  for (const scene of scenes) {
+    const index = scene.segments.findIndex((s) => s.id === segmentId);
+    if (index < 0) continue;
+    const next = scene.segments[index + 1];
+    if (!next) return { anchored: false, reason: "本段是场次最后一段" };
+    if (next.hardCut) return { anchored: false, reason: "下一段为硬切，无需首帧" };
+    try {
+      const frame = await extractAndSaveFrame(projectId, segmentId, "last");
+      setSegmentFirstFrame(projectId, next.id, frame.id);
+      return { anchored: true, frameId: frame.id };
+    } catch (error) {
+      return { anchored: false, reason: (error as Error).message };
+    }
+  }
+  return { anchored: false, reason: "段不存在" };
+}
+
+export interface AutoAnchorResult {
+  anchored: number;
+  skipped: number;
+  errors: string[];
+}
+
+// 逐场把「上一段尾帧」自动设为「下一段首帧」；不跨场（场次切换是硬切）
+export async function autoAnchorSegments(
+  projectId: string,
+): Promise<AutoAnchorResult> {
+  const scenes = getStoryboard(projectId);
+  const result: AutoAnchorResult = { anchored: 0, skipped: 0, errors: [] };
+
+  for (const scene of scenes) {
+    const segments = scene.segments;
+    for (let i = 0; i < segments.length - 1; i += 1) {
+      const current = segments[i];
+      const next = segments[i + 1];
+      if (next.hardCut) {
+        result.skipped += 1;
+        continue;
+      }
+      if (!current.videoPath) {
+        result.skipped += 1;
+        continue;
+      }
+      try {
+        const frame = await extractAndSaveFrame(projectId, current.id, "last");
+        setSegmentFirstFrame(projectId, next.id, frame.id);
+        result.anchored += 1;
+      } catch (error) {
+        result.errors.push(
+          `第${scene.sceneIndex}场 第${current.index}段：${(error as Error).message}`,
+        );
+      }
+    }
+  }
+
+  return result;
 }

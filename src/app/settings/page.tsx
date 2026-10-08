@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, Loader2, RefreshCw, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, RefreshCw, XCircle, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,6 +30,10 @@ export default function SettingsPage() {
   const [ffmpeg, setFfmpeg] = useState<FfmpegStatus | null>(null);
   const [saving, setSaving] = useState(false);
   const [detecting, setDetecting] = useState(false);
+  const [testingLlm, setTestingLlm] = useState(false);
+  const [llmTest, setLlmTest] = useState<{ ok: boolean; message: string } | null>(
+    null,
+  );
 
   useEffect(() => {
     fetch("/api/settings")
@@ -97,6 +101,40 @@ export default function SettingsPage() {
       toast.error("保存失败");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function testLlm() {
+    if (!settings) return;
+    setTestingLlm(true);
+    setLlmTest(null);
+    try {
+      const res = await fetch("/api/settings/llm-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          baseURL: settings.llm.baseURL,
+          model: settings.llm.model,
+          temperature: settings.llm.temperature,
+          ...(apiKeyTouched ? { apiKey: apiKeyInput } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "连接失败");
+      }
+      setLlmTest({
+        ok: true,
+        message: `连接成功 · ${data.model} · ${data.latencyMs}ms${
+          data.reply ? ` · 返回「${data.reply}」` : ""
+        }`,
+      });
+      toast.success("LLM 连接成功");
+    } catch (error) {
+      setLlmTest({ ok: false, message: (error as Error).message });
+      toast.error("LLM 连接失败");
+    } finally {
+      setTestingLlm(false);
     }
   }
 
@@ -216,6 +254,37 @@ export default function SettingsPage() {
                 }
               />
             </div>
+          </div>
+
+          <Separator />
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={testLlm}
+              disabled={testingLlm}
+            >
+              {testingLlm ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Zap className="size-4" />
+              )}
+              测试连接
+            </Button>
+            {llmTest && (
+              <span
+                className={`flex items-center gap-1.5 text-sm ${
+                  llmTest.ok ? "text-emerald-600" : "text-destructive"
+                }`}
+              >
+                {llmTest.ok ? (
+                  <CheckCircle2 className="size-4" />
+                ) : (
+                  <XCircle className="size-4" />
+                )}
+                {llmTest.message}
+              </span>
+            )}
           </div>
         </CardContent>
       </Card>

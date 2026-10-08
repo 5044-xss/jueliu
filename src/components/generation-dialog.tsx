@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Pencil, RefreshCw, Save } from "lucide-react";
+import { Loader2, Pencil, RefreshCw, Save, Wand2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -37,12 +37,14 @@ export function GenerationDialog({
   segmentLabel,
   open,
   onOpenChange,
+  onStale,
 }: {
   projectId: string;
   segmentId: string;
   segmentLabel: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onStale?: () => void;
 }) {
   const [platform, setPlatform] = useState<string>(DEFAULT_PLATFORM);
   const [platformTabs, setPlatformTabs] = useState<string[]>([
@@ -54,12 +56,15 @@ export function GenerationDialog({
   const [template, setTemplate] = useState<TemplateInfo | null>(null);
   const [draftBody, setDraftBody] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [aiText, setAiText] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
+      setAiText("");
       try {
         const [renderRes, tplRes] = await Promise.all([
           fetch("/api/render/platform", {
@@ -71,7 +76,14 @@ export function GenerationDialog({
         ]);
         const data = await renderRes.json();
         if (cancelled) return;
-        if (!renderRes.ok) throw new Error(data.error || "渲染失败");
+        if (!renderRes.ok) {
+          if (renderRes.status === 404 || data?.error === "段落不存在") {
+            throw new Error(
+              "该段落已失效（分镜可能已重新生成），请关闭弹窗后刷新页面",
+            );
+          }
+          throw new Error(data?.error || "渲染失败");
+        }
         setRendered(data);
         const templates = (tplRes.templates ?? []) as TemplateInfo[];
         setPlatformTabs(
@@ -81,7 +93,13 @@ export function GenerationDialog({
         setTemplate(found ?? null);
         setDraftBody(found?.bodyTemplate ?? "");
       } catch (error) {
-        if (!cancelled) toast.error((error as Error).message);
+        if (cancelled) return;
+        const message = (error as Error).message;
+        toast.error(message);
+        if (message.includes("已失效")) {
+          onStale?.();
+          onOpenChange(false);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -89,6 +107,8 @@ export function GenerationDialog({
     return () => {
       cancelled = true;
     };
+    // onStale/onOpenChange 故意不入依赖：父级每次渲染会重建回调，入依赖会导致重复请求。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, platform, projectId, segmentId, refreshKey]);
 
   async function saveTemplate() {
@@ -126,9 +146,32 @@ export function GenerationDialog({
       ].join("\n")
     : "";
 
+  async function generateAiPrompt() {
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/skills/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          skillId: "storyboard-to-ai-prompt",
+          projectId,
+          input: { segmentId, platform },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "生成失败");
+      setAiText(String(data.result ?? ""));
+      toast.success("AI 提示词已生成");
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden">
+      <DialogContent className="flex max-h-[90vh] w-full flex-col overflow-hidden sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>第三方生成 · {segmentLabel}</DialogTitle>
           <DialogDescription>
@@ -249,6 +292,38 @@ export function GenerationDialog({
                 <pre className="whitespace-pre-wrap rounded-lg border bg-muted/30 p-3 text-xs leading-6">
                   {rendered.params}
                 </pre>
+              </section>
+
+              <Separator />
+
+              <section className="flex flex-col gap-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="text-sm font-medium">AI 可执行提示词</h4>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={generateAiPrompt}
+                    disabled={aiLoading}
+                  >
+                    {aiLoading ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Wand2 className="size-3.5" />
+                    )}
+                    {aiText ? "重新生成" : "生成 AI 提示词"}
+                  </Button>
+                  {aiText && <CopyButton text={aiText} label="复制 AI 提示词" />}
+                </div>
+                {aiText ? (
+                  <pre className="whitespace-pre-wrap rounded-lg border bg-muted/30 p-3 text-xs leading-6">
+                    {aiText}
+                  </pre>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    按「分镜 → AI 提示词」技能把上面的提示词编译成 AI 可执行版；可在「资源库 →
+                    技能」里调整该技能的提示词。
+                  </p>
+                )}
               </section>
             </div>
           ) : null}

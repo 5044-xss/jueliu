@@ -18,7 +18,8 @@ export interface GenerateStructuredOptions<T> {
 function buildOutputContract(schema: ZodType): string {
   let jsonSchema = "";
   try {
-    jsonSchema = JSON.stringify(z.toJSONSchema(schema), null, 2);
+    // 紧凑输出（不缩进）：schema 文本越短，输入 token 越少、首字越快。
+    jsonSchema = JSON.stringify(z.toJSONSchema(schema));
   } catch {
     jsonSchema = "（无法导出 schema）";
   }
@@ -48,8 +49,9 @@ async function complete(
   user: string,
   temperature: number,
   jsonMode: boolean,
+  extraBody?: Record<string, unknown>,
 ): Promise<string> {
-  const response = await client.chat.completions.create({
+  const body = {
     model,
     temperature,
     messages: [
@@ -59,8 +61,35 @@ async function complete(
     ...(jsonMode
       ? { response_format: { type: "json_object" as const } }
       : {}),
-  });
+    ...(extraBody ?? {}),
+  } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming;
+  const response = await client.chat.completions.create(body);
   return response.choices[0]?.message?.content ?? "";
+}
+
+// 阿里百炼的 qwen3 系列默认开启「思考」，结构化输出场景下会白白多花几十秒。
+// 这里对 dashscope + qwen3 显式关闭思考；若供应商不认这个参数，会回退重试。
+function thinkingExtraBody(
+  llm: { baseURL: string; model: string },
+): Record<string, unknown> | undefined {
+  const isDashscope = llm.baseURL.includes("dashscope");
+  const isQwen3 = /qwen3/i.test(llm.model);
+  return isDashscope && isQwen3 ? { enable_thinking: false } : undefined;
+}
+
+function isThinkingParamError(error: unknown): boolean {
+  const message = (error as Error)?.message ?? "";
+  return /enable_thinking|thinking|unknown parameter|invalid parameter/i.test(
+    message,
+  );
+}
+
+// 超时不重试：供应商卡住时重试只会把等待时间成倍拉长，直接失败并给出明确提示。
+function isTimeoutError(error: unknown): boolean {
+  const err = error as { name?: string; message?: string };
+  return /timeout|timed out|ETIMEDOUT|APIConnectionTimeout/i.test(
+    `${err?.name ?? ""} ${err?.message ?? ""}`,
+  );
 }
 
 export async function generateStructured<T>({
@@ -68,7 +97,7 @@ export async function generateStructured<T>({
   system,
   user,
   temperature,
-  maxRetries = 2,
+  maxRetries = 1,
 }: GenerateStructuredOptions<T>): Promise<T> {
   const settings = readGlobalSettings();
   const client = createLlmClient(settings.llm);
@@ -78,6 +107,8 @@ export async function generateStructured<T>({
 
   let lastError = "";
   let jsonMode = true;
+  let extraBody = thinkingExtraBody(settings.llm);
+  let thinkingFallbackUsed = false;
 
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     const feedback = lastError
@@ -92,8 +123,21 @@ export async function generateStructured<T>({
         user + feedback,
         temp,
         jsonMode,
+        extraBody,
       );
     } catch (error) {
+      // 供应商不认 enable_thinking 时，去掉该参数再试一次。
+      if (extraBody && !thinkingFallbackUsed && isThinkingParamError(error)) {
+        extraBody = undefined;
+        thinkingFallbackUsed = true;
+        lastError = `接口调用失败：${(error as Error).message}`;
+        continue;
+      }
+      if (isTimeoutError(error)) {
+        lastError =
+          "LLM 请求超时（长时间无响应）。请检查网络/供应商状态，或在设置页换更快的模型。";
+        break;
+      }
       if (jsonMode) {
         jsonMode = false;
         lastError = `接口调用失败：${(error as Error).message}`;
@@ -117,4 +161,61 @@ export async function generateStructured<T>({
   }
 
   throw new Error(`LLM 结构化输出失败：${lastError}`);
+}
+
+export interface GenerateTextOptions {
+  system: string;
+  user: string;
+  temperature?: number;
+  maxRetries?: number;
+}
+
+// 纯文本生成：不附加 JSON 契约，直接把模型返回的文本作为结果。
+// 用于「分镜 → AI 提示词」这类输出整段格式化文本、不需要结构化解析的场景。
+export async function generateText({
+  system,
+  user,
+  temperature,
+  maxRetries = 1,
+}: GenerateTextOptions): Promise<string> {
+  const settings = readGlobalSettings();
+  const client = createLlmClient(settings.llm);
+  const model = settings.llm.model;
+  const temp = temperature ?? settings.llm.temperature;
+
+  let lastError = "";
+  let extraBody = thinkingExtraBody(settings.llm);
+  let thinkingFallbackUsed = false;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      const raw = await complete(
+        client,
+        model,
+        system,
+        user,
+        temp,
+        false,
+        extraBody,
+      );
+      const text = raw.trim();
+      if (text) return text;
+      lastError = "模型返回了空内容";
+    } catch (error) {
+      if (extraBody && !thinkingFallbackUsed && isThinkingParamError(error)) {
+        extraBody = undefined;
+        thinkingFallbackUsed = true;
+        lastError = `接口调用失败：${(error as Error).message}`;
+        continue;
+      }
+      if (isTimeoutError(error)) {
+        lastError =
+          "LLM 请求超时（长时间无响应）。请检查网络/供应商状态，或在设置页换更快的模型。";
+        break;
+      }
+      lastError = (error as Error).message;
+    }
+  }
+
+  throw new Error(`LLM 生成失败：${lastError}`);
 }

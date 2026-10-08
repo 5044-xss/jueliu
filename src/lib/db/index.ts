@@ -6,12 +6,33 @@ import { SCHEMA_SQL, SCHEMA_VERSION } from "@/lib/db/schema";
 
 type Db = Database.Database;
 
+// 每次新增/修改迁移语句时递增；用于让已缓存的连接在下次访问时重新执行 migrate，
+// 避免必须重启 dev 服务才能应用新列。
+const MIGRATION_SIGNATURE = "3";
+
 const globalForDb = globalThis as unknown as {
   __mangaDbCache?: Map<string, Db>;
+  __mangaDbMigrated?: Map<string, string>;
 };
 
 const cache: Map<string, Db> = globalForDb.__mangaDbCache ?? new Map();
 globalForDb.__mangaDbCache = cache;
+const migrated: Map<string, string> = globalForDb.__mangaDbMigrated ?? new Map();
+globalForDb.__mangaDbMigrated = migrated;
+
+function addColumnIfMissing(
+  db: Db,
+  table: string,
+  column: string,
+  ddl: string,
+): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as {
+    name: string;
+  }[];
+  if (!columns.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+  }
+}
 
 function migrate(db: Db): void {
   db.exec(SCHEMA_SQL);
@@ -21,6 +42,80 @@ function migrate(db: Db): void {
   if (!columns.some((c) => c.name === "style_id")) {
     db.exec("ALTER TABLE project ADD COLUMN style_id TEXT");
   }
+  addColumnIfMissing(db, "asset", "original_name", "original_name TEXT");
+  addColumnIfMissing(
+    db,
+    "asset",
+    "original_base_prompt",
+    "original_base_prompt TEXT",
+  );
+  addColumnIfMissing(db, "variant", "original_label", "original_label TEXT");
+  addColumnIfMissing(
+    db,
+    "variant",
+    "original_prompt",
+    "original_prompt TEXT",
+  );
+  addColumnIfMissing(db, "view", "original_label", "original_label TEXT");
+  addColumnIfMissing(db, "view", "original_prompt", "original_prompt TEXT");
+  addColumnIfMissing(
+    db,
+    "segment",
+    "hard_cut",
+    "hard_cut INTEGER NOT NULL DEFAULT 0",
+  );
+  addColumnIfMissing(db, "shot", "original_json", "original_json TEXT");
+  addColumnIfMissing(
+    db,
+    "shot",
+    "subject_node_ids_json",
+    "subject_node_ids_json TEXT NOT NULL DEFAULT '[]'",
+  );
+  addColumnIfMissing(
+    db,
+    "shot",
+    "dialogue_json",
+    "dialogue_json TEXT NOT NULL DEFAULT '[]'",
+  );
+  // 旧数据迁移：把纯文本台词转成 [{character:"",text}]，迁移后清空旧列避免重复回填。
+  const legacyDialogue = db
+    .prepare(
+      `SELECT id, dialogue FROM shot
+       WHERE (dialogue_json IS NULL OR dialogue_json = '' OR dialogue_json = '[]')
+         AND dialogue IS NOT NULL AND trim(dialogue) <> ''`,
+    )
+    .all() as { id: string; dialogue: string }[];
+  if (legacyDialogue.length > 0) {
+    const backfill = db.prepare(
+      "UPDATE shot SET dialogue_json = ?, dialogue = '' WHERE id = ?",
+    );
+    for (const row of legacyDialogue) {
+      backfill.run(
+        JSON.stringify([{ character: "", text: row.dialogue }]),
+        row.id,
+      );
+    }
+  }
+  addColumnIfMissing(
+    db,
+    "composition",
+    "transition",
+    "transition TEXT NOT NULL DEFAULT 'fade'",
+  );
+  addColumnIfMissing(
+    db,
+    "composition",
+    "transition_ms",
+    "transition_ms INTEGER NOT NULL DEFAULT 500",
+  );
+  addColumnIfMissing(
+    db,
+    "composition",
+    "status",
+    "status TEXT NOT NULL DEFAULT 'ready'",
+  );
+  addColumnIfMissing(db, "composition", "error", "error TEXT");
+  addColumnIfMissing(db, "composition", "duration_ms", "duration_ms INTEGER");
   const current = db
     .prepare("SELECT value FROM meta WHERE key = 'schema_version'")
     .get() as { value: string } | undefined;
@@ -33,12 +128,19 @@ function migrate(db: Db): void {
 
 export function getProjectDb(projectId: string): Db {
   const cached = cache.get(projectId);
-  if (cached) return cached;
+  if (cached) {
+    if (migrated.get(projectId) !== MIGRATION_SIGNATURE) {
+      migrate(cached);
+      migrated.set(projectId, MIGRATION_SIGNATURE);
+    }
+    return cached;
+  }
 
   ensureProjectDirs(projectId);
   const dbPath = getProjectDbPath(projectId);
   const db = new Database(dbPath);
   migrate(db);
+  migrated.set(projectId, MIGRATION_SIGNATURE);
   cache.set(projectId, db);
   return db;
 }
@@ -48,6 +150,7 @@ export function closeProjectDb(projectId: string): void {
   if (db) {
     db.close();
     cache.delete(projectId);
+    migrated.delete(projectId);
   }
 }
 
