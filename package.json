@@ -2,12 +2,18 @@
   "name": "ai-manga-workbench",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "icon": "node scripts/gen-icon.mjs",
+    "ffmpeg:fetch": "node scripts/fetch-ffmpeg.mjs",
+    "electron": "electron .",
+    "electron:dev": "concurrently -k -n next,electron \"next dev -p 3000\" \"wait-on http-get://127.0.0.1:3000 && electron .\"",
+    "dist": "node scripts/build-desktop.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -26,14 +32,21 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.2.1",
     "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^10.0.5",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "png-to-ico": "^3.0.2",
+    "sharp": "^0.35.5",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wait-on": "^9.5.1"
   }
 }

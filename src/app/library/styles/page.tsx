@@ -181,8 +181,8 @@ export default function StylesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-lime p-5">
+        <p className="text-sm">
           新建项目时可从此处选择风格。点击卡片查看或编辑提示词。
         </p>
         <Button onClick={create} disabled={creating}>

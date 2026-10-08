@@ -16,8 +16,10 @@ export type SettingsPatch = {
 export * from "@/lib/settings-shared";
 
 function envDefaults(): GlobalSettings {
-  const envKey = process.env.DASHSCOPE_API_KEY ?? process.env.dashscope ?? "";
-  const envModel = process.env.MODENAME ?? process.env.modename ?? "";
+  // 打包版（JUMAN_BUNDLED=1）不读取宿主机环境变量，密钥一律由买家在设置页填写。
+  const useEnv = process.env.JUMAN_BUNDLED !== "1";
+  const envKey = useEnv ? process.env.DASHSCOPE_API_KEY ?? process.env.dashscope ?? "" : "";
+  const envModel = useEnv ? process.env.MODENAME ?? process.env.modename ?? "" : "";
   return {
     llm: {
       provider: "dashscope",
@@ -26,7 +28,7 @@ function envDefaults(): GlobalSettings {
       model: envModel || PROVIDER_PRESETS.dashscope.defaultModel,
       temperature: 0.7,
     },
-    ffmpeg: { path: "ffmpeg" },
+    ffmpeg: { path: process.env.FFMPEG_PATH || "ffmpeg" },
   };
 }
 

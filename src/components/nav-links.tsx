@@ -1,0 +1,54 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Clapperboard, HelpCircle, Library, Settings } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const ITEMS = [
+  { href: "/", label: "项目", icon: Clapperboard, match: (p: string) => p === "/" },
+  {
+    href: "/library/styles",
+    label: "资源库",
+    icon: Library,
+    match: (p: string) => p.startsWith("/library"),
+  },
+  {
+    href: "/help",
+    label: "使用须知",
+    icon: HelpCircle,
+    match: (p: string) => p.startsWith("/help"),
+  },
+  {
+    href: "/settings",
+    label: "设置",
+    icon: Settings,
+    match: (p: string) => p.startsWith("/settings"),
+  },
+];
+
+export function NavLinks() {
+  const pathname = usePathname();
+  return (
+    <nav className="flex items-center gap-1 text-sm">
+      {ITEMS.map((item) => {
+        const active = item.match(pathname);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full px-3 py-1.5 font-medium transition-colors",
+              active
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground",
+            )}
+          >
+            <item.icon className="size-4" />
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}

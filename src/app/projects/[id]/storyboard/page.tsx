@@ -373,7 +373,7 @@ export default function StoryboardPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl bg-block-mint p-5">
         <div>
           <h2 className="text-base font-medium">分镜</h2>
           <p className="text-sm text-muted-foreground">

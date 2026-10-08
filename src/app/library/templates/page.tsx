@@ -254,26 +254,24 @@ export default function TemplatesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          「默认（通用）」始终可用；为豆包/即梦等厂商各配一套模板。点击卡片查看或编辑。
-        </p>
-        <div className="flex items-center gap-2">
-          <Input
-            value={newVendor}
-            onChange={(e) => setNewVendor(e.target.value)}
-            placeholder="厂商名称，如 doubao"
-            className="h-8 w-44"
-          />
-          <Button onClick={create} disabled={creating}>
-            {creating ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Plus className="size-4" />
-            )}
-            新增厂商模板
-          </Button>
-        </div>
+      <div className="rounded-2xl bg-block-lime p-4 text-sm leading-relaxed">
+        「默认（通用）」始终可用；为豆包/即梦等厂商各配一套模板。点击卡片查看或编辑。
+      </div>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Input
+          value={newVendor}
+          onChange={(e) => setNewVendor(e.target.value)}
+          placeholder="厂商名称，如 doubao"
+          className="h-8 w-44"
+        />
+        <Button onClick={create} disabled={creating}>
+          {creating ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Plus className="size-4" />
+          )}
+          新增厂商模板
+        </Button>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {ordered.map((template) => (

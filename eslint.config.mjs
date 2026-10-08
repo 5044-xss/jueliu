@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Electron 主进程为 CommonJS，不适用 TS 的 import 规则
+    "electron/**",
+    "release/**",
+    "build-resources/**",
+    "resources/**",
+    "keys/**",
   ]),
 ]);
 

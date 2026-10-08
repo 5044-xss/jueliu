@@ -42,3 +42,15 @@ next-env.d.ts
 
 # local workspace (projects, media, settings)
 /workspace
+
+# electron-builder output
+/release
+
+# license signing keys (NEVER commit private key)
+/keys
+license-private*.pem
+license-private*.json
+
+# bundled ffmpeg (fetched by scripts/fetch-ffmpeg.mjs, not committed)
+/resources/ffmpeg
+# electron binary downloaded by scripts/fetch-electron.mjs lives in node_modules

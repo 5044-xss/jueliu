@@ -53,7 +53,7 @@ export default function StoryPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-lilac p-5">
         <div>
           <h2 className="text-base font-medium">故事</h2>
           <p className="text-sm text-muted-foreground">

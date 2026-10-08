@@ -232,7 +232,7 @@ export default function ComposePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl bg-block-pink p-5">
         <div>
           <h2 className="text-base font-medium">合成</h2>
           <p className="text-sm text-muted-foreground">

@@ -3,6 +3,7 @@ import { getProject } from "@/lib/projects";
 import { ProjectTabs } from "@/components/project-tabs";
 import { ProjectJobsBar } from "@/components/project-jobs-bar";
 import { ProjectStyleSwitcher } from "@/components/project-style-switcher";
+import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 
 export default async function ProjectLayout({
@@ -18,10 +19,12 @@ export default async function ProjectLayout({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">{project.name}</h1>
-          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+      <PageHeader
+        eyebrow="Project"
+        accent="coral"
+        title={project.name}
+        description={
+          <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{project.aspectRatio}</Badge>
             <ProjectStyleSwitcher
               projectId={id}
@@ -30,8 +33,8 @@ export default async function ProjectLayout({
             />
             <span>默认段时长 {(project.defaultSegmentMs / 1000).toFixed(1)}s</span>
           </div>
-        </div>
-      </div>
+        }
+      />
       {/* 顶部导航已固定，这里让标签与任务条一起吸顶，滚动时不跟着走。 */}
       <div className="sticky top-14 z-40 -mx-4 bg-background px-4 pt-3">
         <ProjectTabs projectId={id} />

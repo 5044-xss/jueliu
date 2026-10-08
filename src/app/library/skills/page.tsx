@@ -318,9 +318,9 @@ export default function SkillsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-sm text-muted-foreground">
+      <div className="rounded-2xl bg-block-lime p-5 text-sm leading-relaxed">
         每类能力可维护多个技能条目（不同提示词），选中「使用中」的那条会在生成时采用。输出结构由内置契约强制，不受提示词影响。
-      </p>
+      </div>
       {kinds.map((kind) => {
         const list = skills.filter((s) => s.kind === kind.kind);
         return (

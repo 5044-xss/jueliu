@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/page-header";
 import { ProjectFormDialog } from "@/components/project-form-dialog";
 import type { ProjectSummary } from "@/lib/projects";
 
@@ -220,23 +221,34 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">项目</h1>
-          <p className="text-sm text-muted-foreground">
-            一次创作对应一个项目，本地存储于 workspace/。
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={openCreateGroup}>
-            <FolderPlus className="size-4" />
-            新建分组
-          </Button>
-          <Button onClick={() => openCreate()}>
-            <Plus className="size-4" />
-            新建项目
-          </Button>
-        </div>
+      <PageHeader
+        eyebrow="Projects"
+        title="项目"
+        description="一次创作对应一个项目，本地存储于 workspace/。"
+        actions={
+          <>
+            <Button variant="outline" onClick={openCreateGroup}>
+              <FolderPlus className="size-4" />
+              新建分组
+            </Button>
+            <Button onClick={() => openCreate()}>
+              <Plus className="size-4" />
+              新建项目
+            </Button>
+          </>
+        }
+      />
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-lilac p-4">
+        <p className="text-sm">
+          工作流：配置 Key → 生成提示词 → 第三方出图出片 → 回本软件合成导出。
+        </p>
+        <Link
+          href="/help"
+          className="shrink-0 text-sm font-medium underline underline-offset-2"
+        >
+          查看使用须知
+        </Link>
       </div>
 
       {projects === null ? (

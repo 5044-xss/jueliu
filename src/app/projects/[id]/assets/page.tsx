@@ -585,7 +585,7 @@ export default function AssetsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl bg-block-cream p-5">
         <div>
           <h2 className="text-base font-medium">资产</h2>
           <p className="text-sm text-muted-foreground">
