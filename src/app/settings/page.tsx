@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Copy,
   Download,
+  ExternalLink,
   Loader2,
   RefreshCw,
   ShieldCheck,
@@ -30,6 +31,10 @@ import {
   type GlobalSettings,
   type LlmProvider,
 } from "@/lib/settings-shared";
+
+// 备用下载地址：GitHub 访问不稳定时，用户可手动到此文件夹下载安装包。
+const FALLBACK_DOWNLOAD_URL =
+  "https://my.feishu.cn/drive/folder/BTNnfef6blmndfd4pUtcYySWnSf?from=from_copylink";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<GlobalSettings | null>(null);
@@ -89,6 +94,16 @@ export default function SettingsPage() {
       toast.error("检查更新失败");
     } finally {
       setChecking(false);
+    }
+  }
+
+  function openDownload() {
+    if (window.licenseAPI) {
+      window.licenseAPI
+        .openExternal(FALLBACK_DOWNLOAD_URL)
+        .catch(() => undefined);
+    } else {
+      window.open(FALLBACK_DOWNLOAD_URL, "_blank", "noopener,noreferrer");
     }
   }
 
@@ -267,6 +282,15 @@ export default function SettingsPage() {
                 <RefreshCw className="size-4" />
               )}
               检查更新
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={openDownload}
+              title="GitHub 打不开时，可到下载地址手动下载安装包"
+            >
+              <ExternalLink className="size-4" />
+              下载地址
             </Button>
             {updateResult?.hasUpdate && updateResult.url && (
               <Button
