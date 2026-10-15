@@ -70,7 +70,10 @@ export function addLibraryAsset(input: {
   const fileName = `${id}${ext}`;
   const dir = imageDir(input.scope, input.seriesId);
   fs.mkdirSync(dir, { recursive: true });
-  fs.copyFileSync(input.sourceImagePath, path.join(dir, fileName));
+  fs.copyFileSync(
+    input.sourceImagePath,
+    path.join(/* turbopackIgnore: true */ dir, fileName),
+  );
   const item: LibraryAssetItem = {
     id,
     scope: input.scope,

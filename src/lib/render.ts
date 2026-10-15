@@ -63,7 +63,7 @@ export function buildManifest(
   if (segment.firstFrameId) {
     const framePath = getFramePath(projectId, segment.firstFrameId);
     // 帧行可能已随段落/视频被删除：只有图片真实存在时才作为「本段起始画面」。
-    if (framePath && fs.existsSync(framePath)) {
+    if (framePath && fs.existsSync(/* turbopackIgnore: true */ framePath)) {
       manifest.push({
         slot,
         role: "start",

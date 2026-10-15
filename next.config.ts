@@ -16,6 +16,9 @@ const nextConfig: NextConfig = {
       "./.env.*",
       "./resources/**/*",
       "./release/**/*",
+      "./release.zip",
+      "./rb.log",
+      "./docs/**/*",
     ],
   },
 };

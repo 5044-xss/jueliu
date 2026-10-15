@@ -32,7 +32,7 @@ export function getProjectDir(projectId: string): string {
   const root = getWorkspaceRoot();
   const dir = path.join(/* turbopackIgnore: true */ root, projectId);
   const resolved = path.resolve(dir);
-  const resolvedRoot = path.resolve(root);
+  const resolvedRoot = path.resolve(/* turbopackIgnore: true */ root);
   if (
     resolved !== resolvedRoot &&
     !resolved.startsWith(resolvedRoot + path.sep)
