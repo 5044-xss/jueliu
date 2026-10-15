@@ -17,8 +17,29 @@ export function getProjectsRegistryPath(): string {
   return path.join(getWorkspaceRoot(), "projects.json");
 }
 
+// 只允许项目/系列 id 使用字母数字、下划线、连字符（UUID 满足）。
+// 拒绝分隔符、点、`..`，避免拼接出的路径逃出工作区。
+const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+export function isSafeId(id: unknown): id is string {
+  return typeof id === "string" && SAFE_ID.test(id);
+}
+
 export function getProjectDir(projectId: string): string {
-  return path.join(/* turbopackIgnore: true */ getWorkspaceRoot(), projectId);
+  if (!isSafeId(projectId)) {
+    throw new Error("非法的项目 id");
+  }
+  const root = getWorkspaceRoot();
+  const dir = path.join(/* turbopackIgnore: true */ root, projectId);
+  const resolved = path.resolve(dir);
+  const resolvedRoot = path.resolve(root);
+  if (
+    resolved !== resolvedRoot &&
+    !resolved.startsWith(resolvedRoot + path.sep)
+  ) {
+    throw new Error("非法的项目路径");
+  }
+  return dir;
 }
 
 export function getProjectDbPath(projectId: string): string {
@@ -59,13 +80,16 @@ export function getAssetViewPath(
 
 export function getFramePath(
   projectId: string,
+  vendor: string,
   segmentId: string,
-  kind: "first" | "last",
+  kind: "first" | "last" | "start",
   ext = "png",
 ): string {
+  const v = isSafeId(vendor) ? vendor : "custom";
   return path.join(
     /* turbopackIgnore: true */ getProjectMediaDir(projectId),
     "frames",
+    v,
     segmentId,
     `${kind}.${ext}`,
   );
@@ -73,12 +97,15 @@ export function getFramePath(
 
 export function getSegmentVideoPath(
   projectId: string,
+  vendor: string,
   segmentId: string,
   ext = "mp4",
 ): string {
+  const v = isSafeId(vendor) ? vendor : "custom";
   return path.join(
     /* turbopackIgnore: true */ getProjectMediaDir(projectId),
     "videos",
+    v,
     segmentId,
     `output.${ext}`,
   );

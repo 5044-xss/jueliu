@@ -20,9 +20,11 @@ export function Elapsed({
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
+    // 没有任务时不启动计时器；setState 只在定时器回调里调用。
+    if (!startedAt) return;
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [startedAt]);
 
   if (!startedAt) return null;
   const seconds = (now - new Date(startedAt).getTime()) / 1000;

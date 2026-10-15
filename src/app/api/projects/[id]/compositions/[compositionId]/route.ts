@@ -21,6 +21,9 @@ export async function DELETE(_request: Request, { params }: Ctx) {
   if (!projectExists(id)) {
     return NextResponse.json({ error: "项目不存在" }, { status: 404 });
   }
+  if (!getComposition(id, compositionId)) {
+    return NextResponse.json({ error: "合成记录不存在" }, { status: 404 });
+  }
   deleteComposition(id, compositionId);
   return NextResponse.json({ ok: true });
 }

@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   CheckCircle2,
-  ChevronDown,
-  ChevronRight,
   Copy,
   Download,
   Loader2,
@@ -25,12 +23,10 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   PROVIDER_OPTIONS,
   PROVIDER_PRESETS,
-  type FfmpegStatus,
   type GlobalSettings,
   type LlmProvider,
 } from "@/lib/settings-shared";
@@ -39,9 +35,7 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<GlobalSettings | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [apiKeyTouched, setApiKeyTouched] = useState(false);
-  const [ffmpeg, setFfmpeg] = useState<FfmpegStatus | null>(null);
   const [saving, setSaving] = useState(false);
-  const [detecting, setDetecting] = useState(false);
   const [testingLlm, setTestingLlm] = useState(false);
   const [llmTest, setLlmTest] = useState<{ ok: boolean; message: string } | null>(
     null,
@@ -50,7 +44,6 @@ export default function SettingsPage() {
     null,
   );
   const [appVersion, setAppVersion] = useState("");
-  const [ffmpegAdvanced, setFfmpegAdvanced] = useState(false);
   const [checking, setChecking] = useState(false);
   const [updateResult, setUpdateResult] = useState<CheckUpdateResult | null>(null);
   const isDesktop = typeof window !== "undefined" && !!window.licenseAPI;
@@ -60,7 +53,6 @@ export default function SettingsPage() {
       .then((r) => r.json())
       .then((data) => {
         setSettings(data.settings);
-        setFfmpeg(data.ffmpeg);
       })
       .catch(() => toast.error("读取设置失败"));
   }, []);
@@ -143,7 +135,7 @@ export default function SettingsPage() {
           temperature: settings.llm.temperature,
           ...(apiKeyTouched ? { apiKey: apiKeyInput } : {}),
         },
-        ffmpeg: { path: settings.ffmpeg.path },
+        autoGenerateAiPrompt: settings.autoGenerateAiPrompt,
       };
       const res = await fetch("/api/settings", {
         method: "PUT",
@@ -153,7 +145,6 @@ export default function SettingsPage() {
       if (!res.ok) throw new Error("保存失败");
       const data = await res.json();
       setSettings(data.settings);
-      setFfmpeg(data.ffmpeg);
       setApiKeyTouched(false);
       setApiKeyInput("");
       toast.success("设置已保存");
@@ -198,26 +189,6 @@ export default function SettingsPage() {
     }
   }
 
-  async function detect() {
-    if (!settings) return;
-    setDetecting(true);
-    try {
-      const res = await fetch("/api/system/ffmpeg", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: settings.ffmpeg.path }),
-      });
-      const status = (await res.json()) as FfmpegStatus;
-      setFfmpeg(status);
-      if (status.available) toast.success(`检测成功：ffmpeg ${status.version}`);
-      else toast.error("未检测到 ffmpeg");
-    } catch {
-      toast.error("检测失败");
-    } finally {
-      setDetecting(false);
-    }
-  }
-
   if (!settings) {
     return (
       <div className="flex items-center gap-2 text-muted-foreground">
@@ -227,16 +198,16 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 pb-6">
       <PageHeader
         eyebrow="Settings"
         accent="mint"
         title="设置"
-        description="配置 LLM 供应商与本地 ffmpeg。配置保存在 workspace/settings.json。"
+        description="配置 LLM 供应商。配置保存在 workspace/settings.json。"
       />
 
       <div className="rounded-2xl bg-block-cream p-4 text-sm leading-relaxed">
-        模型 API Key 由你自备、按量自费；ffmpeg 已随软件内置，通常无需配置。
+        模型 API Key 由你自备、按量自费。
       </div>
 
       <Card>
@@ -313,7 +284,7 @@ export default function SettingsPage() {
               </span>
             )}
             {updateResult && !updateResult.ok && (
-              <span className="flex items-center gap-1.5 text-sm text-destructive">
+              <span className="flex items-center gap-1.5 text-sm text-amber-600">
                 <XCircle className="size-4" />
                 {updateResult.error}
               </span>
@@ -415,6 +386,22 @@ export default function SettingsPage() {
           </div>
 
           <Separator />
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={settings.autoGenerateAiPrompt}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  autoGenerateAiPrompt: e.target.checked,
+                })
+              }
+              className="size-4 accent-primary"
+            />
+            打开「第三方生成」时自动生成 AI 翻译提示词
+          </label>
+
+          <Separator />
           <div className="flex flex-wrap items-center gap-3">
             <Button
               type="button"
@@ -444,89 +431,6 @@ export default function SettingsPage() {
               </span>
             )}
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>ffmpeg</CardTitle>
-          <CardDescription>
-            用于截取尾帧与合成视频。软件已内置，通常无需修改。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="flex items-center gap-2 text-sm">
-            {ffmpeg?.available ? (
-              <>
-                <CheckCircle2 className="size-4 text-emerald-500" />
-                <span>可用</span>
-                <Badge variant="secondary">v{ffmpeg.version}</Badge>
-              </>
-            ) : (
-              <>
-                <XCircle className="size-4 text-destructive" />
-                <span>不可用</span>
-                {ffmpeg?.error && (
-                  <span className="text-muted-foreground">{ffmpeg.error}</span>
-                )}
-              </>
-            )}
-          </div>
-
-          <div className="grid gap-2">
-            <Label>实际使用的路径</Label>
-            <div className="flex gap-2">
-              <Input value={ffmpeg?.path ?? settings.ffmpeg.path} readOnly />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={detect}
-                disabled={detecting}
-              >
-                {detecting ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="size-4" />
-                )}
-                检测
-              </Button>
-            </div>
-          </div>
-
-          <div>
-            <button
-              type="button"
-              onClick={() => setFfmpegAdvanced((v) => !v)}
-              className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {ffmpegAdvanced ? (
-                <ChevronDown className="size-3.5" />
-              ) : (
-                <ChevronRight className="size-3.5" />
-              )}
-              高级：使用自定义 ffmpeg
-            </button>
-          </div>
-
-          {ffmpegAdvanced && (
-            <div className="grid gap-2">
-              <Label htmlFor="ffmpegPath">自定义路径</Label>
-              <Input
-                id="ffmpegPath"
-                value={settings.ffmpeg.path}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    ffmpeg: { path: e.target.value },
-                  })
-                }
-                placeholder="例如 D:/tools/ffmpeg/bin/ffmpeg.exe"
-              />
-              <p className="text-xs text-muted-foreground">
-                填可执行文件路径或命令名；留空则使用内置版本。改完点「检测」确认，再点底部「保存设置」。
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
 

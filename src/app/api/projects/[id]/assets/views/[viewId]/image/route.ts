@@ -7,6 +7,7 @@ import {
   setViewImage,
 } from "@/lib/assets";
 import { getAssetViewPath } from "@/lib/paths";
+import { projectExists } from "@/lib/projects";
 
 type Ctx = { params: Promise<{ id: string; viewId: string }> };
 
@@ -27,6 +28,9 @@ const EXT_BY_MIME: Record<string, string> = {
 
 export async function GET(_request: Request, { params }: Ctx) {
   const { id, viewId } = await params;
+  if (!projectExists(id)) {
+    return NextResponse.json({ error: "项目不存在" }, { status: 404 });
+  }
   const imagePath = getViewImagePath(id, viewId);
   if (!imagePath || !fs.existsSync(imagePath)) {
     return NextResponse.json({ error: "图片不存在" }, { status: 404 });
@@ -43,6 +47,9 @@ export async function GET(_request: Request, { params }: Ctx) {
 
 export async function POST(request: Request, { params }: Ctx) {
   const { id, viewId } = await params;
+  if (!projectExists(id)) {
+    return NextResponse.json({ error: "项目不存在" }, { status: 404 });
+  }
   const ctx = getViewContext(id, viewId);
   if (!ctx) {
     return NextResponse.json({ error: "视角不存在" }, { status: 404 });
@@ -56,18 +63,24 @@ export async function POST(request: Request, { params }: Ctx) {
   const dest = getAssetViewPath(id, ctx.assetId, ctx.variantId, viewId, ext);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
 
+  // 先写临时文件再原子替换，避免写失败时丢失旧图。
+  const tmp = `${dest}.tmp-${Date.now()}`;
+  fs.writeFileSync(tmp, Buffer.from(await file.arrayBuffer()));
+  fs.renameSync(tmp, dest);
+
   const previous = getViewImagePath(id, viewId);
   if (previous && previous !== dest && fs.existsSync(previous)) {
     fs.rmSync(previous, { force: true });
   }
-
-  fs.writeFileSync(dest, Buffer.from(await file.arrayBuffer()));
   setViewImage(id, viewId, dest);
   return NextResponse.json({ imagePath: dest });
 }
 
 export async function DELETE(_request: Request, { params }: Ctx) {
   const { id, viewId } = await params;
+  if (!projectExists(id)) {
+    return NextResponse.json({ error: "项目不存在" }, { status: 404 });
+  }
   const previous = getViewImagePath(id, viewId);
   if (previous && fs.existsSync(previous)) fs.rmSync(previous, { force: true });
   setViewImage(id, viewId, null);

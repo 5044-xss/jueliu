@@ -6,9 +6,11 @@ import { saveScript, getStoredScript } from "@/lib/script";
 import { saveAssetDrafts, getAssets, clearAssets } from "@/lib/assets";
 import {
   saveStoryboard,
+  getStoryboard,
   getContinuityRules,
   clearStoryboard,
 } from "@/lib/storyboard";
+import { applyOrchestration } from "@/lib/orchestration/apply";
 import {
   isScript,
   isAssetsDraft,
@@ -76,7 +78,10 @@ export async function POST(request: Request) {
     }
 
     if (skillId === "script-to-storyboard" && isStoryboardDraft(output)) {
-      const stored = saveStoryboard(projectId, output, assets);
+      saveStoryboard(projectId, output, assets);
+      // 以镜为主：分镜只产出镜序列，段由编排层按所选厂商派生。
+      applyOrchestration(projectId, project.vendor);
+      const stored = getStoryboard(projectId);
       finishJob(projectId, jobId, "succeeded");
       return NextResponse.json({ result: stored });
     }

@@ -42,12 +42,11 @@ interface ViewRow {
   sort_order: number;
 }
 
-// 每种资产的默认视角：角色四视图、场景一张干净「全景」、道具正面。
-// 场景只用一张全景空镜作参考图，不拼贴俯视图/平面图，保证参考图干净稳定。
+// 每种资产的默认视角：角色四视图、场景「全景」+「俯瞰」（有正反打时另加「反打」）、道具三视图。
 // 供「手动新增变体」与「LLM 生成资产兜底」共用，保证不会出现「有变体、没视角」。
 export function defaultViewLabels(type: AssetType): string[] {
-  if (type === "scene") return ["全景"];
-  if (type === "prop") return ["正面"];
+  if (type === "scene") return ["全景", "俯瞰"];
+  if (type === "prop") return ["三视图"];
   return ["四视图"];
 }
 
@@ -56,22 +55,46 @@ export function getAssets(projectId: string): StoredAsset[] {
   const assets = db
     .prepare("SELECT * FROM asset WHERE project_id = ? ORDER BY sort_order ASC")
     .all(projectId) as AssetRow[];
-  const result: StoredAsset[] = [];
-  for (const asset of assets) {
-    const variants = db
-      .prepare("SELECT * FROM variant WHERE asset_id = ? ORDER BY sort_order ASC")
-      .all(asset.id) as VariantRow[];
-    const storedVariants: StoredVariant[] = variants.map((v) => {
-      const views = db
-        .prepare("SELECT * FROM view WHERE variant_id = ? ORDER BY sort_order ASC")
-        .all(v.id) as ViewRow[];
-      return {
+  if (assets.length === 0) return [];
+
+  // 批量取变体/视角，避免每个资产、每个变体各查一次（N+1）。
+  const variants = db
+    .prepare(
+      `SELECT v.* FROM variant v JOIN asset a ON v.asset_id = a.id
+       WHERE a.project_id = ? ORDER BY v.sort_order ASC`,
+    )
+    .all(projectId) as VariantRow[];
+  const views = db
+    .prepare(
+      `SELECT w.* FROM view w
+       JOIN variant v ON w.variant_id = v.id
+       JOIN asset a ON v.asset_id = a.id
+       WHERE a.project_id = ? ORDER BY w.sort_order ASC`,
+    )
+    .all(projectId) as ViewRow[];
+
+  const viewsByVariant = new Map<string, ViewRow[]>();
+  for (const view of views) {
+    const list = viewsByVariant.get(view.variant_id);
+    if (list) list.push(view);
+    else viewsByVariant.set(view.variant_id, [view]);
+  }
+  const variantsByAsset = new Map<string, VariantRow[]>();
+  for (const variant of variants) {
+    const list = variantsByAsset.get(variant.asset_id);
+    if (list) list.push(variant);
+    else variantsByAsset.set(variant.asset_id, [variant]);
+  }
+
+  return assets.map((asset): StoredAsset => {
+    const storedVariants = (variantsByAsset.get(asset.id) ?? []).map(
+      (v): StoredVariant => ({
         id: v.id,
         label: v.label,
         prompt: v.prompt,
         originalLabel: v.original_label,
         originalPrompt: v.original_prompt,
-        views: views.map(
+        views: (viewsByVariant.get(v.id) ?? []).map(
           (view): StoredView => ({
             id: view.id,
             label: view.label,
@@ -81,9 +104,9 @@ export function getAssets(projectId: string): StoredAsset[] {
             originalPrompt: view.original_prompt,
           }),
         ),
-      };
-    });
-    result.push({
+      }),
+    );
+    return {
       id: asset.id,
       type: asset.type as AssetType,
       name: asset.name,
@@ -91,9 +114,8 @@ export function getAssets(projectId: string): StoredAsset[] {
       originalName: asset.original_name,
       originalBasePrompt: asset.original_base_prompt,
       variants: storedVariants,
-    });
-  }
-  return result;
+    };
+  });
 }
 
 export function saveAssetDrafts(
@@ -108,6 +130,10 @@ export function saveAssetDrafts(
   ).map((r) => r.id);
 
   const tx = db.transaction(() => {
+    // 资产重建：先清掉分镜对这些旧资产的引用（shot_ref 无外键，必须显式清），避免悬空引用。
+    db.prepare(
+      "DELETE FROM shot_ref WHERE asset_id IN (SELECT id FROM asset WHERE project_id = ?)",
+    ).run(projectId);
     db.prepare("DELETE FROM asset WHERE project_id = ?").run(projectId);
     const insertAsset = db.prepare(
       `INSERT INTO asset (id, project_id, type, name, base_prompt, original_name, original_base_prompt, sort_order, created_at)
@@ -281,7 +307,13 @@ export function updateView(
 // 失效级联：清空项目全部资产（含已回传图片）。上游剧本重新生成时调用。
 export function clearAssets(projectId: string): void {
   const db = getProjectDb(projectId);
-  db.prepare("DELETE FROM asset WHERE project_id = ?").run(projectId);
+  const tx = db.transaction(() => {
+    db.prepare(
+      "DELETE FROM shot_ref WHERE asset_id IN (SELECT id FROM asset WHERE project_id = ?)",
+    ).run(projectId);
+    db.prepare("DELETE FROM asset WHERE project_id = ?").run(projectId);
+  });
+  tx();
   const dir = path.join(getProjectMediaDir(projectId), "assets");
   if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
 }
@@ -464,6 +496,44 @@ export function createView(
     if (found) return found;
   }
   return null;
+}
+
+// 一键补全默认视角：给缺少默认视角的变体补上（场景补「俯瞰」、角色补「四视图」等），
+// 并把道具的「正面」视角改名为「三视图」。返回改动数量。
+export function ensureDefaultViews(
+  projectId: string,
+  type?: AssetType,
+): number {
+  const assets = getAssets(projectId).filter((a) => !type || a.type === type);
+  let changed = 0;
+  for (const asset of assets) {
+    for (const variant of asset.variants) {
+      const labels = variant.views.map((v) => v.label.trim());
+      if (asset.type === "prop") {
+        const front = variant.views.find((v) => v.label.trim() === "正面");
+        const hasTri = labels.some((l) => l.includes("三视"));
+        if (front && !hasTri) {
+          updateView(projectId, front.id, { label: "三视图" });
+          const idx = labels.indexOf("正面");
+          if (idx >= 0) labels[idx] = "三视图";
+          changed += 1;
+        }
+      }
+      for (const label of defaultViewLabels(asset.type)) {
+        const exists =
+          labels.some((l) => l === label) ||
+          (asset.type === "prop" &&
+            label === "三视图" &&
+            labels.some((l) => l.includes("三视")));
+        if (!exists) {
+          createView(projectId, variant.id, { label, prompt: "" });
+          labels.push(label);
+          changed += 1;
+        }
+      }
+    }
+  }
+  return changed;
 }
 
 export function deleteView(projectId: string, viewId: string): boolean {

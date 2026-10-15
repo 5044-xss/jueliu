@@ -129,19 +129,25 @@ export function BlockingEditDialog({
               size="xs"
               variant="outline"
               onClick={() =>
-                setValue((v) => ({
-                  ...v,
-                  nodes: [
-                    ...v.nodes,
-                    {
-                      id: `n${v.nodes.length + 1}`,
-                      label: "",
-                      type: "character",
-                      pos: { x: 0.5, y: 0.5 },
-                      facing: 0,
-                    },
-                  ],
-                }))
+                setValue((v) => {
+                  // 生成未占用的 id：删除节点后 length+1 可能撞上已有 id。
+                  const used = new Set(v.nodes.map((node) => node.id));
+                  let n = v.nodes.length + 1;
+                  while (used.has(`n${n}`)) n += 1;
+                  return {
+                    ...v,
+                    nodes: [
+                      ...v.nodes,
+                      {
+                        id: `n${n}`,
+                        label: "",
+                        type: "character",
+                        pos: { x: 0.5, y: 0.5 },
+                        facing: 0,
+                      },
+                    ],
+                  };
+                })
               }
             >
               <Plus className="size-3" />

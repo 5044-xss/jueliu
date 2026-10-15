@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "掘漫",
+  title: "掘流",
   description: "本地单机 AI 漫剧创作工作台",
 };
 
@@ -20,12 +20,12 @@ export default function RootLayout({
           <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4">
             <Link href="/" className="flex items-center gap-2 font-semibold">
               <Clapperboard className="size-5" />
-              <span>掘漫</span>
+              <span>掘流</span>
             </Link>
             <NavLinks />
           </div>
         </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-0">
           {children}
         </main>
         <Toaster />

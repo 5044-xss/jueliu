@@ -39,12 +39,8 @@ export const cameraSchema = z.object({
   side: z.enum(["left", "right", ""]).default(""),
 });
 
-export const refRoleSchema = z.enum([
-  "first_frame",
-  "character",
-  "scene",
-  "prop",
-]);
+// 起始画面不再是镜级引用（改由 segment.first_frame_id + 第三方生成弹窗设置）。
+export const refRoleSchema = z.enum(["character", "scene", "prop"]);
 
 // 一句台词必须带说话人，避免多角色台词混在一个分镜里、模型不知道谁在说。
 export const dialogueLineSchema = z.object({
@@ -66,6 +62,9 @@ export const shotDraftSchema = z.object({
   dialogue: z.array(dialogueLineSchema).default([]),
   expression: z.string().default(""),
   subjectNodeIds: z.array(z.string()).default([]),
+  // 本镜是否延续上一镜（同一动作/空间连续推进=延续；换机位/时间跳/闪回=硬切）。
+  // 段边界由编排层决定，这个标记告诉编排「切在连续动作里还是切在硬切处」。
+  continuesPrev: z.boolean().default(false),
   refs: z
     .array(
       z.object({
@@ -92,7 +91,8 @@ export const segmentDraftSchema = z.object({
 export const sceneStoryboardDraftSchema = z.object({
   sceneIndex: z.string(),
   blocking: blockingSchema,
-  segments: z.array(segmentDraftSchema).default([]),
+  // 以镜为主：分镜只产出「镜序列」，段由编排层按厂商派生。
+  shots: z.array(shotDraftSchema).default([]),
 });
 
 export const storyboardDraftSchema = z.object({
@@ -130,6 +130,8 @@ export interface StoredShot {
   id: string;
   index: number;
   durationMs: number;
+  idealMs: number;
+  continuesPrev: boolean;
   camera: Camera;
   lighting: string;
   action: string;

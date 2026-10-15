@@ -1,6 +1,6 @@
 export interface ManifestItem {
   slot: number;
-  role: "first_frame" | "character" | "scene" | "prop";
+  role: "start" | "character" | "scene" | "prop";
   label: string;
   imagePath: string | null;
   viewId: string | null;
@@ -14,4 +14,6 @@ export interface RenderedPrompt {
   legend: string;
   params: string;
   manifest: ManifestItem[];
+  /** 本段分镜数（用于按厂商能力做不匹配告警）。 */
+  shotCount: number;
 }

@@ -6,6 +6,7 @@ import {
   extractAndSaveFrame,
 } from "@/lib/frames";
 import { getProjectDb } from "@/lib/db";
+import { projectExists } from "@/lib/projects";
 
 type Ctx = { params: Promise<{ id: string; segmentId: string }> };
 
@@ -13,6 +14,9 @@ const postSchema = z.object({ kind: z.enum(["first", "last"]) });
 
 export async function GET(_request: Request, { params }: Ctx) {
   const { id, segmentId } = await params;
+  if (!projectExists(id)) {
+    return NextResponse.json({ error: "项目不存在" }, { status: 404 });
+  }
   const db = getProjectDb(id);
   const segment = db
     .prepare("SELECT first_frame_id, status FROM segment WHERE id = ?")
@@ -32,6 +36,9 @@ export async function GET(_request: Request, { params }: Ctx) {
 
 export async function POST(request: Request, { params }: Ctx) {
   const { id, segmentId } = await params;
+  if (!projectExists(id)) {
+    return NextResponse.json({ error: "项目不存在" }, { status: 404 });
+  }
   const json = await request.json().catch(() => null);
   const parsed = postSchema.safeParse(json);
   if (!parsed.success) {

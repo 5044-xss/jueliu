@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { getStoryboard, getContinuityRules } from "@/lib/storyboard";
 import { getProject } from "@/lib/projects";
 import { getTemplateByPlatform } from "@/lib/library/templates";
@@ -61,18 +62,19 @@ export function buildManifest(
 
   if (segment.firstFrameId) {
     const framePath = getFramePath(projectId, segment.firstFrameId);
-    manifest.push({
-      slot,
-      role: "first_frame",
-      label: "首帧（上一段尾帧）",
-      imagePath: framePath,
-      viewId: null,
-      frameId: segment.firstFrameId,
-      viewUrl: framePath
-        ? `/api/projects/${projectId}/frames/${segment.firstFrameId}/image`
-        : null,
-    });
-    slot += 1;
+    // 帧行可能已随段落/视频被删除：只有图片真实存在时才作为「本段起始画面」。
+    if (framePath && fs.existsSync(framePath)) {
+      manifest.push({
+        slot,
+        role: "start",
+        label: "本段起始画面",
+        imagePath: framePath,
+        viewId: null,
+        frameId: segment.firstFrameId,
+        viewUrl: `/api/projects/${projectId}/frames/${segment.firstFrameId}/image`,
+      });
+      slot += 1;
+    }
   }
 
   const groups: Array<"scene" | "character" | "prop"> = [
@@ -124,10 +126,14 @@ function facingWord(facing: number): string {
   return "面向画面右上方（背对镜头偏右）";
 }
 
-function buildBlockingText(scene: StoredSceneStoryboard): string {
+export function buildBlockingText(
+  scene: StoredSceneStoryboard,
+  types?: string[],
+): string {
   const b = scene.blocking;
   if (!b) return "（本场未设置站位信息）";
   const nodes = b.nodes
+    .filter((n) => !types || types.includes(n.type))
     .map((n) => `${n.label}在${positionWord(n.pos)}、${facingWord(n.facing)}`)
     .join("；");
   const axisFrom = b.nodes.find((n) => n.id === b.axis.from)?.label ?? b.axis.from;
@@ -168,19 +174,25 @@ export function renderSegment(
   for (const item of manifest) {
     if (item.viewId) slotByViewId.set(item.viewId, item.slot);
   }
-  const firstFrameSlot = manifest.find((m) => m.role === "first_frame")?.slot;
+  const firstFrameSlot = manifest.find((m) => m.role === "start")?.slot;
 
   const legendItems = manifest
     .map((m) => `图${m.slot}=${m.label}`)
     .join("\n");
 
-  const characterLocks = manifest
+  const characterLockLines = manifest
     .filter((m) => m.role === "character")
     .map(
       (m) =>
-        `${m.label.split("（")[0]}：全程保持图${m.slot}中的脸型、发型、发色、服装、体型、配饰、妆容完全一致。`,
-    )
-    .join("\n");
+        `${m.label.split("（")[0]}：全程保持图${m.slot}中的脸型、发型、发色、服装、体型、配饰、妆容一致。`,
+    );
+  // 参考图只用于保持身份与场景，不能把设定表/多视图/拼图本身画进视频。
+  if (manifest.length > 0) {
+    characterLockLines.push(
+      "参考图仅用于保持人物与场景一致，不要把参考图本身（设定表、多视图、拼图、边框）画进画面。",
+    );
+  }
+  const characterLocks = characterLockLines.join("\n");
 
   const nodeLabelById = new Map(
     (scene.blocking?.nodes ?? []).map((n) => [n.id, n.label]),
@@ -203,10 +215,12 @@ export function renderSegment(
         .filter(Boolean)
         .join("，");
       const refSlots = new Set<number>();
+      // 起始画面（图N）只在段首镜引用；其余镜用各自的内容参考图。
+      if (firstFrameSlot && shot.id === segment.shots[0]?.id) {
+        refSlots.add(firstFrameSlot);
+      }
       for (const ref of shot.refs) {
-        if (ref.role === "first_frame" && firstFrameSlot) {
-          refSlots.add(firstFrameSlot);
-        } else if (ref.viewId) {
+        if (ref.viewId) {
           const s = slotByViewId.get(ref.viewId);
           if (s) refSlots.add(s);
         }
@@ -230,10 +244,7 @@ export function renderSegment(
     })
     .join("\n\n");
 
-  const anchorRequired =
-    rules.firstFrameAnchor && !segment.hardCut && !isFirstOfScene;
-
-  // 连续段额外用文字交代上一段的结尾状态，图像锚定 + 文字承接双保险。
+  // 连续段额外用文字交代上一段的结尾状态，文字承接作为图像起始画面之外的补充。
   const segmentIndex = scene.segments.findIndex((s) => s.id === segment.id);
   const prevSegment = segmentIndex > 0 ? scene.segments[segmentIndex - 1] : null;
   const prevTailText =
@@ -251,25 +262,18 @@ export function renderSegment(
 
   const anchorText = [
     firstFrameSlot
-      ? `本段从图${firstFrameSlot}首帧平滑接续：人物位置、光线方向、色调与首帧保持一致。`
+      ? `本段从图${firstFrameSlot}（起始画面）开始：人物位置、光线方向、色调与之保持一致。`
       : segment.hardCut || isFirstOfScene
-        ? "本段与上一段为硬切（非连续镜头），无需接续首帧；但人物站位、光线方向、色调仍需与本场保持一致。"
-        : "（本段未设置首帧锚定）",
+        ? "本段与上一段为硬切（非连续镜头）；人物站位、光线方向、色调仍需与本场保持一致。"
+        : "",
     prevTailText,
   ]
     .filter(Boolean)
     .join("\n");
 
-  const firstFrameNote = firstFrameSlot
-    ? `图${firstFrameSlot}=上一段尾帧（本段与上一段为连续镜头）`
-    : segment.hardCut || isFirstOfScene
-      ? "无需首帧（本段与上一段为硬切/场次首段，是独立镜头）"
-      : anchorRequired
-        ? "本段与上一段是连续镜头：请先截取上一段尾帧并「设为下一段首帧」（当前未锚定）"
-        : "无需首帧";
-
   const transitionText = [
-    "镜间动作连续、不跳帧；视线匹配；光线方向、色温、焦段变化连续，禁止突变。",
+    "同一段内：延续上一镜的镜头，动作与视线自然接续、不跳帧；换机位的镜头允许切换景别与角度，但人物的外观、服装、发型与场景陈设保持一致。",
+    "光线方向与色温在段内保持一致，避免无故跳变。",
     rules.axis180 ? "全段不跨越 180° 轴线。" : "",
   ]
     .filter(Boolean)
@@ -289,10 +293,11 @@ export function renderSegment(
     shotList,
     transitionText,
     negativeText: DEFAULT_NEGATIVE_TEXT,
-    generationMode: segment.generationMode,
+    generationMode:
+      segment.generationMode === "multi-shot"
+        ? "多镜（段内连续生成）"
+        : "单镜",
     targetSeconds: (segment.targetMs / 1000).toFixed(1),
-    firstFrameNote,
-    anchorEnabled: rules.firstFrameAnchor ? "开启" : "关闭",
     items: legendItems,
   };
 
@@ -300,5 +305,5 @@ export function renderSegment(
   const legend = renderTemplate(template.legendTemplate, vars);
   const params = renderTemplate(template.paramsTemplate, vars);
 
-  return { platform, body, legend, params, manifest };
+  return { platform, body, legend, params, manifest, shotCount: segment.shots.length };
 }

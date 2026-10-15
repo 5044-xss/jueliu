@@ -4,6 +4,7 @@ import {
   updateSkill,
   setDefaultSkill,
   deleteSkill,
+  getSkills,
 } from "@/lib/library/skills";
 
 const patchSchema = z.object({
@@ -41,9 +42,16 @@ export async function PATCH(request: Request, { params }: Ctx) {
 
 export async function DELETE(_request: Request, { params }: Ctx) {
   const { id } = await params;
+  const target = getSkills().find((s) => s.id === id);
+  if (!target) {
+    return NextResponse.json({ error: "技能不存在" }, { status: 404 });
+  }
+  if (target.builtin) {
+    return NextResponse.json({ error: "内置技能不可删除" }, { status: 400 });
+  }
   const ok = deleteSkill(id);
   if (!ok) {
-    return NextResponse.json({ error: "技能不存在" }, { status: 404 });
+    return NextResponse.json({ error: "删除失败" }, { status: 400 });
   }
   return NextResponse.json({ ok: true });
 }

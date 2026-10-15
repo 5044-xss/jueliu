@@ -1,14 +1,19 @@
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
-import { getProjectDbPath, ensureProjectDirs } from "@/lib/paths";
+import {
+  getProjectDbPath,
+  getProjectDir,
+  getWorkspaceRoot,
+  ensureProjectDirs,
+} from "@/lib/paths";
 import { SCHEMA_SQL, SCHEMA_VERSION } from "@/lib/db/schema";
 
 type Db = Database.Database;
 
 // 每次新增/修改迁移语句时递增；用于让已缓存的连接在下次访问时重新执行 migrate，
 // 避免必须重启 dev 服务才能应用新列。
-const MIGRATION_SIGNATURE = "3";
+const MIGRATION_SIGNATURE = "7";
 
 const globalForDb = globalThis as unknown as {
   __mangaDbCache?: Map<string, Db>;
@@ -42,6 +47,12 @@ function migrate(db: Db): void {
   if (!columns.some((c) => c.name === "style_id")) {
     db.exec("ALTER TABLE project ADD COLUMN style_id TEXT");
   }
+  addColumnIfMissing(
+    db,
+    "project",
+    "vendor",
+    "vendor TEXT NOT NULL DEFAULT 'doubao'",
+  );
   addColumnIfMissing(db, "asset", "original_name", "original_name TEXT");
   addColumnIfMissing(
     db,
@@ -64,7 +75,23 @@ function migrate(db: Db): void {
     "hard_cut",
     "hard_cut INTEGER NOT NULL DEFAULT 0",
   );
+  addColumnIfMissing(db, "segment", "ai_prompt", "ai_prompt TEXT");
+  addColumnIfMissing(db, "segment", "ai_prompt_sig", "ai_prompt_sig TEXT");
   addColumnIfMissing(db, "shot", "original_json", "original_json TEXT");
+  addColumnIfMissing(
+    db,
+    "shot",
+    "ideal_ms",
+    "ideal_ms INTEGER",
+  );
+  addColumnIfMissing(
+    db,
+    "shot",
+    "continues_prev",
+    "continues_prev INTEGER NOT NULL DEFAULT 0",
+  );
+  // 回填理想时长：老数据没有 ideal_ms，用当前 duration_ms 兜底。
+  db.prepare("UPDATE shot SET ideal_ms = duration_ms WHERE ideal_ms IS NULL").run();
   addColumnIfMissing(
     db,
     "shot",
@@ -116,14 +143,11 @@ function migrate(db: Db): void {
   );
   addColumnIfMissing(db, "composition", "error", "error TEXT");
   addColumnIfMissing(db, "composition", "duration_ms", "duration_ms INTEGER");
-  const current = db
-    .prepare("SELECT value FROM meta WHERE key = 'schema_version'")
-    .get() as { value: string } | undefined;
-  if (!current) {
-    db.prepare("INSERT INTO meta (key, value) VALUES ('schema_version', ?)").run(
-      String(SCHEMA_VERSION),
-    );
-  }
+  // 始终同步 schema_version，避免 meta 里的版本号永远停在首个值。
+  db.prepare(
+    `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  ).run(String(SCHEMA_VERSION));
 }
 
 export function getProjectDb(projectId: string): Db {
@@ -136,6 +160,10 @@ export function getProjectDb(projectId: string): Db {
     return cached;
   }
 
+  // 只打开已存在的项目：不存在的 id 不再隐式创建目录/空库（避免"读一下就造出项目"）。
+  if (!fs.existsSync(getProjectDir(projectId))) {
+    throw new Error("项目不存在");
+  }
   ensureProjectDirs(projectId);
   const dbPath = getProjectDbPath(projectId);
   const db = new Database(dbPath);
@@ -157,7 +185,12 @@ export function closeProjectDb(projectId: string): void {
 export function deleteProjectData(projectId: string): void {
   closeProjectDb(projectId);
   const dbPath = getProjectDbPath(projectId);
-  const dir = path.dirname(dbPath);
+  const dir = path.resolve(path.dirname(dbPath));
+  const root = path.resolve(getWorkspaceRoot());
+  // 双保险：解析后必须严格位于工作区内部，绝不删除工作区根或外部目录。
+  if (dir === root || !dir.startsWith(root + path.sep)) {
+    return;
+  }
   for (const suffix of ["", "-wal", "-shm"]) {
     const file = dbPath + suffix;
     if (fs.existsSync(file)) fs.rmSync(file, { force: true });

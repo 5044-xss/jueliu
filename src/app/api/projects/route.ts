@@ -1,25 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import {
-  createProject,
-  listProjectGroups,
-  listProjectSummaries,
-} from "@/lib/projects";
+import { createSeries, listSeriesWithCounts } from "@/lib/projects";
 
 const createSchema = z.object({
   name: z.string().min(1, "项目名不能为空"),
-  style: z.string().optional(),
-  styleId: z.string().nullable().optional(),
-  aspectRatio: z.string().optional(),
-  defaultSegmentMs: z.number().int().positive().optional(),
-  group: z.string().optional(),
 });
 
 export async function GET() {
-  return NextResponse.json({
-    projects: listProjectSummaries(),
-    groups: listProjectGroups(),
-  });
+  return NextResponse.json({ series: listSeriesWithCounts() });
 }
 
 export async function POST(request: Request) {
@@ -31,6 +19,6 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  const project = createProject(parsed.data);
-  return NextResponse.json({ project }, { status: 201 });
+  const series = createSeries(parsed.data.name);
+  return NextResponse.json({ series }, { status: 201 });
 }

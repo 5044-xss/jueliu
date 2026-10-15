@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Palette } from "lucide-react";
+import { Loader2, Lock, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,10 +21,12 @@ export function ProjectStyleSwitcher({
   projectId,
   styleId,
   style,
+  locked = false,
 }: {
   projectId: string;
   styleId: string | null;
   style: string;
+  locked?: boolean;
 }) {
   const router = useRouter();
   const [styles, setStyles] = useState<LibraryStyle[]>([]);
@@ -96,10 +98,20 @@ export function ProjectStyleSwitcher({
         variant="secondary"
         size="sm"
         onClick={openDialog}
-        title={current.style || "未设置风格"}
+        disabled={locked}
+        title={
+          locked
+            ? "已按剧本生成资产，风格已锁定（避免素材风格串味）。如需换风格请新建项目。"
+            : current.style || "未设置风格"
+        }
       >
-        <Palette className="size-3.5" />
+        {locked ? (
+          <Lock className="size-3.5" />
+        ) : (
+          <Palette className="size-3.5" />
+        )}
         {currentName}
+        {locked && <span className="text-[11px] opacity-70">已锁定</span>}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

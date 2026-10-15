@@ -6,11 +6,8 @@ import {
 import { getStoredScript } from "@/lib/script";
 import { getAssets } from "@/lib/assets";
 import { getProject } from "@/lib/projects";
-import {
-  MIN_SEGMENT_MS,
-  MAX_PROP_ASSETS,
-  MAX_REF_IMAGES,
-} from "@/lib/templates-defaults";
+import { getVendor } from "@/lib/library/vendors";
+import { MAX_PROP_ASSETS } from "@/lib/templates-defaults";
 
 export interface ContinuityWarning {
   level: "warning" | "info";
@@ -120,7 +117,16 @@ export function validateContinuity(projectId: string): ContinuityWarning[] {
   }
 
   const script = getStoredScript(projectId);
-  const maxSegmentMs = getProject(projectId)?.defaultSegmentMs ?? 10000;
+  // 时长/参考图/镜数上限统一取自项目所选厂商配置，与编排口径保持一致。
+  const project = getProject(projectId);
+  const vendor = getVendor(project?.vendor);
+  const maxSegmentMs = Math.max(
+    vendor.minSegmentMs,
+    Math.min(
+      vendor.maxSegmentMs,
+      project?.defaultSegmentMs || vendor.maxSegmentMs,
+    ),
+  );
   const scriptSceneByIndex = new Map(
     (script?.scenes ?? []).map((s) => [s.index, s]),
   );
@@ -298,18 +304,18 @@ export function validateContinuity(projectId: string): ContinuityWarning[] {
       }
     }
 
-    scene.segments.forEach((segment, segmentIdx) => {
+    scene.segments.forEach((segment) => {
       const label = `第${segment.index}段`;
 
       if (
         segment.generationMode === "multi-shot" &&
-        segment.shots.length > 3
+        segment.shots.length > vendor.maxShotsPerSegment
       ) {
         push({
           level: "warning",
           sceneIndex: scene.sceneIndex,
           segmentIndex: segment.index,
-          message: `${label} 含 ${segment.shots.length} 个分镜，超过平台默认上限 3 个。`,
+          message: `${label} 含 ${segment.shots.length} 个分镜，超过「${vendor.name}」上限 ${vendor.maxShotsPerSegment} 个。`,
         });
       }
 
@@ -334,12 +340,12 @@ export function validateContinuity(projectId: string): ContinuityWarning[] {
           message: `${label} 目标时长 ${segment.targetMs}ms 超过上限 ${maxSegmentMs}ms，建议拆成两段。`,
         });
       }
-      if (segment.targetMs > 0 && segment.targetMs < MIN_SEGMENT_MS) {
+      if (segment.targetMs > 0 && segment.targetMs < vendor.minSegmentMs) {
         push({
           level: "warning",
           sceneIndex: scene.sceneIndex,
           segmentIndex: segment.index,
-          message: `${label} 目标时长 ${segment.targetMs}ms 低于下限 ${MIN_SEGMENT_MS}ms，建议并入上一段。`,
+          message: `${label} 目标时长 ${segment.targetMs}ms 低于「${vendor.name}」下限 ${vendor.minSegmentMs}ms，建议并入上一段。`,
         });
       }
 
@@ -362,46 +368,21 @@ export function validateContinuity(projectId: string): ContinuityWarning[] {
         });
       }
 
-      // 参考图槽位预算：首帧 + 去重后的角色/场景/道具视角数。
+      // 参考图槽位预算：本段起始画面（若有）+ 去重后的角色/场景/道具视角数。
       const viewSlots = new Set<string>();
-      let hasFirstFrameRef = false;
       for (const sh of segment.shots) {
         for (const ref of sh.refs) {
-          if (ref.role === "first_frame") hasFirstFrameRef = true;
-          else if (ref.viewId) viewSlots.add(ref.viewId);
+          if (ref.viewId) viewSlots.add(ref.viewId);
         }
       }
-      const totalRefs = viewSlots.size + (hasFirstFrameRef ? 1 : 0);
-      if (totalRefs > MAX_REF_IMAGES) {
+      const totalRefs = viewSlots.size + (segment.firstFrameId ? 1 : 0);
+      if (totalRefs > vendor.maxRefImages) {
         push({
           level: "warning",
           sceneIndex: scene.sceneIndex,
           segmentIndex: segment.index,
-          message: `${label} 需要 ${totalRefs} 张参考图，超过建议上限 ${MAX_REF_IMAGES} 张，平台可能丢弃多余图片导致角色没有参考图。请减少本段出场角色/道具，或把角色参考图拼成一张。`,
+          message: `${label} 需要 ${totalRefs} 张参考图，超过「${vendor.name}」上限 ${vendor.maxRefImages} 张，平台可能丢弃多余图片导致角色没有参考图。请减少本段出场角色/道具，或把角色参考图拼成一张。`,
         });
-      }
-
-      if (rules.firstFrameAnchor) {
-        const hasAnchor = segment.shots[0]?.refs.some(
-          (r) => r.role === "first_frame",
-        );
-        if (segmentIdx > 0 && !segment.hardCut && !hasAnchor) {
-          push({
-            level: "warning",
-            sceneIndex: scene.sceneIndex,
-            segmentIndex: segment.index,
-            message: `${label} 未设置首帧锚定（first_frame 引用），跨段可能不连续。`,
-          });
-        }
-        // 场次首段 / 硬切段是独立镜头，不应带首帧锚定。
-        if ((segmentIdx === 0 || segment.hardCut) && hasAnchor) {
-          push({
-            level: "warning",
-            sceneIndex: scene.sceneIndex,
-            segmentIndex: segment.index,
-            message: `${label} 是${segmentIdx === 0 ? "本场首段" : "硬切段"}，不应设置首帧锚定（场次切换/硬切是独立镜头）。`,
-          });
-        }
       }
 
       if (rules.focalLogic) {

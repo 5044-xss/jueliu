@@ -29,9 +29,9 @@ interface RefDraft {
   viewLabel: string;
 }
 
-const ROLES: RefRole[] = ["character", "scene", "prop", "first_frame"];
+// 首帧/起始画面不再作为镜头引用由用户手工添加（改由第三方生成弹窗设置）。
+const ROLES: RefRole[] = ["character", "scene", "prop"];
 const ROLE_LABEL: Record<RefRole, string> = {
-  first_frame: "首帧",
   character: "角色",
   scene: "场景",
   prop: "道具",
@@ -56,6 +56,7 @@ export function ShotEditDialog({
   onSaved: () => void;
 }) {
   const [durationMs, setDurationMs] = useState(String(shot.durationMs));
+  const [continuesPrev, setContinuesPrev] = useState(shot.continuesPrev);
   const [camera, setCamera] = useState({ ...shot.camera });
   const [lighting, setLighting] = useState(shot.lighting);
   const [action, setAction] = useState(shot.action);
@@ -94,6 +95,7 @@ export function ShotEditDialog({
           dialogue: dialogue.filter((line) => line.text.trim().length > 0),
           expression,
           subjectNodeIds,
+          continuesPrev,
           refs,
         }),
       });
@@ -135,7 +137,7 @@ export function ShotEditDialog({
         <div className="flex max-h-[68vh] flex-col gap-3 overflow-y-auto pr-1">
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label>时长 (ms)</Label>
+              <Label>理想时长 (ms)</Label>
               <Input
                 value={durationMs}
                 onChange={(e) => setDurationMs(e.target.value)}
@@ -159,6 +161,16 @@ export function ShotEditDialog({
               </select>
             </div>
           </div>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={continuesPrev}
+              onChange={(e) => setContinuesPrev(e.target.checked)}
+              className="size-4 accent-primary"
+            />
+            延续上一镜（同一动作/空间连续推进；不勾选=硬切；本场第一镜恒为否）
+          </label>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {(

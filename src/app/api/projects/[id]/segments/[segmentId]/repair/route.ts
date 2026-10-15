@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getProjectDb, newId } from "@/lib/db";
 import {
   getStoryboard,
-  getContinuityRules,
   resolveRefLabels,
   dialogueToText,
   toDialogue,
@@ -50,10 +49,7 @@ export async function POST(_request: Request, { params }: Ctx) {
 
   const segment = scene.segments[segIndex];
   const assets = getAssets(id);
-  const rules = getContinuityRules();
   const isFirstOfScene = segIndex === 0;
-  const needsAnchor =
-    rules.firstFrameAnchor && !segment.hardCut && !isFirstOfScene;
 
   const before = validateContinuity(id);
   const isTarget = (w: ContinuityWarning) =>
@@ -130,12 +126,10 @@ export async function POST(_request: Request, { params }: Ctx) {
     })),
   }));
 
-  const anchorNote =
+  const continuityNote =
     segment.hardCut || isFirstOfScene
-      ? "与上一段为硬切/场次首段，不需要首帧"
-      : needsAnchor
-        ? "与上一段连续，第一个分镜必须包含 role=first_frame 的首帧引用"
-        : "无需首帧";
+      ? "本段为硬切/场次首段（独立镜头）"
+      : "本段与上一段连续，需在动作、视线、光线、服装、站位上与之衔接";
 
   let feedback = "";
   let lastReason = "";
@@ -146,7 +140,7 @@ export async function POST(_request: Request, { params }: Ctx) {
       `【画面比例】${project.aspectRatio}`,
       `【本场】${scene.sceneIndex} ${scene.location}｜${scene.timeOfDay}｜${scene.interiorExterior}`,
       `【本场 blocking】${scene.blocking ? JSON.stringify(scene.blocking) : "（缺失，请依据剧本补足合理的人物站位与轴线）"}`,
-      `【本段】第${segment.index}段，目标时长 ${segment.targetMs}ms；${anchorNote}`,
+      `【本段】第${segment.index}段，目标时长 ${segment.targetMs}ms；${continuityNote}`,
       "",
       "【资产清单】",
       assetsText,
@@ -190,8 +184,8 @@ export async function POST(_request: Request, { params }: Ctx) {
         db.prepare("DELETE FROM shot WHERE segment_id = ?").run(segmentId);
         const insertShot = db.prepare(
           `INSERT INTO shot
-           (id, segment_id, idx, duration_ms, camera_json, lighting, action, dialogue, dialogue_json, expression, subject_node_ids_json, original_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?)`,
+           (id, segment_id, idx, duration_ms, ideal_ms, continues_prev, camera_json, lighting, action, dialogue, dialogue_json, expression, subject_node_ids_json, original_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?)`,
         );
         const insertRef = db.prepare(
           `INSERT INTO shot_ref (id, shot_id, role, asset_id, variant_id, view_id, sort_order)
@@ -204,6 +198,8 @@ export async function POST(_request: Request, { params }: Ctx) {
             segmentId,
             i,
             shot.durationMs,
+            shot.durationMs,
+            shot.continuesPrev ? 1 : 0,
             JSON.stringify(shot.camera),
             shot.lighting,
             shot.action,

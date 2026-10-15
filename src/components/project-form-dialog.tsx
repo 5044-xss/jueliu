@@ -17,22 +17,17 @@ import { Label } from "@/components/ui/label";
 import type { LibraryStyle } from "@/lib/library/types";
 
 const ASPECT_OPTIONS = ["9:16", "16:9", "1:1"];
-const NEW_GROUP = "__new__";
 
 export function ProjectFormDialog({
   mode,
   projectId,
-  groups,
-  defaultGroup,
-  initialGroup,
+  seriesId,
   onClose,
   onSaved,
 }: {
   mode: "create" | "edit";
   projectId?: string;
-  groups: string[];
-  defaultGroup?: string;
-  initialGroup?: string;
+  seriesId?: string;
   onClose: () => void;
   onSaved: (project: { id: string }) => void;
 }) {
@@ -40,10 +35,6 @@ export function ProjectFormDialog({
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
-  const [groupChoice, setGroupChoice] = useState(
-    mode === "create" ? (defaultGroup ?? "") : (initialGroup ?? ""),
-  );
-  const [newGroup, setNewGroup] = useState("");
   const [styleId, setStyleId] = useState("");
   const [style, setStyle] = useState("");
   const [aspectRatio, setAspectRatio] = useState("9:16");
@@ -70,9 +61,8 @@ export function ProjectFormDialog({
       .then((data) => {
         if (cancelled) return;
         const project = data.project;
-        if (!project) throw new Error("项目不存在");
+        if (!project) throw new Error("子集不存在");
         setName(project.name ?? "");
-        setGroupChoice(initialGroup ?? "");
         setStyleId(project.styleId ?? "");
         setStyle(project.style ?? "");
         setAspectRatio(project.aspectRatio ?? "9:16");
@@ -87,38 +77,34 @@ export function ProjectFormDialog({
     return () => {
       cancelled = true;
     };
-  }, [mode, projectId, initialGroup]);
+  }, [mode, projectId]);
 
   async function save() {
     if (!name.trim()) {
-      toast.error("请填写项目名");
-      return;
-    }
-    if (groupChoice === NEW_GROUP && !newGroup.trim()) {
-      toast.error("请填写分组名");
+      toast.error("请填写子集名");
       return;
     }
     setSaving(true);
     try {
       const chosen = styles.find((s) => s.id === styleId);
-      const res = await fetch(
-        mode === "create" ? "/api/projects" : `/api/projects/${projectId}`,
-        {
-          method: mode === "create" ? "POST" : "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: name.trim(),
-            group: groupChoice === NEW_GROUP ? newGroup.trim() : groupChoice,
-            style: chosen ? chosen.prompt : style,
-            styleId: chosen ? chosen.id : null,
-            aspectRatio,
-            defaultSegmentMs,
-          }),
-        },
-      );
+      const url =
+        mode === "create"
+          ? `/api/series/${seriesId}/episodes`
+          : `/api/projects/${projectId}`;
+      const res = await fetch(url, {
+        method: mode === "create" ? "POST" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          style: chosen ? chosen.prompt : style,
+          styleId: chosen ? chosen.id : null,
+          aspectRatio,
+          defaultSegmentMs,
+        }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "保存失败");
-      toast.success(mode === "create" ? "项目已创建" : "项目已更新");
+      toast.success(mode === "create" ? "子集已创建" : "子集已更新");
       onSaved(data.project);
     } catch (error) {
       toast.error((error as Error).message);
@@ -136,9 +122,9 @@ export function ProjectFormDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{mode === "create" ? "新建项目" : "编辑项目"}</DialogTitle>
+          <DialogTitle>{mode === "create" ? "新建子集" : "编辑子集"}</DialogTitle>
           <DialogDescription>
-            设定项目名称、分组、风格与画面比例，后续所有生成都会继承。
+            设定子集名称、风格与画面比例，后续所有生成都会继承。
           </DialogDescription>
         </DialogHeader>
         {loading ? (
@@ -148,37 +134,13 @@ export function ProjectFormDialog({
         ) : (
           <div className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="pf-name">项目名</Label>
+              <Label htmlFor="pf-name">子集名</Label>
               <Input
                 id="pf-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="例如：城市广场的告白"
+                placeholder="例如：第 1 集"
               />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="pf-group">分组</Label>
-              <select
-                id="pf-group"
-                value={groupChoice}
-                onChange={(e) => setGroupChoice(e.target.value)}
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-              >
-                <option value="">未分组</option>
-                {groups.map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-                <option value={NEW_GROUP}>＋ 新建分组…</option>
-              </select>
-              {groupChoice === NEW_GROUP && (
-                <Input
-                  value={newGroup}
-                  onChange={(e) => setNewGroup(e.target.value)}
-                  placeholder="新分组名，如：第一季"
-                />
-              )}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="pf-style">风格</Label>

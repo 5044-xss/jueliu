@@ -13,6 +13,8 @@ export interface LibrarySkill {
   isDefault: boolean;
   builtin: boolean;
   builtinVersion?: number;
+  /** 用户是否改过内置技能的提示词；改过则不再随内置版本自动刷新。 */
+  edited?: boolean;
 }
 
 const FILE = "skills.json";
@@ -32,11 +34,6 @@ export const SKILL_KINDS = [
     kind: "script-to-storyboard",
     label: "剧本 → 分镜",
     description: "生成段落、分镜、参考图引用与 blocking",
-  },
-  {
-    kind: "storyboard-to-ai-prompt",
-    label: "分镜 → AI 提示词",
-    description: "把给人看的分镜提示词编译成 AI 图/视频生成可执行提示词",
   },
 ] as const;
 
@@ -72,12 +69,13 @@ function normalize(raw: Partial<LibrarySkill>): {
     !(raw.prompt ?? "").trim();
   const builtin = raw.builtin === true || legacyBuiltin;
 
+  const edited = raw.edited === true;
   let prompt = raw.prompt ?? "";
   let builtinVersion = raw.builtinVersion;
   let changed = raw.builtin === undefined || raw.id === undefined;
 
-  if (builtin) {
-    // 内置条目按版本自动刷新，保证升级提示词后能生效
+  if (builtin && !edited) {
+    // 未被用户改动的内置条目按版本自动刷新，保证升级提示词后能生效。
     if (builtinVersion !== BUILTIN_SKILL_VERSION) {
       prompt = BUILTIN_SKILL_PROMPTS[kind] ?? prompt;
       builtinVersion = BUILTIN_SKILL_VERSION;
@@ -105,6 +103,7 @@ function normalize(raw: Partial<LibrarySkill>): {
     isDefault: raw.isDefault === true,
     builtin,
     builtinVersion,
+    edited,
   };
   return { skill, changed };
 }
@@ -174,7 +173,11 @@ export function updateSkill(
   const skills = getSkills();
   const index = skills.findIndex((s) => s.id === id);
   if (index < 0) return null;
-  skills[index] = { ...skills[index], ...patch };
+  const current = skills[index];
+  // 内置技能一旦被用户改过提示词，就标记 edited，后续不再随版本自动覆盖。
+  const edited =
+    current.builtin && patch.prompt !== undefined ? true : current.edited;
+  skills[index] = { ...current, ...patch, edited };
   writeLibrary(FILE, skills);
   return skills[index];
 }
@@ -194,6 +197,8 @@ export function deleteSkill(id: string): boolean {
   const skills = getSkills();
   const target = skills.find((s) => s.id === id);
   if (!target) return false;
+  // 内置技能不允许删除（需要长期自定义请用「新增技能」复制一份）。
+  if (target.builtin) return false;
   const remaining = skills.filter((s) => s.id !== id);
   if (target.isDefault) {
     const sameKind = remaining.filter((s) => s.kind === target.kind);

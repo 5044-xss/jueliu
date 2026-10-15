@@ -11,6 +11,7 @@ import {
 export type SettingsPatch = {
   llm?: Partial<LlmSettings>;
   ffmpeg?: Partial<FfmpegSettings>;
+  autoGenerateAiPrompt?: boolean;
 };
 
 export * from "@/lib/settings-shared";
@@ -29,6 +30,7 @@ function envDefaults(): GlobalSettings {
       temperature: 0.7,
     },
     ffmpeg: { path: process.env.FFMPEG_PATH || "ffmpeg" },
+    autoGenerateAiPrompt: true,
   };
 }
 
@@ -39,19 +41,45 @@ function mergeSettings(
   return {
     llm: { ...base.llm, ...(partial.llm ?? {}) },
     ffmpeg: { ...base.ffmpeg, ...(partial.ffmpeg ?? {}) },
+    autoGenerateAiPrompt:
+      partial.autoGenerateAiPrompt ?? base.autoGenerateAiPrompt,
   };
 }
+
+// 读取缓存：按文件 mtime 失效，避免每次 LLM 调用都读盘。
+let settingsCache: { file: string; mtimeMs: number; value: GlobalSettings } | null =
+  null;
 
 export function readGlobalSettings(): GlobalSettings {
   const defaults = envDefaults();
   const file = getGlobalSettingsPath();
-  if (!fs.existsSync(file)) return defaults;
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(file);
+  } catch {
+    return defaults;
+  }
+  if (
+    settingsCache &&
+    settingsCache.file === file &&
+    settingsCache.mtimeMs === stat.mtimeMs
+  ) {
+    return settingsCache.value;
+  }
   try {
     const parsed = JSON.parse(
       fs.readFileSync(file, "utf8"),
     ) as Partial<GlobalSettings>;
-    return mergeSettings(defaults, parsed);
+    const value = mergeSettings(defaults, parsed);
+    settingsCache = { file, mtimeMs: stat.mtimeMs, value };
+    return value;
   } catch {
+    // 解析失败：备份坏文件，避免随后一次写入把包括 apiKey 在内的设置覆盖没了。
+    try {
+      fs.renameSync(file, `${file}.corrupt-${Date.now()}.bak`);
+    } catch {
+      // 备份失败不阻断
+    }
     return defaults;
   }
 }
@@ -64,7 +92,11 @@ export function writeGlobalSettings(
   const next = mergeSettings(current, partial);
   const file = getGlobalSettingsPath();
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(next, null, 2), "utf8");
+  // 先写临时文件再原子替换，避免中断写出半个 JSON。
+  const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
+  fs.writeFileSync(tmp, JSON.stringify(next, null, 2), "utf8");
+  fs.renameSync(tmp, file);
+  settingsCache = null;
   return next;
 }
 

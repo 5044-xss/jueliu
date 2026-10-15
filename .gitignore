@@ -46,6 +46,10 @@ next-env.d.ts
 # electron-builder output
 /release
 
+# build logs / zip artifacts
+/rb.log
+/release.zip
+
 # license signing keys (NEVER commit private key)
 /keys
 license-private*.pem

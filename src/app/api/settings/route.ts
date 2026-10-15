@@ -29,6 +29,7 @@ const updateSchema = z.object({
     })
     .optional(),
   ffmpeg: z.object({ path: z.string().optional() }).optional(),
+  autoGenerateAiPrompt: z.boolean().optional(),
 });
 
 export async function GET() {
@@ -71,6 +72,7 @@ export async function PUT(request: Request) {
   const next = writeGlobalSettings({
     llm,
     ffmpeg: input.ffmpeg,
+    autoGenerateAiPrompt: input.autoGenerateAiPrompt,
   });
 
   return NextResponse.json({

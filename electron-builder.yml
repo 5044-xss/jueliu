@@ -1,6 +1,6 @@
-appId: com.5044.jueman
-productName: 掘漫
-copyright: Copyright © 2026 掘漫
+appId: com.5044.jueliu
+productName: 掘流
+copyright: Copyright © 2026 掘流
 
 directories:
   output: release
@@ -33,7 +33,7 @@ win:
       arch:
         - x64
   icon: build-resources/icon.ico
-  artifactName: Jueman-Setup-${version}.exe
+  artifactName: Jueliu-Setup-${version}.exe
 
 nsis:
   oneClick: false
@@ -41,4 +41,4 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: 掘漫
+  shortcutName: 掘流

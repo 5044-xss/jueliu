@@ -12,7 +12,6 @@ import {
   getActiveSkillTemperature,
 } from "@/lib/library/skills";
 import { SCRIPT_TO_STORYBOARD_PROMPT } from "@/lib/skills/prompts";
-import { MIN_SEGMENT_MS } from "@/lib/templates-defaults";
 
 const inputSchema = z.object({
   extraInstructions: z.string().optional().default(""),
@@ -79,7 +78,6 @@ export const scriptToStoryboardSkill: SkillDefinition<
     const user = [
       `【项目风格】${ctx.project.style || "未指定"}`,
       `【画面比例】${ctx.project.aspectRatio}`,
-      `【段时长规则】每段 targetMs 上限 ${ctx.project.defaultSegmentMs}ms（=项目默认段时长），下限 ${MIN_SEGMENT_MS}ms；按本段台词与动作量估算，不要一律填上限，也不要硬撑内容少的段。`,
       `【启用的连续性规则】${rulesToText(ctx.rules)}`,
       "",
       "【资产清单】",
@@ -89,7 +87,7 @@ export const scriptToStoryboardSkill: SkillDefinition<
       scriptToText(ctx.script),
       input.extraInstructions ? `\n【额外要求】\n${input.extraInstructions}` : "",
       "",
-      "请输出分镜 JSON。",
+      "请输出每一场的「镜序列」JSON（只出镜、不出段）。",
     ].join("\n");
 
     return generateStructured({

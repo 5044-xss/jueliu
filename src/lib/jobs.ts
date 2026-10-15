@@ -64,11 +64,19 @@ export function finishJob(
 
 export function getProjectJobs(projectId: string, limit = 30): JobInfo[] {
   const db = getProjectDb(projectId);
-  const cutoff = new Date(Date.now() - STALE_MS).toISOString();
-  db.prepare(
-    `UPDATE job SET status = 'failed', message = '任务中断或超时（服务可能已重启或长时间无响应，请重试）', finished_at = ?
-     WHERE project_id = ? AND status = 'running' AND started_at < ?`,
-  ).run(nowIso(), projectId, cutoff);
+  // 只在存在 running 任务时才做超时扫描，避免每次轮询都写库。
+  const running = db
+    .prepare(
+      "SELECT 1 FROM job WHERE project_id = ? AND status = 'running' LIMIT 1",
+    )
+    .get(projectId);
+  if (running) {
+    const cutoff = new Date(Date.now() - STALE_MS).toISOString();
+    db.prepare(
+      `UPDATE job SET status = 'failed', message = '任务中断或超时（服务可能已重启或长时间无响应，请重试）', finished_at = ?
+       WHERE project_id = ? AND status = 'running' AND started_at < ?`,
+    ).run(nowIso(), projectId, cutoff);
+  }
   const rows = db
     .prepare(
       `SELECT id, kind, status, message, started_at, finished_at

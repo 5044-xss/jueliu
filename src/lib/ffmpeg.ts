@@ -26,16 +26,51 @@ export function detectFfmpeg(binPath = "ffmpeg"): FfmpegStatus {
 export function runFfmpeg(
   binPath: string,
   args: string[],
+  timeoutMs = 10 * 60 * 1000,
 ): Promise<{ code: number; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(binPath, args, { windowsHide: true });
     let stderr = "";
+    let done = false;
+    // 卡死时强制结束进程（Windows 上用 taskkill 连子进程一起杀），避免任务永久 pending。
+    const timer = setTimeout(() => {
+      if (done) return;
+      killProcessTree(child.pid);
+      done = true;
+      reject(new Error("ffmpeg 执行超时，已终止"));
+    }, timeoutMs);
     child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
+      // 只保留末尾一段，避免长任务把 stderr 全量攒在内存里。
+      stderr = (stderr + chunk.toString()).slice(-8000);
     });
-    child.on("error", reject);
-    child.on("close", (code) => resolve({ code: code ?? 0, stderr }));
+    child.on("error", (error) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve({ code: code ?? 0, stderr });
+    });
   });
+}
+
+function killProcessTree(pid: number | undefined): void {
+  if (!pid) return;
+  try {
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], {
+        windowsHide: true,
+      });
+    } else {
+      process.kill(pid, "SIGKILL");
+    }
+  } catch {
+    // 进程可能已退出
+  }
 }
 
 export async function extractFrame(

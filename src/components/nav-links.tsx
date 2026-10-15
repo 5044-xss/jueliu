@@ -2,22 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Clapperboard, HelpCircle, Library, Settings } from "lucide-react";
+import { Clapperboard, Home, Library, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
-  { href: "/", label: "项目", icon: Clapperboard, match: (p: string) => p === "/" },
+  { href: "/", label: "首页", icon: Home, match: (p: string) => p === "/" },
+  {
+    href: "/projects",
+    label: "项目",
+    icon: Clapperboard,
+    match: (p: string) => p.startsWith("/projects"),
+  },
   {
     href: "/library/styles",
     label: "资源库",
     icon: Library,
     match: (p: string) => p.startsWith("/library"),
-  },
-  {
-    href: "/help",
-    label: "使用须知",
-    icon: HelpCircle,
-    match: (p: string) => p.startsWith("/help"),
   },
   {
     href: "/settings",

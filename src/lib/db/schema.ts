@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS project (
   style_id TEXT,
   aspect_ratio TEXT NOT NULL DEFAULT '9:16',
   default_segment_ms INTEGER NOT NULL DEFAULT 10000,
+  vendor TEXT NOT NULL DEFAULT 'doubao',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -94,6 +95,8 @@ CREATE TABLE IF NOT EXISTS segment (
   hard_cut INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'draft',
   video_path TEXT,
+  ai_prompt TEXT,
+  ai_prompt_sig TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -103,6 +106,8 @@ CREATE TABLE IF NOT EXISTS shot (
   segment_id TEXT NOT NULL REFERENCES segment(id) ON DELETE CASCADE,
   idx INTEGER NOT NULL,
   duration_ms INTEGER NOT NULL DEFAULT 0,
+  ideal_ms INTEGER,
+  continues_prev INTEGER NOT NULL DEFAULT 0,
   camera_json TEXT NOT NULL DEFAULT '{}',
   lighting TEXT NOT NULL DEFAULT '',
   action TEXT NOT NULL DEFAULT '',
@@ -202,10 +207,19 @@ CREATE TABLE IF NOT EXISTS job (
 
 CREATE INDEX IF NOT EXISTS idx_scene_script ON scene(script_id);
 CREATE INDEX IF NOT EXISTS idx_segment_scene ON segment(scene_id);
+CREATE INDEX IF NOT EXISTS idx_segment_project ON segment(project_id);
 CREATE INDEX IF NOT EXISTS idx_shot_segment ON shot(segment_id);
 CREATE INDEX IF NOT EXISTS idx_shot_ref_shot ON shot_ref(shot_id);
+CREATE INDEX IF NOT EXISTS idx_shot_ref_asset ON shot_ref(asset_id);
+CREATE INDEX IF NOT EXISTS idx_shot_ref_variant ON shot_ref(variant_id);
+CREATE INDEX IF NOT EXISTS idx_shot_ref_view ON shot_ref(view_id);
 CREATE INDEX IF NOT EXISTS idx_variant_asset ON variant(asset_id);
 CREATE INDEX IF NOT EXISTS idx_view_variant ON view(variant_id);
 CREATE INDEX IF NOT EXISTS idx_asset_project ON asset(project_id);
+CREATE INDEX IF NOT EXISTS idx_frame_segment ON frame(segment_id);
+CREATE INDEX IF NOT EXISTS idx_video_asset_segment ON video_asset(segment_id);
+CREATE INDEX IF NOT EXISTS idx_composition_project ON composition(project_id);
+CREATE INDEX IF NOT EXISTS idx_story_project ON story(project_id);
 CREATE INDEX IF NOT EXISTS idx_job_project ON job(project_id);
+CREATE INDEX IF NOT EXISTS idx_job_project_status ON job(project_id, status);
 `;

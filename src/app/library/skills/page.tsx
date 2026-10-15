@@ -132,15 +132,19 @@ function SkillDialog({
   async function remove() {
     if (!skill) return;
     if (!window.confirm(`确定删除技能「${skill.name}」？`)) return;
-    const res = await fetch(`/api/library/skills/${skill.id}`, {
-      method: "DELETE",
-    });
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/library/skills/${skill.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "删除失败");
+      }
       toast.success("已删除");
       onChanged();
       onOpenChange(false);
-    } else {
-      toast.error("删除失败");
+    } catch (error) {
+      toast.error((error as Error).message);
     }
   }
 
@@ -153,7 +157,7 @@ function SkillDialog({
 
   return (
     <Dialog open={skill !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] w-full sm:max-w-5xl overflow-y-auto">
+      <DialogContent className="flex max-h-[90vh] w-full flex-col gap-4 overflow-hidden sm:max-w-[min(94vw,1120px)]">
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
             <span>{skill?.name || "技能"}</span>
@@ -170,6 +174,7 @@ function SkillDialog({
               " 内置条目会随内置版本升级自动更新，需要长期自定义请用「新增技能」复制一份。"}
           </DialogDescription>
         </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         <div className="grid gap-3">
           <div className="flex flex-wrap items-end gap-3">
             <div className="grid flex-1 gap-1.5">
@@ -204,16 +209,19 @@ function SkillDialog({
           </div>
           {kind && <SchemaViewer kind={kind} />}
         </div>
-        <DialogFooter className="sm:justify-between">
+        </div>
+        <DialogFooter className="sm:justify-between bg-background">
           <div className="flex gap-2">
             <Button variant="outline" onClick={restoreBuiltin}>
               <RotateCcw className="size-3.5" />
               恢复内置
             </Button>
-            <Button variant="destructive" onClick={remove}>
-              <Trash2 className="size-3.5" />
-              删除
-            </Button>
+            {!skill?.builtin && (
+              <Button variant="destructive" onClick={remove}>
+                <Trash2 className="size-3.5" />
+                删除
+              </Button>
+            )}
           </div>
           <Button onClick={save} disabled={!dirty || saving}>
             {saving ? (

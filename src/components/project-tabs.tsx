@@ -12,12 +12,18 @@ const TABS = [
   { key: "compose", label: "合成" },
 ];
 
-export function ProjectTabs({ projectId }: { projectId: string }) {
+export function ProjectTabs({
+  seriesId,
+  episodeId,
+}: {
+  seriesId: string;
+  episodeId: string;
+}) {
   const pathname = usePathname();
   return (
     <nav className="inline-flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-full bg-muted p-1">
       {TABS.map((tab) => {
-        const href = `/projects/${projectId}/${tab.key}`;
+        const href = `/projects/${seriesId}/${episodeId}/${tab.key}`;
         const active = pathname === href;
         return (
           <Link

@@ -1,4 +1,7 @@
+import fs from "node:fs";
+import path from "node:path";
 import { getProjectDb, newId, nowIso } from "@/lib/db";
+import { clearOrchestrationCache } from "@/lib/orchestration/cache";
 import type {
   Blocking,
   Camera,
@@ -40,6 +43,8 @@ interface ShotRow {
   segment_id: string;
   idx: number;
   duration_ms: number;
+  ideal_ms: number | null;
+  continues_prev: number;
   camera_json: string;
   lighting: string;
   action: string;
@@ -191,6 +196,8 @@ export function getStoryboard(projectId: string): StoredSceneStoryboard[] {
           id: shot.id,
           index: shot.idx,
           durationMs: shot.duration_ms,
+          idealMs: shot.ideal_ms ?? shot.duration_ms,
+          continuesPrev: Boolean(shot.continues_prev),
           camera: parseCamera(shot.camera_json),
           lighting: shot.lighting,
           action: shot.action,
@@ -246,27 +253,44 @@ export function getStoryboard(projectId: string): StoredSceneStoryboard[] {
   });
 }
 
-// 首帧锚定的服务端硬约束：场次首段（场次切换是硬切）不允许 first_frame；
-// 其余段的第一个分镜必须带 first_frame 引用。模型常不遵守提示词，这里写入前强制纠正。
-function normalizeSegmentRefs(
-  isFirstOfScene: boolean,
-  shotIndex: number,
-  refs: RefLabelInput[],
-): RefLabelInput[] {
-  // 丢掉角色/场景/道具里 assetName 为空的无效引用（解析不出任何资产，只会造成「未知资产」报警）。
-  const cleaned = refs.filter(
-    (r) => r.role === "first_frame" || r.assetName.trim().length > 0,
-  );
-  if (isFirstOfScene) {
-    return cleaned.filter((r) => r.role !== "first_frame");
+// 收集项目当前的媒体文件（视频/帧图路径），用于删除段落后清理磁盘残留。
+function collectProjectMediaFiles(
+  db: ReturnType<typeof getProjectDb>,
+  projectId: string,
+): string[] {
+  const frames = db
+    .prepare(
+      `SELECT f.image_path AS p FROM frame f
+       JOIN segment s ON f.segment_id = s.id WHERE s.project_id = ?`,
+    )
+    .all(projectId) as { p: string }[];
+  const videos = db
+    .prepare(
+      "SELECT video_path AS p FROM segment WHERE project_id = ? AND video_path IS NOT NULL",
+    )
+    .all(projectId) as { p: string }[];
+  return [...frames.map((r) => r.p), ...videos.map((r) => r.p)];
+}
+
+// 删除媒体文件并清理其所在段目录（目录内只含该段的文件）。
+function removeMediaFiles(paths: string[]): void {
+  const dirs = new Set<string>();
+  for (const p of paths) {
+    if (!p) continue;
+    try {
+      if (fs.existsSync(p)) fs.rmSync(p, { force: true });
+    } catch {
+      // 文件被占用等，忽略
+    }
+    dirs.add(path.dirname(p));
   }
-  if (shotIndex === 0 && !cleaned.some((r) => r.role === "first_frame")) {
-    return [
-      { role: "first_frame", assetName: "", variantLabel: "", viewLabel: "" },
-      ...cleaned,
-    ];
+  for (const dir of dirs) {
+    try {
+      if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // 忽略
+    }
   }
-  return cleaned;
 }
 
 export function saveStoryboard(
@@ -291,21 +315,25 @@ export function saveStoryboard(
     );
   }
 
+  // 删除旧段前先记录其媒体文件，重建后清理，避免磁盘残留无限增长。
+  const staleMedia = collectProjectMediaFiles(db, projectId);
+
   const tx = db.transaction(() => {
     db.prepare("DELETE FROM segment WHERE project_id = ?").run(projectId);
 
     const updateBlocking = db.prepare(
       "UPDATE scene SET blocking_json = ? WHERE id = ?",
     );
+    // 以镜为主：先写一个「暂存段」持有本场镜序列，随后由编排层按厂商重打包。
     const insertSegment = db.prepare(
       `INSERT INTO segment
        (id, project_id, scene_id, idx, generation_mode, target_ms, first_frame_id, hard_cut, status, video_path, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 'draft', NULL, ?, ?)`,
+       VALUES (?, ?, ?, 1, 'multi-shot', ?, NULL, 0, 'draft', NULL, ?, ?)`,
     );
     const insertShot = db.prepare(
       `INSERT INTO shot
-       (id, segment_id, idx, duration_ms, camera_json, lighting, action, dialogue, dialogue_json, expression, subject_node_ids_json, original_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?)`,
+       (id, segment_id, idx, duration_ms, ideal_ms, continues_prev, camera_json, lighting, action, dialogue, dialogue_json, expression, subject_node_ids_json, original_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?)`,
     );
     const insertRef = db.prepare(
       `INSERT INTO shot_ref (id, shot_id, role, asset_id, variant_id, view_id, sort_order)
@@ -318,54 +346,58 @@ export function saveStoryboard(
       if (!sceneId) continue;
       updateBlocking.run(JSON.stringify(sceneDraft.blocking), sceneId);
 
-      sceneDraft.segments.forEach((segment, segmentIndex) => {
-        const segmentId = newId();
-        const hardCut = segmentIndex > 0 && segment.hardCut;
-        insertSegment.run(
+      const shots = sceneDraft.shots ?? [];
+      if (shots.length === 0) continue;
+
+      const segmentId = newId();
+      const totalMs = shots.reduce((a, s) => a + (s.durationMs || 0), 0);
+      insertSegment.run(
+        segmentId,
+        projectId,
+        sceneId,
+        totalMs || 10000,
+        now,
+        now,
+      );
+
+      shots.forEach((shot, shotIndex) => {
+        const dialogue = toDialogue(shot.dialogue);
+        const idealMs = shot.durationMs || 0;
+        const continuesPrev = Boolean(shot.continuesPrev);
+        const shotId = newId();
+        insertShot.run(
+          shotId,
           segmentId,
-          projectId,
-          sceneId,
-          segment.index,
-          segment.generationMode,
-          segment.targetMs,
-          hardCut ? 1 : 0,
-          now,
-          now,
+          shotIndex,
+          idealMs,
+          idealMs,
+          continuesPrev ? 1 : 0,
+          JSON.stringify(shot.camera),
+          shot.lighting,
+          shot.action,
+          JSON.stringify(dialogue),
+          shot.expression,
+          JSON.stringify(shot.subjectNodeIds ?? []),
+          JSON.stringify({
+            durationMs: idealMs,
+            idealMs,
+            continuesPrev,
+            camera: shot.camera,
+            lighting: shot.lighting,
+            action: shot.action,
+            dialogue,
+            expression: shot.expression,
+            subjectNodeIds: shot.subjectNodeIds ?? [],
+            refs: shot.refs,
+          }),
         );
-        segment.shots.forEach((shot, shotIndex) => {
-          const refs = normalizeSegmentRefs(
-            segmentIndex === 0 || hardCut,
-            shotIndex,
-            shot.refs,
-          );
-          const dialogue = toDialogue(shot.dialogue);
-          const shotId = newId();
-          insertShot.run(
-            shotId,
-            segmentId,
-            shotIndex,
-            shot.durationMs,
-            JSON.stringify(shot.camera),
-            shot.lighting,
-            shot.action,
-            JSON.stringify(dialogue),
-            shot.expression,
-            JSON.stringify(shot.subjectNodeIds ?? []),
-            JSON.stringify({
-              durationMs: shot.durationMs,
-              camera: shot.camera,
-              lighting: shot.lighting,
-              action: shot.action,
-              dialogue,
-              expression: shot.expression,
-              subjectNodeIds: shot.subjectNodeIds ?? [],
-              refs,
-            }),
-          );
-          refs.forEach((ref, refIndex) => {
+        // 只写内容引用（角色/场景/道具）；起始画面由 segment.first_frame_id 单独管理。
+        shot.refs
+          .filter((r) => r.assetName.trim().length > 0)
+          .forEach((ref, refIndex) => {
             const resolved = resolveRefLabels(assets, ref);
             // 引用了不存在的资产（如没建资产的一次性道具）→ 丢弃，避免存下悬空引用。
-            if (ref.role !== "first_frame" && !resolved.assetId) return;
+            if (!resolved.assetId) return;
             insertRef.run(
               newId(),
               shotId,
@@ -376,11 +408,14 @@ export function saveStoryboard(
               refIndex,
             );
           });
-        });
       });
     }
   });
   tx();
+
+  // 分镜整体重建：旧的镜 id 已作废，清空按厂商的编排缓存，避免残留脏数据。
+  clearOrchestrationCache(projectId);
+  removeMediaFiles(staleMedia);
 
   // 同一地点可能有多个场次（分场推进），必须共用一套站位，
   // 否则同一张场景图下人物每场换座，观感上「场景一致但座位乱」。
@@ -459,8 +494,11 @@ export function normalizeBlockingByLocation(projectId: string): number {
 
 export function clearStoryboard(projectId: string): void {
   const db = getProjectDb(projectId);
+  const staleMedia = collectProjectMediaFiles(db, projectId);
   db.prepare("DELETE FROM segment WHERE project_id = ?").run(projectId);
   db.prepare("UPDATE scene SET blocking_json = NULL").run();
+  clearOrchestrationCache(projectId);
+  removeMediaFiles(staleMedia);
 }
 
 export function saveSceneBlocking(
@@ -523,6 +561,7 @@ export interface ShotPatch {
   dialogue?: DialogueLine[];
   expression?: string;
   subjectNodeIds?: string[];
+  continuesPrev?: boolean;
   refs?: RefLabelInput[];
 }
 
@@ -561,6 +600,8 @@ export function updateShot(
     db.prepare(
       `UPDATE shot SET
          duration_ms = COALESCE(?, duration_ms),
+         ideal_ms = COALESCE(?, ideal_ms),
+         continues_prev = COALESCE(?, continues_prev),
          camera_json = COALESCE(?, camera_json),
          lighting = COALESCE(?, lighting),
          action = COALESCE(?, action),
@@ -570,6 +611,8 @@ export function updateShot(
        WHERE id = ?`,
     ).run(
       patch.durationMs ?? null,
+      patch.durationMs ?? null,
+      patch.continuesPrev === undefined ? null : patch.continuesPrev ? 1 : 0,
       patch.camera ? JSON.stringify(patch.camera) : null,
       patch.lighting ?? null,
       patch.action ?? null,
@@ -586,6 +629,8 @@ export function updateShot(
 
 interface OriginalShot {
   durationMs: number;
+  idealMs?: number;
+  continuesPrev?: boolean;
   camera: Camera;
   lighting: string;
   action: string;
@@ -616,11 +661,14 @@ export function restoreShot(
   }
   const tx = db.transaction(() => {
     db.prepare(
-      `UPDATE shot SET duration_ms = ?, camera_json = ?, lighting = ?,
+      `UPDATE shot SET duration_ms = ?, ideal_ms = ?, continues_prev = ?,
+         camera_json = ?, lighting = ?,
          action = ?, dialogue_json = ?, expression = ?, subject_node_ids_json = ?
        WHERE id = ?`,
     ).run(
       original.durationMs,
+      original.idealMs ?? original.durationMs,
+      original.continuesPrev ? 1 : 0,
       JSON.stringify(original.camera),
       original.lighting,
       original.action,

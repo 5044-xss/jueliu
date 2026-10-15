@@ -21,6 +21,8 @@ export interface FfmpegSettings {
 export interface GlobalSettings {
   llm: LlmSettings;
   ffmpeg: FfmpegSettings;
+  /** 打开「第三方生成」时自动生成 AI 翻译提示词（默认开）。 */
+  autoGenerateAiPrompt: boolean;
 }
 
 export const PROVIDER_PRESETS: Record<
@@ -72,7 +74,9 @@ export interface FfmpegStatus {
 export function maskApiKey(settings: GlobalSettings): GlobalSettings {
   const key = settings.llm.apiKey;
   const masked = key
-    ? `${key.slice(0, 4)}${"*".repeat(Math.max(0, Math.min(8, key.length - 8)))}${key.slice(-4)}`
+    ? key.length <= 8
+      ? "*".repeat(key.length)
+      : `${key.slice(0, 4)}${"*".repeat(Math.min(8, key.length - 8))}${key.slice(-4)}`
     : "";
   return { ...settings, llm: { ...settings.llm, apiKey: masked } };
 }

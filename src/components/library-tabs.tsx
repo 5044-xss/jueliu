@@ -6,8 +6,9 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   { key: "styles", label: "风格库" },
-  { key: "templates", label: "厂商提示词模板库" },
+  { key: "vendors", label: "厂商库" },
   { key: "skills", label: "技能库" },
+  { key: "assets", label: "资产库" },
 ];
 
 export function LibraryTabs() {

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   CheckCircle2,
   Circle,
+  Download,
   Film,
   ImageDown,
   Loader2,
@@ -13,10 +14,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { downloadImage } from "@/lib/download";
 
 export interface FrameInfo {
   id: string;
-  kind: "first" | "last";
+  kind: "first" | "last" | "start";
   imagePath: string;
   confirmed: boolean;
 }
@@ -24,12 +26,16 @@ export interface FrameInfo {
 export function SegmentVideo({
   projectId,
   segmentId,
+  segmentLabel,
   nextSegmentId,
+  refreshKey = 0,
   onChanged,
 }: {
   projectId: string;
   segmentId: string;
+  segmentLabel?: string;
   nextSegmentId?: string | null;
+  refreshKey?: number;
   onChanged?: () => void;
 }) {
   const [frames, setFrames] = useState<FrameInfo[]>([]);
@@ -41,8 +47,9 @@ export function SegmentVideo({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
+    // refreshKey 只用于触发重新读取（父级在起始画面变化后递增）。
     const res = await fetch(
-      `/api/projects/${projectId}/segments/${segmentId}/frames`,
+      `/api/projects/${projectId}/segments/${segmentId}/frames?v=${refreshKey}`,
     );
     const data = await res.json();
     return data as {
@@ -50,7 +57,7 @@ export function SegmentVideo({
       videoPath: string | null;
       firstFrameId: string | null;
     };
-  }, [projectId, segmentId]);
+  }, [projectId, segmentId, refreshKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,12 +110,19 @@ export function SegmentVideo({
   async function removeVideo() {
     if (!window.confirm("确定移除已回传视频？")) return;
     setBusy("remove");
-    await fetch(`/api/projects/${projectId}/segments/${segmentId}/video`, {
-      method: "DELETE",
-    });
-    toast.success("已移除视频");
-    await refresh();
-    setBusy(null);
+    try {
+      const res = await fetch(
+        `/api/projects/${projectId}/segments/${segmentId}/video`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) throw new Error();
+      toast.success("已移除视频");
+      await refresh();
+    } catch {
+      toast.error("移除失败");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function extract(kind: "first" | "last") {
@@ -134,12 +148,52 @@ export function SegmentVideo({
   }
 
   async function toggleConfirm(frame: FrameInfo) {
-    await fetch(`/api/projects/${projectId}/frames/${frame.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ confirmed: !frame.confirmed }),
-    });
-    await refresh();
+    try {
+      const res = await fetch(`/api/projects/${projectId}/frames/${frame.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmed: !frame.confirmed }),
+      });
+      if (!res.ok) throw new Error();
+      await refresh();
+    } catch {
+      toast.error("操作失败");
+    }
+  }
+
+  async function download(frame: FrameInfo) {
+    const kindLabel =
+      frame.kind === "first"
+        ? "首帧"
+        : frame.kind === "start"
+          ? "起始画面"
+          : "结尾画面";
+    try {
+      await downloadImage(
+        `/api/projects/${projectId}/frames/${frame.id}/image`,
+        `${segmentLabel ? `${segmentLabel}-` : ""}${kindLabel}`,
+      );
+    } catch {
+      toast.error("下载失败");
+    }
+  }
+
+  async function removeFrame(frame: FrameInfo) {
+    if (!window.confirm("确定删除这张图片？")) return;
+    setBusy(`remove-${frame.id}`);
+    try {
+      const res = await fetch(
+        `/api/projects/${projectId}/frames/${frame.id}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) throw new Error();
+      toast.success("已删除");
+      await refresh();
+    } catch {
+      toast.error("删除失败");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function anchorToNext(frame: FrameInfo) {
@@ -149,16 +203,24 @@ export function SegmentVideo({
     }
     if (!frame.confirmed && !window.confirm("该尾帧尚未确认，仍要设为下一段首帧？"))
       return;
-    await fetch(
-      `/api/projects/${projectId}/segments/${nextSegmentId}/first-frame`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ frameId: frame.id }),
-      },
-    );
-    toast.success("已设为下一段首帧（图1）");
-    onChanged?.();
+    setBusy(`anchor-${frame.id}`);
+    try {
+      const res = await fetch(
+        `/api/projects/${projectId}/segments/${nextSegmentId}/first-frame`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ frameId: frame.id }),
+        },
+      );
+      if (!res.ok) throw new Error();
+      toast.success("已设为下一段起始画面（图1）");
+      onChanged?.();
+    } catch {
+      toast.error("设置失败");
+    } finally {
+      setBusy(null);
+    }
   }
 
   if (!loaded) {
@@ -246,7 +308,11 @@ export function SegmentVideo({
               <div key={frame.id} className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium">
-                    {frame.kind === "first" ? "首帧" : "尾帧"}
+                    {frame.kind === "first"
+                      ? "首帧（本段视频）"
+                      : frame.kind === "start"
+                        ? "起始画面（图1）"
+                        : "结尾画面"}
                   </span>
                   <button
                     type="button"
@@ -268,15 +334,40 @@ export function SegmentVideo({
                   className="max-h-48 w-full rounded-md object-contain"
                 />
                 <div className="flex flex-wrap gap-1.5">
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={() => download(frame)}
+                  >
+                    <Download className="size-3.5" />
+                    下载图片
+                  </Button>
                   {frame.kind === "last" && (
                     <Button
                       size="xs"
                       variant="outline"
                       onClick={() => anchorToNext(frame)}
+                      disabled={busy !== null}
                     >
-                      设为下一段首帧
+                      {busy === `anchor-${frame.id}` ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : null}
+                      用作下一段起始画面
                     </Button>
                   )}
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => removeFrame(frame)}
+                    disabled={busy !== null}
+                  >
+                    {busy === `remove-${frame.id}` ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="size-3.5" />
+                    )}
+                    删除
+                  </Button>
                   {isFirstOfThis && (
                     <Badge variant="secondary" className="text-[10px]">
                       本段图1

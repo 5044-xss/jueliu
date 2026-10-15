@@ -64,7 +64,7 @@ export const scriptToAssetsSkill: SkillDefinition<Input, AssetsDraft> = {
     ];
     const user = [
       `【风格说明】项目风格为「${ctx.project.style || "未指定"}」，但**不要把它或任何其他画风词写进 prompt**；风格由系统在展示/复制时自动附加。`,
-      `【参考图比例】角色四视图用正方形（1:1）横排四个角度；场景用横版（16:9）或正方形；道具用正方形。这些是给模型看的参考图，不要用成片视频的 ${ctx.project.aspectRatio} 竖版比例。`,
+      `【参考图比例】角色四视图用横版 16:9（正面/侧面/背面/45°四个全身并排，留白足够）；场景用横版 16:9；道具用正方形 1:1。这些是给模型看的参考图，不要用成片视频的 ${ctx.project.aspectRatio} 竖版比例。`,
       "",
       `【必须覆盖的地点清单】共 ${locations.length} 个：每个地点都必须建一个场景资产，name 用该地点名，不得遗漏、不得合并：`,
       locations.map((l) => `- ${l}`).join("\n"),

@@ -121,7 +121,7 @@ function registerIpc() {
         `https://api.github.com/repos/${REPO}/releases/latest`,
         {
           headers: {
-            "User-Agent": "Jueman-Desktop",
+            "User-Agent": "Jueliu-Desktop",
             Accept: "application/vnd.github+json",
           },
         },
@@ -131,7 +131,11 @@ function registerIpc() {
       if (res.status === 404) {
         return { ok: true, current, latest: current, url: null, hasUpdate: false, note: "暂无发布版本" };
       }
-      if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+      // 403/429：GitHub 未授权接口限流，属于临时状况，给友好提示而非报错。
+      if (res.status === 403 || res.status === 429) {
+        return { ok: false, error: "检查太频繁了，请稍后再试" };
+      }
+      if (!res.ok) return { ok: false, error: `检查更新失败（HTTP ${res.status}）` };
       const data = await res.json();
       const latest = String(data.tag_name || "").replace(/^v/i, "");
       return {
@@ -141,8 +145,8 @@ function registerIpc() {
         url: data.html_url,
         hasUpdate: compareVersions(latest, current) > 0,
       };
-    } catch (error) {
-      return { ok: false, error: String(error.message || error) };
+    } catch {
+      return { ok: false, error: "网络异常，请稍后再试" };
     }
   });
 }
@@ -170,7 +174,7 @@ function createWindow(url) {
     show: false,
     backgroundColor: "#0b0b0f",
     icon: appIconPath(),
-    title: "掘漫",
+    title: "掘流",
     webPreferences: {
       preload: preloadPath(),
       contextIsolation: true,
@@ -200,7 +204,7 @@ function showActivation() {
     show: false,
     backgroundColor: "#0b0b0f",
     icon: appIconPath(),
-    title: "掘漫 · 激活",
+    title: "掘流 · 激活",
     webPreferences: {
       preload: preloadPath(),
       contextIsolation: true,

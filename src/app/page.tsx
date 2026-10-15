@@ -1,427 +1,166 @@
-"use client";
-
-import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import {
-  ChevronDown,
-  ChevronRight,
-  Folder,
-  FolderOpen,
-  FolderPlus,
-  Loader2,
-  Pencil,
-  Plus,
-  Trash2,
+  ArrowRight,
+  Clapperboard,
+  Film,
+  ImagePlus,
+  KeyRound,
+  Settings2,
+  Wand2,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { PageHeader } from "@/components/page-header";
-import { ProjectFormDialog } from "@/components/project-form-dialog";
-import type { ProjectSummary } from "@/lib/projects";
 
-const UNGROUPED_KEY = "__ungrouped__";
+const FREE_ROUTE = [
+  {
+    icon: Settings2,
+    title: "写提示词 · 阿里百炼",
+    body: "注册即有免费额度，qwen 系列足够生成海量提示词，不花钱。",
+  },
+  {
+    icon: ImagePlus,
+    title: "生图 · 豆包 / 即梦",
+    body: "日常免费额度，角色、场景出图够用。",
+  },
+  {
+    icon: Film,
+    title: "生视频 · 豆包",
+    body: "可用免费额度生成视频片段。",
+  },
+];
+
+const STEPS = [
+  { icon: Settings2, title: "配置模型", body: "填入你自己的 LLM Key；阿里百炼新用户有免费额度。" },
+  { icon: Wand2, title: "生成提示词", body: "生成剧本、分镜，以及画面与视频提示词。" },
+  { icon: Film, title: "出图出片", body: "把提示词交给豆包 / 即梦等模型生成素材。" },
+  { icon: Clapperboard, title: "合成导出", body: "素材导入项目，用内置 ffmpeg 合成成片。" },
+];
+
+const MYTHS = [
+  { wrong: "做漫剧要花很多钱", right: "用各平台的免费额度，起步阶段几乎零成本" },
+  { wrong: "软件自带模型额度", right: "额度来自你自己的账号，多数平台都有免费额度" },
+  { wrong: "点一下就能直接出片", right: "软件产出提示词，出片交给免费模型" },
+];
 
 export default function HomePage() {
-  const router = useRouter();
-  const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
-  const [groups, setGroups] = useState<string[]>([]);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-
-  const [formOpen, setFormOpen] = useState(false);
-  const [formMode, setFormMode] = useState<"create" | "edit">("create");
-  const [editingId, setEditingId] = useState<string | undefined>();
-  const [editingGroup, setEditingGroup] = useState("");
-  const [defaultGroup, setDefaultGroup] = useState("");
-
-  const [groupDialog, setGroupDialog] = useState<
-    { mode: "create" | "rename"; original?: string } | null
-  >(null);
-  const [groupNameDraft, setGroupNameDraft] = useState("");
-  const [groupSaving, setGroupSaving] = useState(false);
-
-  const reload = useCallback(async () => {
-    const res = await fetch("/api/projects");
-    const data = await res.json();
-    setProjects((data.projects ?? []) as ProjectSummary[]);
-    setGroups((data.groups ?? []) as string[]);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/projects");
-        const data = await res.json();
-        if (cancelled) return;
-        setProjects((data.projects ?? []) as ProjectSummary[]);
-        setGroups((data.groups ?? []) as string[]);
-      } catch {
-        if (!cancelled) toast.error("读取项目列表失败");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  function toggleGroup(key: string) {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
-
-  function openCreate(group = "") {
-    setFormMode("create");
-    setEditingId(undefined);
-    setEditingGroup("");
-    setDefaultGroup(group);
-    setFormOpen(true);
-  }
-
-  function openEdit(project: ProjectSummary) {
-    setFormMode("edit");
-    setEditingId(project.id);
-    setEditingGroup(project.group ?? "");
-    setDefaultGroup("");
-    setFormOpen(true);
-  }
-
-  function handleSaved(project: { id: string }) {
-    setFormOpen(false);
-    if (formMode === "create") {
-      router.push(`/projects/${project.id}`);
-    } else {
-      reload();
-    }
-  }
-
-  async function remove(id: string, projectName: string) {
-    if (
-      !window.confirm(
-        `确定删除项目「${projectName}」？其本地数据与媒体文件将一并删除，且不可恢复。`,
-      )
-    ) {
-      return;
-    }
-    try {
-      const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
-      toast.success("已删除");
-      await reload();
-    } catch {
-      toast.error("删除失败");
-    }
-  }
-
-  function openCreateGroup() {
-    setGroupNameDraft("");
-    setGroupDialog({ mode: "create" });
-  }
-
-  function openRenameGroup(name: string) {
-    setGroupNameDraft(name);
-    setGroupDialog({ mode: "rename", original: name });
-  }
-
-  async function saveGroup() {
-    if (!groupDialog) return;
-    const name = groupNameDraft.trim();
-    if (!name) {
-      toast.error("请填写分组名");
-      return;
-    }
-    setGroupSaving(true);
-    try {
-      const res = await fetch("/api/project-groups", {
-        method: groupDialog.mode === "rename" ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          groupDialog.mode === "rename"
-            ? { name: groupDialog.original, newName: name }
-            : { name },
-        ),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "保存失败");
-      setGroups((data.groups ?? []) as string[]);
-      toast.success(groupDialog.mode === "rename" ? "分组已重命名" : "分组已创建");
-      setGroupDialog(null);
-      await reload();
-    } catch (error) {
-      toast.error((error as Error).message);
-    } finally {
-      setGroupSaving(false);
-    }
-  }
-
-  async function deleteGroup(name: string) {
-    if (!window.confirm(`确定删除分组「${name}」？组内项目会移到「未分组」。`)) {
-      return;
-    }
-    try {
-      const res = await fetch("/api/project-groups", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "删除失败");
-      setGroups((data.groups ?? []) as string[]);
-      toast.success("分组已删除");
-      await reload();
-    } catch (error) {
-      toast.error((error as Error).message);
-    }
-  }
-
-  const groupNames = projects
-    ? [
-        ...new Set([
-          ...groups,
-          ...projects.map((p) => p.group || "").filter(Boolean),
-        ]),
-      ].sort((a, b) => a.localeCompare(b, "zh"))
-    : [];
-  const sections = groupNames.map((name) => ({
-    key: name,
-    name,
-    managed: groups.includes(name),
-    items: (projects ?? []).filter((p) => (p.group || "") === name),
-  }));
-  const ungrouped = (projects ?? []).filter((p) => !p.group);
-  if (ungrouped.length > 0) {
-    sections.push({
-      key: UNGROUPED_KEY,
-      name: "未分组",
-      managed: false,
-      items: ungrouped,
-    });
-  }
-
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        eyebrow="Projects"
-        title="项目"
-        description="一次创作对应一个项目，本地存储于 workspace/。"
-        actions={
-          <>
-            <Button variant="outline" onClick={openCreateGroup}>
-              <FolderPlus className="size-4" />
-              新建分组
-            </Button>
-            <Button onClick={() => openCreate()}>
-              <Plus className="size-4" />
-              新建项目
-            </Button>
-          </>
-        }
-      />
-
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-lilac p-4">
-        <p className="text-sm">
-          工作流：配置 Key → 生成提示词 → 第三方出图出片 → 回本软件合成导出。
+    <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-24 py-4 text-black">
+      <section className="flex flex-col gap-6 pt-6">
+        <p className="font-mono text-xs uppercase tracking-[0.14em]">掘流 · HOME</p>
+        <h1 className="max-w-3xl text-4xl font-light leading-[1.1] tracking-[-0.9px] sm:text-5xl">
+          用免费额度，做出你的第一条漫剧。
+        </h1>
+        <p className="max-w-2xl text-lg leading-relaxed tracking-[-0.14px]">
+          掘流是一款本地单机的 AI 漫剧创作工作台。它负责管项目、生成提示词、合成成片；出图出片交给第三方模型——
+          <strong className="font-semibold">其中不少是免费的</strong>
+          。全流程几乎零成本就能跑起来。
         </p>
-        <Link
-          href="/help"
-          className="shrink-0 text-sm font-medium underline underline-offset-2"
-        >
-          查看使用须知
-        </Link>
-      </div>
+      </section>
 
-      {projects === null ? (
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" /> 加载中…
+      <section className="rounded-[24px] bg-[#c5b0f4] p-8 sm:p-12">
+        <p className="font-mono text-xs uppercase tracking-[0.14em]">重要</p>
+        <h2 className="mt-4 max-w-2xl text-2xl font-medium leading-snug tracking-[-0.26px]">
+          掘流不直接生成成片视频
+        </h2>
+        <p className="mt-4 max-w-2xl text-lg leading-relaxed tracking-[-0.14px]">
+          它产出的是
+          <strong className="font-semibold">剧本、分镜，以及画面与视频的提示词</strong>。
+          出图、出片到第三方模型完成，再把素材带回本软件合成为成片。
+        </p>
+        <p className="mt-4 max-w-2xl text-base leading-relaxed">
+          好处是不绑定任何一家模型——你还能挑免费的那家用。
+        </p>
+      </section>
+
+      <section className="rounded-[24px] bg-[#dceeb1] p-8 sm:p-12">
+        <p className="font-mono text-xs uppercase tracking-[0.14em]">省钱路线</p>
+        <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="text-5xl font-light tracking-[-1px]">≈ ¥0</span>
+          <span className="text-base">起步成本，用免费额度就能跑通</span>
         </div>
-      ) : projects.length === 0 && groups.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            还没有项目，点击右上角「新建项目」开始。
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="flex flex-col gap-8">
-          {sections.map((section) => {
-            const isCollapsed = collapsed.has(section.key);
-            return (
-              <section key={section.key} className="flex flex-col gap-3">
-                <div className="flex items-center gap-2 border-b pb-2">
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(section.key)}
-                    className="flex items-center gap-1.5 text-sm font-medium"
-                  >
-                    {isCollapsed ? (
-                      <ChevronRight className="size-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="size-4 text-muted-foreground" />
-                    )}
-                    <Folder className="size-4 text-muted-foreground" />
-                    {section.name}
-                    <span className="text-xs font-normal text-muted-foreground">
-                      {section.items.length}
-                    </span>
-                  </button>
-                  {section.managed && (
-                    <div className="ml-auto flex items-center gap-1">
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        onClick={() => openCreate(section.name)}
-                      >
-                        <Plus className="size-3" />
-                        新建
-                      </Button>
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        onClick={() => openRenameGroup(section.name)}
-                      >
-                        <Pencil className="size-3" />
-                        重命名
-                      </Button>
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        onClick={() => deleteGroup(section.name)}
-                      >
-                        <Trash2 className="size-3" />
-                        删除
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {!isCollapsed &&
-                  (section.items.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      该分组暂无项目。
-                    </p>
-                  ) : (
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      {section.items.map((p) => (
-                        <Card key={p.id}>
-                          <CardHeader>
-                            <CardTitle className="truncate">{p.name}</CardTitle>
-                            <CardDescription>
-                              创建于{" "}
-                              {new Date(p.createdAt).toLocaleString("zh-CN")}
-                            </CardDescription>
-                          </CardHeader>
-                          <CardContent className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => router.push(`/projects/${p.id}`)}
-                            >
-                              <FolderOpen className="size-4" />
-                              打开
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => openEdit(p)}
-                            >
-                              <Pencil className="size-4" />
-                              编辑
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => remove(p.id, p.name)}
-                            >
-                              <Trash2 className="size-4" />
-                              删除
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  ))}
-              </section>
-            );
-          })}
+        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+          {FREE_ROUTE.map((item) => (
+            <div key={item.title} className="flex flex-col gap-3 rounded-[16px] bg-white/70 p-6">
+              <span className="flex size-9 items-center justify-center rounded-full bg-black text-white">
+                <item.icon className="size-4" />
+              </span>
+              <span className="font-medium">{item.title}</span>
+              <p className="text-sm leading-relaxed">{item.body}</p>
+            </div>
+          ))}
         </div>
-      )}
+        <p className="mt-6 text-xs leading-relaxed">
+          * 各平台免费额度、可用模型以其官方最新规则为准。
+        </p>
+      </section>
 
-      <p className="text-xs text-muted-foreground">
-        首次使用请先到 <Link href="/settings" className="underline">设置</Link>{" "}
-        配置 LLM 与 ffmpeg。
-      </p>
-
-      {formOpen && (
-        <ProjectFormDialog
-          key={formMode === "edit" ? `edit-${editingId}` : "create"}
-          mode={formMode}
-          projectId={editingId}
-          groups={groups}
-          defaultGroup={defaultGroup}
-          initialGroup={editingGroup}
-          onClose={() => setFormOpen(false)}
-          onSaved={handleSaved}
-        />
-      )}
-
-      <Dialog
-        open={groupDialog !== null}
-        onOpenChange={(open) => {
-          if (!open) setGroupDialog(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {groupDialog?.mode === "rename" ? "重命名分组" : "新建分组"}
-            </DialogTitle>
-            <DialogDescription>
-              分组只用于整理项目列表，不影响生成结果。
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-2">
-            <Label htmlFor="group-name">分组名</Label>
-            <Input
-              id="group-name"
-              value={groupNameDraft}
-              onChange={(e) => setGroupNameDraft(e.target.value)}
-              placeholder="例如：第一季 / 测试"
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setGroupDialog(null)}
-              disabled={groupSaving}
+      <section className="rounded-[24px] bg-[#f4ecd6] p-8 sm:p-12">
+        <p className="font-mono text-xs uppercase tracking-[0.14em]">工作流程</p>
+        <h2 className="mt-4 text-2xl font-medium tracking-[-0.26px]">四步走完一条漫剧</h2>
+        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          {STEPS.map((step, index) => (
+            <div
+              key={step.title}
+              className="flex items-start gap-4 rounded-[16px] bg-white/70 p-6"
             >
-              取消
-            </Button>
-            <Button onClick={saveGroup} disabled={groupSaving}>
-              {groupSaving && <Loader2 className="size-4 animate-spin" />}
-              保存
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-black text-sm font-medium text-white">
+                {index + 1}
+              </span>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <step.icon className="size-4" />
+                  <span className="font-medium">{step.title}</span>
+                </div>
+                <p className="text-sm leading-relaxed">{step.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-[24px] bg-[#c8e6cd] p-8 sm:p-12">
+        <p className="font-mono text-xs uppercase tracking-[0.14em]">澄清</p>
+        <h2 className="mt-4 text-2xl font-medium tracking-[-0.26px]">常见误解</h2>
+        <div className="mt-8 flex flex-col gap-3">
+          {MYTHS.map((item) => (
+            <div
+              key={item.wrong}
+              className="grid items-start gap-3 rounded-[16px] bg-white/70 p-5 sm:grid-cols-2"
+            >
+              <div className="flex items-start gap-2 text-sm">
+                <span className="font-mono text-xs uppercase tracking-widest">×</span>
+                <span className="text-black/45 line-through decoration-black/30">
+                  {item.wrong}
+                </span>
+              </div>
+              <div className="flex items-start gap-2 text-sm">
+                <span className="font-mono text-xs uppercase tracking-widest">✓</span>
+                <span className="font-medium">{item.right}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="flex flex-col items-start gap-6 pb-8">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/settings"
+            className="inline-flex items-center gap-2 rounded-full bg-black px-5 py-2.5 text-[15px] font-medium text-white transition-opacity hover:opacity-85"
+          >
+            去填写 API Key
+            <ArrowRight className="size-4" />
+          </Link>
+          <Link
+            href="/projects"
+            className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-5 py-2.5 text-[15px] font-medium transition-colors hover:bg-black/5"
+          >
+            开始创建项目
+          </Link>
+        </div>
+        <p className="flex items-center gap-2 text-sm">
+          <KeyRound className="size-3.5" />
+          你的 API Key 只保存在本机工作区，不会上传。
+        </p>
+      </section>
     </div>
   );
 }
