@@ -10,7 +10,7 @@ const { verifyLicense, loadLicense, saveLicense, clearLicense } = require("./lic
 
 const isDev = !app.isPackaged;
 const DEV_URL = process.env.ELECTRON_DEV_URL || "http://127.0.0.1:3000";
-const REPO = "5044-xss/excavator";
+const REPO = "5044-xss/jueliu";
 const SKIP_LICENSE = process.env.SKIP_LICENSE === "1";
 
 let mainWindow = null;
