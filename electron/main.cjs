@@ -10,9 +10,7 @@ const { verifyLicense, loadLicense, saveLicense, clearLicense } = require("./lic
 
 const isDev = !app.isPackaged;
 const DEV_URL = process.env.ELECTRON_DEV_URL || "http://127.0.0.1:3000";
-// 更新检查/下载走 Gitee（国内更快）。该仓库只放 releases。
-const GITEE_REPO = "xia-jinbo/jueliu";
-const GITEE_RELEASES_URL = `https://gitee.com/${GITEE_REPO}/releases`;
+const REPO = "5044-xss/jueliu";
 const SKIP_LICENSE = process.env.SKIP_LICENSE === "1";
 
 let mainWindow = null;
@@ -120,47 +118,31 @@ function registerIpc() {
   ipcMain.handle("check-update", async () => {
     try {
       const res = await fetch(
-        `https://gitee.com/api/v5/repos/${GITEE_REPO}/releases?per_page=20`,
+        `https://api.github.com/repos/${REPO}/releases/latest`,
         {
           headers: {
             "User-Agent": "Jueliu-Desktop",
-            Accept: "application/json",
+            Accept: "application/vnd.github+json",
           },
         },
       );
       const current = app.getVersion();
-      // 403/429：接口限流，属于临时状况，给友好提示而非报错。
+      // 404：仓库尚无任何 Release，视为「暂无更新」，不是错误。
+      if (res.status === 404) {
+        return { ok: true, current, latest: current, url: null, hasUpdate: false, note: "暂无发布版本" };
+      }
+      // 403/429：GitHub 未授权接口限流，属于临时状况，给友好提示而非报错。
       if (res.status === 403 || res.status === 429) {
         return { ok: false, error: "检查太频繁了，请稍后再试" };
       }
       if (!res.ok) return { ok: false, error: `检查更新失败（HTTP ${res.status}）` };
-      const list = await res.json();
-      // 尚无任何 Release：视为「暂无更新」，不是错误。
-      if (!Array.isArray(list) || list.length === 0) {
-        return { ok: true, current, latest: current, url: null, hasUpdate: false, note: "暂无发布版本" };
-      }
-      // 取最新的正式版（优先非预发布），按创建时间排序兜底。
-      const formal = list.filter((r) => r && !r.prerelease && !r.draft);
-      const pool = formal.length > 0 ? formal : list;
-      const newest = pool
-        .slice()
-        .sort((a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0))[0];
-      const tag = String(newest?.tag_name || "");
-      const latest = tag.replace(/^v/i, "");
-      // 优先给安装包直链，其次任意附件，最后回退到 releases 列表页。
-      const assets = Array.isArray(newest?.assets) ? newest.assets : [];
-      const exe = assets.find((a) =>
-        /\.exe($|\?)/i.test(String(a?.browser_download_url || a?.name || "")),
-      );
-      const url =
-        exe?.browser_download_url ||
-        assets.find((a) => a?.browser_download_url)?.browser_download_url ||
-        GITEE_RELEASES_URL;
+      const data = await res.json();
+      const latest = String(data.tag_name || "").replace(/^v/i, "");
       return {
         ok: true,
         current,
         latest,
-        url,
+        url: data.html_url,
         hasUpdate: compareVersions(latest, current) > 0,
       };
     } catch {
