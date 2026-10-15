@@ -296,9 +296,10 @@ export default function SettingsPage() {
               <Button
                 type="button"
                 onClick={() => window.licenseAPI?.openExternal(updateResult.url!)}
+                title={`从 GitHub 下载安装包 v${updateResult.latest}`}
               >
                 <Download className="size-4" />
-                前往下载 v{updateResult.latest}
+                立即更新
               </Button>
             )}
             {updateResult?.ok && !updateResult.hasUpdate && (
