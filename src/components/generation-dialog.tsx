@@ -21,11 +21,11 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { CopyButton } from "@/components/copy-button";
 import { PreviewImage } from "@/components/preview-image";
-import { DEFAULT_PLATFORM } from "@/lib/templates-defaults";
-import { downloadImage } from "@/lib/download";
-import type { RenderedPrompt } from "@/lib/render-types";
-import type { KeyframePrompt, StartFrameState } from "@/lib/keyframe";
-import { cn } from "@/lib/utils";
+import { DEFAULT_PLATFORM } from "@core/shared/templates-defaults";
+import { downloadImage } from "@core/client/download";
+import type { RenderedPrompt } from "@core/shared/render-types";
+import type { KeyframePrompt, StartFrameState } from "@core/shared/keyframe";
+import { cn } from "@core/client/utils";
 
 interface VendorInfo {
   id: string;

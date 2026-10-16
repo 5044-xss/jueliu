@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getVendors, createVendor } from "@/lib/library/vendors";
+import { getVendors, createVendor } from "@core/server/library/vendors";
 
 const createSchema = z.object({
   name: z.string().min(1, "名称不能为空"),

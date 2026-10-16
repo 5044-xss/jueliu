@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { buildAiPromptSignature, getCachedAiPrompt } from "@/lib/ai-prompt";
-import { projectExists } from "@/lib/projects";
+import { buildAiPromptSignature, getCachedAiPrompt } from "@core/server/ai-prompt";
+import { projectExists } from "@core/server/projects";
 
 type Ctx = { params: Promise<{ id: string; segmentId: string }> };
 

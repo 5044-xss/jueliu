@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { renderSegment } from "@/lib/render";
+import { renderSegment } from "@core/server/render";
 
 const bodySchema = z.object({
   projectId: z.string(),

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { PreviewImage } from "@/components/preview-image";
-import type { LibraryAssetItem } from "@/lib/library/assets";
+import type { LibraryAssetItem } from "@core/shared/library/assets";
 
 const TYPE_LABEL: Record<string, string> = {
   character: "角色",

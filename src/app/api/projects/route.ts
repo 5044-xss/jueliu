@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createSeries, listSeriesWithCounts } from "@/lib/projects";
+import { createSeries, listSeriesWithCounts } from "@core/server/projects";
 
 const createSchema = z.object({
   name: z.string().min(1, "项目名不能为空"),

@@ -26,7 +26,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { ProjectFormDialog } from "@/components/project-form-dialog";
 import { CopyDialog } from "@/components/copy-dialog";
-import type { EpisodeSummary, SeriesSummary } from "@/lib/projects";
+import type { EpisodeSummary, SeriesSummary } from "@core/shared/projects";
 
 interface EpisodeCard extends EpisodeSummary {
   thumbnail: { segmentId: string } | null;

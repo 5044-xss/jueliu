@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { restoreAssets } from "@/lib/assets";
-import { projectExists } from "@/lib/projects";
+import { restoreAssets } from "@core/server/assets";
+import { projectExists } from "@core/server/projects";
 
 type Ctx = { params: Promise<{ id: string }> };
 

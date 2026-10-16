@@ -29,10 +29,10 @@ import {
   platformLabel,
   TEMPLATE_VARIABLES,
   DEFAULT_TEMPLATES,
-} from "@/lib/templates-defaults";
-import { DEFAULT_VENDORS } from "@/lib/orchestration/vendors";
-import type { LibraryVendor } from "@/lib/library/vendors";
-import type { LibraryTemplate } from "@/lib/library/types";
+} from "@core/shared/templates-defaults";
+import { DEFAULT_VENDORS } from "@core/shared/orchestration/vendors";
+import type { LibraryVendor } from "@core/shared/library/vendors";
+import type { LibraryTemplate } from "@core/shared/library/types";
 
 function msToSec(ms: number): string {
   return (ms / 1000).toString();

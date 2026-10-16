@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { readGlobalSettings, maskApiKey } from "@/lib/settings";
-import { createLlmClient } from "@/lib/llm/client";
+import { readGlobalSettings, maskApiKey } from "@core/server/settings";
+import { createLlmClient } from "@core/server/llm/client";
 
 const bodySchema = z.object({
   baseURL: z.string().optional(),

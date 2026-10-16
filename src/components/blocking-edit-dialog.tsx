@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { Blocking } from "@/lib/schemas/storyboard";
+import type { Blocking } from "@core/shared/schemas/storyboard";
 
 const NODE_TYPES = ["character", "prop", "screen", "landmark"] as const;
 const selectClass =

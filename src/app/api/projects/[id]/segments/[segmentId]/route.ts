@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { setSegmentHardCut, setSegmentTargetMs } from "@/lib/storyboard";
-import { projectExists } from "@/lib/projects";
+import { setSegmentHardCut, setSegmentTargetMs } from "@core/server/storyboard";
+import { projectExists } from "@core/server/projects";
 
 type Ctx = { params: Promise<{ id: string; segmentId: string }> };
 

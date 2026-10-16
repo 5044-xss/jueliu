@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { getFrameImagePath } from "@/lib/frames";
-import { projectExists } from "@/lib/projects";
+import { getFrameImagePath } from "@core/server/frames";
+import { projectExists } from "@core/server/projects";
 
 type Ctx = { params: Promise<{ id: string; frameId: string }> };
 

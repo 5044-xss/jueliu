@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { copySeries } from "@/lib/projects";
+import { copySeries } from "@core/server/projects";
 
 const copySchema = z.object({
   name: z.string().optional(),

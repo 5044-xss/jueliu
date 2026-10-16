@@ -1,0 +1,3 @@
+[submodule "packages/core"]
+	path = packages/core
+	url = https://github.com/5044-xss/jueliu-core.git

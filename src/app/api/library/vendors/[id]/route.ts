@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { updateVendor, deleteVendor, getVendors } from "@/lib/library/vendors";
+import { updateVendor, deleteVendor, getVendors } from "@core/server/library/vendors";
 
 const patchSchema = z.object({
   name: z.string().min(1).optional(),

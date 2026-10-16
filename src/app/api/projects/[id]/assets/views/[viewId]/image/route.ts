@@ -5,9 +5,9 @@ import {
   getViewContext,
   getViewImagePath,
   setViewImage,
-} from "@/lib/assets";
-import { getAssetViewPath } from "@/lib/paths";
-import { projectExists } from "@/lib/projects";
+} from "@core/server/assets";
+import { getAssetViewPath } from "@core/server/paths";
+import { projectExists } from "@core/server/projects";
 
 type Ctx = { params: Promise<{ id: string; viewId: string }> };
 

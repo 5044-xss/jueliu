@@ -5,9 +5,9 @@ import {
   getProject,
   updateProject,
   projectExists,
-} from "@/lib/projects";
-import { stripStyleFromAssetPrompts, getAssets } from "@/lib/assets";
-import { isVendorId } from "@/lib/library/vendors";
+} from "@core/server/projects";
+import { stripStyleFromAssetPrompts, getAssets } from "@core/server/assets";
+import { isVendorId } from "@core/server/library/vendors";
 
 const patchSchema = z.object({
   name: z.string().min(1).optional(),

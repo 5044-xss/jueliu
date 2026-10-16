@@ -19,8 +19,8 @@ import type {
   DialogueLine,
   RefRole,
   StoredShot,
-} from "@/lib/schemas/storyboard";
-import type { StoredAsset } from "@/lib/schemas/assets";
+} from "@core/shared/schemas/storyboard";
+import type { StoredAsset } from "@core/shared/schemas/assets";
 
 interface RefDraft {
   role: RefRole;

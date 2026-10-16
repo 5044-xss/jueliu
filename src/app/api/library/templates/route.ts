@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getTemplates, createTemplate } from "@/lib/library/templates";
-import { PLATFORM_LABELS } from "@/lib/templates-defaults";
+import { getTemplates, createTemplate } from "@core/server/library/templates";
+import { PLATFORM_LABELS } from "@core/shared/templates-defaults";
 
 const createSchema = z.object({
   platform: z.string().min(1),

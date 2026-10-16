@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { getStoredScript } from "@/lib/script";
-import { getProjectDb } from "@/lib/db";
-import { clearAssets } from "@/lib/assets";
-import { clearStoryboard } from "@/lib/storyboard";
-import { projectExists } from "@/lib/projects";
+import { getStoredScript } from "@core/server/script";
+import { getProjectDb } from "@core/server/db";
+import { clearAssets } from "@core/server/assets";
+import { clearStoryboard } from "@core/server/storyboard";
+import { projectExists } from "@core/server/projects";
 
 type Ctx = { params: Promise<{ id: string }> };
 

@@ -4,10 +4,10 @@ import {
   cameraSchema,
   dialogueLineSchema,
   refRoleSchema,
-} from "@/lib/schemas/storyboard";
-import { updateShot } from "@/lib/storyboard";
-import { getAssets } from "@/lib/assets";
-import { projectExists } from "@/lib/projects";
+} from "@core/shared/schemas/storyboard";
+import { updateShot } from "@core/server/storyboard";
+import { getAssets } from "@core/server/assets";
+import { projectExists } from "@core/server/projects";
 
 type Ctx = { params: Promise<{ id: string; shotId: string }> };
 

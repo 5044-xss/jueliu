@@ -3,9 +3,9 @@ import {
   composeSegments,
   listComposableSegments,
   listCompositions,
-} from "@/lib/compose";
-import { projectExists } from "@/lib/projects";
-import { startJob, finishJob } from "@/lib/jobs";
+} from "@core/server/compose";
+import { projectExists } from "@core/server/projects";
+import { startJob, finishJob } from "@core/server/jobs";
 
 type Ctx = { params: Promise<{ id: string }> };
 

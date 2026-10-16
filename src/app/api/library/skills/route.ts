@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { listSkills } from "@/lib/skills/registry";
+import { listSkills } from "@core/server/skills/registry";
 import {
   getSkills,
   getSkillKinds,
   createSkill,
   isSkillKind,
-} from "@/lib/library/skills";
+} from "@core/server/library/skills";
 
 function schemaToJson(schema: z.ZodType): unknown {
   try {

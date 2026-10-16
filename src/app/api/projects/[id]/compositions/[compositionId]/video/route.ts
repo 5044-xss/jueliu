@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { getCompositionExportPath } from "@/lib/compose";
-import { projectExists } from "@/lib/projects";
+import { getCompositionExportPath } from "@core/server/compose";
+import { projectExists } from "@core/server/projects";
 
 type Ctx = { params: Promise<{ id: string; compositionId: string }> };
 

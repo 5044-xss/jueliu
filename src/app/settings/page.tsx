@@ -30,7 +30,7 @@ import {
   PROVIDER_PRESETS,
   type GlobalSettings,
   type LlmProvider,
-} from "@/lib/settings-shared";
+} from "@core/shared/settings-shared";
 
 // 备用下载地址：GitHub 访问不稳定时，用户可手动到此文件夹下载安装包。
 const FALLBACK_DOWNLOAD_URL =

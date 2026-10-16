@@ -6,8 +6,8 @@ import {
   maskApiKey,
   PROVIDER_PRESETS,
   type LlmProvider,
-} from "@/lib/settings";
-import { detectFfmpeg } from "@/lib/ffmpeg";
+} from "@core/server/settings";
+import { detectFfmpeg } from "@core/server/ffmpeg";
 
 const providerEnum = z.enum([
   "dashscope",

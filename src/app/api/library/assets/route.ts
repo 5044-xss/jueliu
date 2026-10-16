@@ -6,8 +6,8 @@ import {
   listLibraryAssets,
   resolveViewSource,
   type AssetLibraryScope,
-} from "@/lib/library/assets";
-import { projectExists } from "@/lib/projects";
+} from "@core/server/library/assets";
+import { projectExists } from "@core/server/projects";
 
 const addSchema = z.object({
   scope: z.enum(["global", "project"]),

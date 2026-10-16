@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { updateStyle, deleteStyle } from "@/lib/library/styles";
+import { updateStyle, deleteStyle } from "@core/server/library/styles";
 
 const patchSchema = z.object({
   name: z.string().min(1).optional(),

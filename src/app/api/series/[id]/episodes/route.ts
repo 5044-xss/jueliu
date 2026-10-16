@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createEpisode, getSeries, listEpisodes } from "@/lib/projects";
+import { createEpisode, getSeries, listEpisodes } from "@core/server/projects";
 
 const createSchema = z.object({
   name: z.string().min(1, "子集名不能为空"),

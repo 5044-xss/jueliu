@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { blockingSchema } from "@/lib/schemas/storyboard";
-import { saveSceneBlocking } from "@/lib/storyboard";
-import { projectExists } from "@/lib/projects";
+import { blockingSchema } from "@core/shared/schemas/storyboard";
+import { saveSceneBlocking } from "@core/server/storyboard";
+import { projectExists } from "@core/server/projects";
 
 type Ctx = { params: Promise<{ id: string; sceneId: string }> };
 

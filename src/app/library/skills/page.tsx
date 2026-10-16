@@ -27,7 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import type { LibrarySkill } from "@/lib/library/skills";
+import type { LibrarySkill } from "@core/shared/library/skills";
 
 interface KindInfo {
   kind: string;

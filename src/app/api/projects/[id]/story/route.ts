@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getStory, saveStory, projectExists } from "@/lib/projects";
+import { getStory, saveStory, projectExists } from "@core/server/projects";
 
 const putSchema = z.object({ content: z.string() });
 

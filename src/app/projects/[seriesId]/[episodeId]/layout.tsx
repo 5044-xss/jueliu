@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { getProject, getSeries } from "@/lib/projects";
-import { getAssets } from "@/lib/assets";
+import { getProject, getSeries } from "@core/server/projects";
+import { getAssets } from "@core/server/assets";
 import { ProjectTabs } from "@/components/project-tabs";
 import { ProjectJobsBar } from "@/components/project-jobs-bar";
 import { ProjectStyleSwitcher } from "@/components/project-style-switcher";

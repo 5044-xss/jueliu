@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { ensureDefaultViews, getAssets } from "@/lib/assets";
-import { projectExists } from "@/lib/projects";
-import { assetTypeSchema } from "@/lib/schemas/assets";
+import { ensureDefaultViews, getAssets } from "@core/server/assets";
+import { projectExists } from "@core/server/projects";
+import { assetTypeSchema } from "@core/shared/schemas/assets";
 
 type Ctx = { params: Promise<{ id: string }> };
 

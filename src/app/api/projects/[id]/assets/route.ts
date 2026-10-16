@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { getAssets, saveAssetDrafts, clearAssets } from "@/lib/assets";
-import { clearStoryboard } from "@/lib/storyboard";
-import { projectExists } from "@/lib/projects";
-import { assetsDraftSchema } from "@/lib/schemas/assets";
+import { getAssets, saveAssetDrafts, clearAssets } from "@core/server/assets";
+import { clearStoryboard } from "@core/server/storyboard";
+import { projectExists } from "@core/server/projects";
+import { assetsDraftSchema } from "@core/shared/schemas/assets";
 
 type Ctx = { params: Promise<{ id: string }> };
 

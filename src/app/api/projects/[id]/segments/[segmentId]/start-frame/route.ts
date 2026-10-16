@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getStartFrameState } from "@/lib/keyframe";
-import { projectExists } from "@/lib/projects";
+import { getStartFrameState } from "@core/server/keyframe";
+import { projectExists } from "@core/server/projects";
 
 type Ctx = { params: Promise<{ id: string; segmentId: string }> };
 

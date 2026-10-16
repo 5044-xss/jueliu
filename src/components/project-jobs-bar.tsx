@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AlertTriangle, Loader2, X } from "lucide-react";
 import { Elapsed } from "@/components/elapsed";
-import { useProjectJobs } from "@/lib/use-jobs";
+import { useProjectJobs } from "@core/client/use-jobs";
 
 const JOB_LABELS: Record<string, string> = {
   "story-to-script": "生成剧本",

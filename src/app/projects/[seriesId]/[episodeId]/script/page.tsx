@@ -13,10 +13,10 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { useProjectJobs, isJobRunning } from "@/lib/use-jobs";
+import { useProjectJobs, isJobRunning } from "@core/client/use-jobs";
 import { Elapsed } from "@/components/elapsed";
 import { CopyButton } from "@/components/copy-button";
-import type { StoredScript } from "@/lib/script";
+import type { StoredScript } from "@core/shared/script";
 
 function scriptToText(script: StoredScript): string {
   const lines: string[] = [];

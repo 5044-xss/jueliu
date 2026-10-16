@@ -7,10 +7,10 @@ import {
   getSegmentVideoPath,
   releaseSegmentFrameAdoptions,
   setSegmentVideo,
-} from "@/lib/frames";
-import { getProjectDb } from "@/lib/db";
-import { getSegmentVideoPath as getPath } from "@/lib/paths";
-import { getProject, projectExists } from "@/lib/projects";
+} from "@core/server/frames";
+import { getProjectDb } from "@core/server/db";
+import { getSegmentVideoPath as getPath } from "@core/server/paths";
+import { getProject, projectExists } from "@core/server/projects";
 
 type Ctx = { params: Promise<{ id: string; segmentId: string }> };
 

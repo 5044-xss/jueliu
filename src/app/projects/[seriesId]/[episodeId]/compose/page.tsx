@@ -13,7 +13,7 @@ import {
   Trash2,
   Wand2,
 } from "lucide-react";
-import { useProjectJobs, isJobRunning } from "@/lib/use-jobs";
+import { useProjectJobs, isJobRunning } from "@core/client/use-jobs";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -37,9 +37,9 @@ import {
   transitionLabel,
   type ComposableSegment,
   type CompositionInfo,
-} from "@/lib/compose-shared";
-import type { StoredShot } from "@/lib/schemas/storyboard";
-import { cn } from "@/lib/utils";
+} from "@core/shared/compose-shared";
+import type { StoredShot } from "@core/shared/schemas/storyboard";
+import { cn } from "@core/client/utils";
 
 const DURATION_ITEMS = TRANSITION_DURATIONS_MS.map((ms) => ({
   value: ms,

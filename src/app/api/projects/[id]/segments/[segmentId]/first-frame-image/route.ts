@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { saveFirstFrameImage } from "@/lib/keyframe";
-import { getProjectDb } from "@/lib/db";
-import { projectExists } from "@/lib/projects";
+import { saveFirstFrameImage } from "@core/server/keyframe";
+import { getProjectDb } from "@core/server/db";
+import { projectExists } from "@core/server/projects";
 
 type Ctx = { params: Promise<{ id: string; segmentId: string }> };
 

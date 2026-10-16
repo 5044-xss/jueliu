@@ -17,7 +17,7 @@ import { SegmentVideo } from "@/components/segment-video";
 import { ShotEditDialog } from "@/components/shot-edit-dialog";
 import { BlockingEditDialog } from "@/components/blocking-edit-dialog";
 import { Elapsed } from "@/components/elapsed";
-import { useProjectJobs, isJobRunning } from "@/lib/use-jobs";
+import { useProjectJobs, isJobRunning } from "@core/client/use-jobs";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,12 +25,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { cn } from "@core/client/utils";
 import type {
   StoredSceneStoryboard,
   StoredShot,
-} from "@/lib/schemas/storyboard";
-import type { StoredAsset } from "@/lib/schemas/assets";
+} from "@core/shared/schemas/storyboard";
+import type { StoredAsset } from "@core/shared/schemas/assets";
 
 interface VendorOption {
   id: string;

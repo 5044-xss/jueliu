@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import {
   deleteLibraryAsset,
   type AssetLibraryScope,
-} from "@/lib/library/assets";
+} from "@core/server/library/assets";
 
 type Ctx = { params: Promise<{ id: string }> };
 

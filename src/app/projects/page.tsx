@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/page-header";
 import { CopyDialog } from "@/components/copy-dialog";
-import type { SeriesWithCount } from "@/lib/projects";
+import type { SeriesWithCount } from "@core/shared/projects";
 
 const MAX_EPISODE_PILLS = 6;
 

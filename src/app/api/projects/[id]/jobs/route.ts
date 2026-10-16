@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getProjectJobs } from "@/lib/jobs";
-import { projectExists } from "@/lib/projects";
+import { getProjectJobs } from "@core/server/jobs";
+import { projectExists } from "@core/server/projects";
 
 type Ctx = { params: Promise<{ id: string }> };
 

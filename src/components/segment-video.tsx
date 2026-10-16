@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { downloadImage } from "@/lib/download";
+import { downloadImage } from "@core/client/download";
 
 export interface FrameInfo {
   id: string;

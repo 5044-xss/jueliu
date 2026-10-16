@@ -37,11 +37,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { composeAssetViewPrompt } from "@/lib/asset-prompt";
+import { composeAssetViewPrompt } from "@core/shared/asset-prompt";
 import { cn } from "cn";
-import { useProjectJobs, isJobRunning } from "@/lib/use-jobs";
+import { useProjectJobs, isJobRunning } from "@core/client/use-jobs";
 import { Elapsed } from "@/components/elapsed";
-import type { StoredAsset, StoredView } from "@/lib/schemas/assets";
+import type { StoredAsset, StoredView } from "@core/shared/schemas/assets";
 
 const TYPE_LABEL: Record<StoredAsset["type"], string> = {
   character: "角色",

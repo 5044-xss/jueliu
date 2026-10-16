@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "cn";
-import type { LibraryAssetItem } from "@/lib/library/assets";
+import type { LibraryAssetItem } from "@core/shared/library/assets";
 
 const TYPE_LABEL: Record<string, string> = {
   character: "角色",

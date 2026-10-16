@@ -5,7 +5,7 @@ import {
   setDefaultSkill,
   deleteSkill,
   getSkills,
-} from "@/lib/library/skills";
+} from "@core/server/library/skills";
 
 const patchSchema = z.object({
   name: z.string().min(1).optional(),

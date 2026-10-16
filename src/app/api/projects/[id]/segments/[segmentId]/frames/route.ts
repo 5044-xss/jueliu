@@ -4,9 +4,9 @@ import {
   getFrames,
   getSegmentVideoPath,
   extractAndSaveFrame,
-} from "@/lib/frames";
-import { getProjectDb } from "@/lib/db";
-import { projectExists } from "@/lib/projects";
+} from "@core/server/frames";
+import { getProjectDb } from "@core/server/db";
+import { projectExists } from "@core/server/projects";
 
 type Ctx = { params: Promise<{ id: string; segmentId: string }> };
 

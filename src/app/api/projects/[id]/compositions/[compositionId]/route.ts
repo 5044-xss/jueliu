@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { deleteComposition, getComposition } from "@/lib/compose";
-import { projectExists } from "@/lib/projects";
+import { deleteComposition, getComposition } from "@core/server/compose";
+import { projectExists } from "@core/server/projects";
 
 type Ctx = { params: Promise<{ id: string; compositionId: string }> };
 

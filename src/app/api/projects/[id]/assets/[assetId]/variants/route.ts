@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createVariant } from "@/lib/assets";
-import { projectExists } from "@/lib/projects";
+import { createVariant } from "@core/server/assets";
+import { projectExists } from "@core/server/projects";
 
 type Ctx = { params: Promise<{ id: string; assetId: string }> };
 

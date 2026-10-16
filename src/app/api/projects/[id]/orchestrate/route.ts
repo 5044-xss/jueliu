@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getProject, updateProject } from "@/lib/projects";
-import { applyOrchestration } from "@/lib/orchestration/apply";
+import { getProject, updateProject } from "@core/server/projects";
+import { applyOrchestration } from "@core/server/orchestration/apply";
 import {
   captureOrchestrationState,
   restoreOrchestrationState,
-} from "@/lib/orchestration/cache";
-import { isVendorId } from "@/lib/library/vendors";
-import { withLock } from "@/lib/lock";
+} from "@core/server/orchestration/cache";
+import { isVendorId } from "@core/server/library/vendors";
+import { withLock } from "@core/server/lock";
 
 const bodySchema = z.object({ vendor: z.string() });
 

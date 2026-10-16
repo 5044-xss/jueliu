@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { confirmFrame, deleteFrame } from "@/lib/frames";
-import { getProjectDb } from "@/lib/db";
-import { projectExists } from "@/lib/projects";
+import { confirmFrame, deleteFrame } from "@core/server/frames";
+import { getProjectDb } from "@core/server/db";
+import { projectExists } from "@core/server/projects";
 
 const patchSchema = z.object({ confirmed: z.boolean() });
 

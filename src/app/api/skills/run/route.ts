@@ -1,22 +1,22 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getProject, getStory } from "@/lib/projects";
-import { getSkill } from "@/lib/skills/registry";
-import { saveScript, getStoredScript } from "@/lib/script";
-import { saveAssetDrafts, getAssets, clearAssets } from "@/lib/assets";
+import { getProject, getStory } from "@core/server/projects";
+import { getSkill } from "@core/server/skills/registry";
+import { saveScript, getStoredScript } from "@core/server/script";
+import { saveAssetDrafts, getAssets, clearAssets } from "@core/server/assets";
 import {
   saveStoryboard,
   getStoryboard,
   getContinuityRules,
   clearStoryboard,
-} from "@/lib/storyboard";
-import { applyOrchestration } from "@/lib/orchestration/apply";
+} from "@core/server/storyboard";
+import { applyOrchestration } from "@core/server/orchestration/apply";
 import {
   isScript,
   isAssetsDraft,
   isStoryboardDraft,
-} from "@/lib/schemas/guards";
-import { startJob, finishJob } from "@/lib/jobs";
+} from "@core/shared/schemas/guards";
+import { startJob, finishJob } from "@core/server/jobs";
 
 export const maxDuration = 300;
 

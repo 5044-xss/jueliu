@@ -5,7 +5,7 @@ import {
   findLibraryAsset,
   getLibraryAssetImagePath,
   type AssetLibraryScope,
-} from "@/lib/library/assets";
+} from "@core/server/library/assets";
 
 const MIME_BY_EXT: Record<string, string> = {
   png: "image/png",

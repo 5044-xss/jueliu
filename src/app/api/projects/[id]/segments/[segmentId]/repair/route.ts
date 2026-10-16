@@ -1,21 +1,21 @@
 import { NextResponse } from "next/server";
-import { getProjectDb, newId } from "@/lib/db";
+import { getProjectDb, newId } from "@core/server/db";
 import {
   getStoryboard,
   resolveRefLabels,
   dialogueToText,
   toDialogue,
-} from "@/lib/storyboard";
-import { validateContinuity, type ContinuityWarning } from "@/lib/continuity";
-import { getAssets } from "@/lib/assets";
-import { getProject } from "@/lib/projects";
-import { getStoredScript } from "@/lib/script";
-import { generateStructured } from "@/lib/llm/structured";
-import { segmentRepairSchema } from "@/lib/schemas/storyboard";
-import { STORYBOARD_REPAIR_PROMPT } from "@/lib/skills/prompts";
-import { getActiveSkillTemperature } from "@/lib/library/skills";
-import { startJob, finishJob } from "@/lib/jobs";
-import type { StoredSceneStoryboard } from "@/lib/schemas/storyboard";
+} from "@core/server/storyboard";
+import { validateContinuity, type ContinuityWarning } from "@core/server/continuity";
+import { getAssets } from "@core/server/assets";
+import { getProject } from "@core/server/projects";
+import { getStoredScript } from "@core/server/script";
+import { generateStructured } from "@core/server/llm/structured";
+import { segmentRepairSchema } from "@core/shared/schemas/storyboard";
+import { STORYBOARD_REPAIR_PROMPT } from "@core/server/skills/prompts";
+import { getActiveSkillTemperature } from "@core/server/library/skills";
+import { startJob, finishJob } from "@core/server/jobs";
+import type { StoredSceneStoryboard } from "@core/shared/schemas/storyboard";
 
 type Ctx = { params: Promise<{ id: string; segmentId: string }> };
 

@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { AssetLibraryBrowser } from "@/components/asset-library-browser";
-import type { SeriesSummary } from "@/lib/projects";
+import type { SeriesSummary } from "@core/shared/projects";
 
 export default function ProjectAssetsPage() {
   const { seriesId } = useParams<{ seriesId: string }>();

@@ -6,7 +6,7 @@ import {
   getSeries,
   listEpisodes,
   renameSeries,
-} from "@/lib/projects";
+} from "@core/server/projects";
 
 const renameSchema = z.object({
   name: z.string().min(1, "项目名不能为空"),

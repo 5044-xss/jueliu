@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getStyles, createStyle } from "@/lib/library/styles";
+import { getStyles, createStyle } from "@core/server/library/styles";
 
 const createSchema = z.object({
   name: z.string().min(1, "名称不能为空"),

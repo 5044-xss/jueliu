@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Clapperboard, Home, Library, Settings } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@core/client/utils";
 
 const ITEMS = [
   { href: "/", label: "首页", icon: Home, match: (p: string) => p === "/" },

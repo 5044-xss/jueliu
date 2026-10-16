@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { updateScene, getStoredScript } from "@/lib/script";
-import { sceneSchema } from "@/lib/schemas/script";
+import { updateScene, getStoredScript } from "@core/server/script";
+import { sceneSchema } from "@core/shared/schemas/script";
 
 const patchSchema = sceneSchema.partial();
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { cn } from "@core/client/utils";
 
 const TABS = [
   { key: "styles", label: "风格库" },

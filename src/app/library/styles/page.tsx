@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import type { LibraryStyle } from "@/lib/library/types";
+import type { LibraryStyle } from "@core/shared/library/types";
 
 function StyleDialog({
   style,
