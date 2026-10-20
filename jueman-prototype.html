@@ -1,0 +1,1000 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>掘漫 jueman · 交互原型</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#18181b; --card:#ffffff; --muted:#f4f4f5; --muted-fg:#71717a;
+    --border:#e4e4e7; --input:#e4e4e7; --primary:#18181b; --primary-fg:#fafafa;
+    --accent:#f4f4f5; --accent-fg:#18181b; --ring:#a1a1aa; --destructive:#dc2626;
+    --radius:12px; --radius-sm:8px; --radius-lg:16px; --radius-xl:20px;
+    --lilac:#c5b0f4; --lime:#dceeb1; --cream:#f4ecd6; --mint:#c8e6cd; --pink:#efd4d4; --coral:#f3c9b6;
+    --amber:#b45309; --amber-bg:rgba(245,158,11,.12); --amber-bd:rgba(245,158,11,.4);
+    --green:#059669; --green-bg:rgba(16,185,129,.12); --green-bd:rgba(16,185,129,.35);
+    --blue:#2563eb;
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  }
+  *{box-sizing:border-box; border-color:var(--border);}
+  html,body{height:100%;}
+  body{margin:0; background:var(--bg); color:var(--fg); font-family:var(--font);
+       -webkit-font-smoothing:antialiased; font-size:14px; line-height:1.45;}
+  a{color:inherit; text-decoration:none;}
+  button{font-family:inherit;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:#d4d4d8;border:3px solid #fff;border-radius:8px;}
+
+  /* ---------- layout ---------- */
+  .topbar{position:sticky; top:0; z-index:50; background:var(--bg); border-bottom:1px solid var(--border);}
+  .topbar-inner{max-width:1200px; margin:0 auto; height:56px; display:flex; align-items:center;
+                justify-content:space-between; gap:16px; padding:0 16px;}
+  .brand{display:flex; align-items:center; gap:8px; font-weight:600; font-size:15px;}
+  .brand .logo{width:26px;height:26px;border-radius:7px;background:var(--fg);color:#fff;
+               display:flex;align-items:center;justify-content:center;}
+  .nav{display:flex; align-items:center; gap:4px;}
+  .nav a{position:relative; display:flex; align-items:center; gap:6px; padding:6px 12px;
+         border-radius:999px; font-size:13px; font-weight:500; color:var(--muted-fg);}
+  .nav a:hover{background:var(--accent); color:var(--fg);}
+  .nav a.active{background:var(--primary); color:var(--primary-fg);}
+  .nav .pill-badge{margin-left:2px; background:#fff; color:var(--fg); border-radius:999px;
+                   min-width:16px; height:16px; padding:0 4px; font-size:10px; display:inline-flex;
+                   align-items:center; justify-content:center; font-weight:600;}
+  .main{max-width:1200px; margin:0 auto; padding:24px 16px 64px;}
+  .row{display:flex;} .col{display:flex;flex-direction:column;}
+  .wrap{flex-wrap:wrap;} .between{justify-content:space-between;} .center{align-items:center;}
+  .g2{gap:8px;} .g3{gap:12px;} .g4{gap:16px;} .g6{gap:24px;}
+  .grow{flex:1;}
+
+  /* ---------- typography ---------- */
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted-fg);}
+  .muted{color:var(--muted-fg);}
+  h1.t{font-size:26px; font-weight:300; letter-spacing:-.5px; margin:0;}
+  .sub{max-width:640px; font-size:14px; line-height:1.65; color:var(--muted-fg);}
+  .mono{font-family:var(--mono);}
+
+  /* ---------- primitives ---------- */
+  .card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius);}
+  .card-pad{padding:16px;}
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:6px; height:36px;
+       padding:0 14px; border-radius:10px; border:1px solid transparent; background:var(--primary);
+       color:var(--primary-fg); font-size:13px; font-weight:500; cursor:pointer; white-space:nowrap;}
+  .btn:hover{opacity:.9;}
+  .btn:disabled{opacity:.45; cursor:not-allowed;}
+  .btn.outline{background:transparent; color:var(--fg); border-color:var(--border);}
+  .btn.outline:hover{background:var(--accent);}
+  .btn.ghost{background:transparent; color:var(--fg);}
+  .btn.ghost:hover{background:var(--accent);}
+  .btn.sm{height:30px; padding:0 10px; font-size:12px; border-radius:8px;}
+  .btn.xs{height:26px; padding:0 8px; font-size:12px; border-radius:7px; gap:4px;}
+  .btn.danger{background:var(--destructive); color:#fff;}
+  .btn .sp{width:14px;height:14px;flex:0 0 auto;}
+  .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;
+            border-radius:8px;border:1px solid transparent;background:transparent;cursor:pointer;color:var(--muted-fg);}
+  .icon-btn:hover{background:var(--accent);color:var(--fg);}
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;
+         font-size:11px;font-weight:500;background:var(--muted);color:var(--fg);border:1px solid transparent;}
+  .badge.outline{background:transparent;border-color:var(--border);color:var(--muted-fg);}
+  .badge.ok{background:var(--green-bg);color:var(--green);}
+  .badge.warn{background:var(--amber-bg);color:var(--amber);}
+  .badge.live{background:var(--blue);color:#fff;}
+  .badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+  .input,select.input,textarea.input{width:100%;height:36px;padding:0 12px;border-radius:10px;
+        border:1px solid var(--input);background:transparent;font-size:13px;color:var(--fg);outline:none;}
+  textarea.input{height:auto;padding:10px 12px;line-height:1.6;resize:vertical;}
+  .input:focus{border-color:var(--ring);box-shadow:0 0 0 3px rgba(161,161,170,.25);}
+  .label{font-size:12px;font-weight:500;color:var(--fg);}
+  .sep{height:1px;background:var(--border);border:0;margin:0;}
+
+  /* ---------- header cloud status ---------- */
+  .cloudchip{display:flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
+             border:1px solid var(--border);font-size:12px;color:var(--muted-fg);cursor:pointer;}
+  .cloudchip:hover{background:var(--accent);}
+  .cloudchip .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px var(--green-bg);}
+  .cloudchip.off .dot{background:var(--muted-fg);box-shadow:none;}
+
+  /* ---------- home ---------- */
+  .home{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:24px;}
+  .hero{padding-top:24px;display:flex;flex-direction:column;gap:20px;}
+  .hero h1{font-size:44px;font-weight:300;line-height:1.08;letter-spacing:-1px;margin:0;max-width:760px;}
+  .hero p{font-size:17px;line-height:1.6;max-width:660px;}
+  .block{border-radius:24px;padding:40px;}
+  .block .eyebrow{color:rgba(0,0,0,.55);}
+  .block h2{font-size:24px;font-weight:500;letter-spacing:-.3px;margin:14px 0 0;}
+  .block p{font-size:16px;line-height:1.6;}
+  .mini-grid{display:grid;gap:14px;margin-top:26px;}
+  .mini{background:rgba(255,255,255,.7);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:10px;}
+  .mini .ic{width:36px;height:36px;border-radius:50%;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;}
+  .step-num{width:34px;height:34px;border-radius:50%;background:#000;color:#fff;display:flex;align-items:center;
+            justify-content:center;font-weight:500;flex:0 0 auto;}
+
+  /* ---------- projects ---------- */
+  .p-grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));}
+  .pill-link{border:1px solid var(--border);border-radius:999px;padding:2px 9px;font-size:11px;color:var(--muted-fg);}
+  .pill-link:hover{background:var(--muted);color:var(--fg);}
+
+  /* ---------- episode tabs ---------- */
+  .tabs{display:inline-flex;gap:4px;background:var(--muted);padding:4px;border-radius:999px;}
+  .tabs button{border:0;background:transparent;padding:6px 16px;border-radius:999px;font-size:13px;
+               font-weight:500;color:var(--muted-fg);cursor:pointer;}
+  .tabs button.active{background:var(--primary);color:var(--primary-fg);}
+  .crumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted-fg);}
+  .crumb a:hover{color:var(--fg);}
+
+  /* ---------- storyboard ---------- */
+  .banner{border-radius:var(--radius-lg);padding:18px 20px;display:flex;flex-wrap:wrap;
+          align-items:flex-start;justify-content:space-between;gap:12px;}
+  .shot{border:1px solid var(--border);border-radius:10px;padding:12px;font-size:13px;display:flex;flex-direction:column;gap:6px;}
+  .refimg{width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,#c5b0f4,#8b5cf6);flex:0 0 auto;}
+  .thumbs{display:flex;flex-wrap:wrap;gap:8px;}
+  .thumb{position:relative;width:56px;height:56px;border-radius:8px;overflow:hidden;border:1px solid var(--border);
+         display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;}
+  .thumb .tag{position:absolute;left:3px;top:3px;background:rgba(0,0,0,.7);color:#fff;border-radius:4px;
+              padding:0 4px;font-size:10px;line-height:16px;}
+  .screen{position:relative;border-radius:10px;background:#0b0b0c;display:flex;align-items:center;
+          justify-content:center;overflow:hidden;color:#71717a;}
+
+  .seg-strip{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px;}
+  .seg-card{width:176px;flex:0 0 auto;border:1px solid var(--border);border-radius:10px;padding:8px;
+            cursor:pointer;display:flex;flex-direction:column;gap:6px;background:#fff;}
+  .seg-card:hover{background:var(--muted);}
+  .seg-card.active{border-color:rgba(24,24,27,.4);background:var(--muted);}
+  .seg-thumb{aspect-ratio:16/9;border-radius:7px;background:#0b0b0c;position:relative;overflow:hidden;
+             display:flex;align-items:center;justify-content:center;color:#52525b;}
+
+  .sticky-strip{position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--border);
+                margin:0 -16px -64px;padding:12px 16px 16px;z-index:30;}
+
+  /* progress */
+  .bar{height:6px;border-radius:999px;background:var(--muted);overflow:hidden;}
+  .bar > i{display:block;height:100%;background:var(--primary);border-radius:999px;transition:width .35s ease;}
+  .bar.done > i{background:var(--green);}
+  .spinner{width:14px;height:14px;border:2px solid rgba(0,0,0,.15);border-top-color:var(--fg);
+           border-radius:50%;animation:spin .7s linear infinite;}
+  .spinner.light{border-color:rgba(255,255,255,.35);border-top-color:#fff;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .pulse{animation:pulse 1.6s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+
+  /* workbench */
+  .stat{border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:flex;
+        flex-direction:column;gap:4px;background:#fff;}
+  .stat .k{font-size:12px;color:var(--muted-fg);}
+  .stat .v{font-size:24px;font-weight:300;letter-spacing:-.5px;}
+  .job{display:grid;grid-template-columns:1fr auto;gap:10px;border:1px solid var(--border);
+       border-radius:10px;padding:12px 14px;background:#fff;align-items:center;}
+  .job .title{font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px;}
+  .gauge{width:120px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--muted-fg);}
+
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(9,9,11,.45);z-index:100;display:flex;
+           align-items:center;justify-content:center;padding:20px;animation:fade .15s ease;}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .modal{background:#fff;border-radius:16px;width:100%;max-width:760px;max-height:92vh;
+         display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.25);}
+  .modal-head{padding:18px 20px 12px;border-bottom:1px solid var(--border);}
+  .modal-body{padding:18px 20px;overflow-y:auto;}
+  .modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;}
+
+  /* toast */
+  .toasts{position:fixed;right:20px;bottom:20px;z-index:200;display:flex;flex-direction:column;gap:10px;}
+  .toast{background:#18181b;color:#fafafa;border-radius:12px;padding:12px 14px;font-size:13px;
+         max-width:340px;box-shadow:0 12px 30px rgba(0,0,0,.25);display:flex;gap:10px;align-items:flex-start;
+         animation:rise .2s ease;}
+  .toast.ok{background:#065f46;} .toast.err{background:#7f1d1d;}
+  .toast .tt{font-weight:600;} .toast .ts{opacity:.8;font-size:12px;}
+  @keyframes rise{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+
+  .infer{background:var(--blue) !important;}
+  .subtabs{display:inline-flex;gap:4px;background:var(--muted);border-radius:10px;padding:3px;}
+  .subtabs button{border:0;background:transparent;padding:5px 12px;border-radius:8px;font-size:12px;
+                  font-weight:500;color:var(--muted-fg);cursor:pointer;}
+  .subtabs button.active{background:#fff;color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.06);}
+  .warnbox{border:1px solid var(--amber-bd);background:var(--amber-bg);color:var(--amber);
+           border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.6;}
+  .empty{border:1px dashed var(--border);border-radius:10px;color:var(--muted-fg);font-size:13px;
+         text-align:center;padding:28px;}
+  .kv{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;}
+  .kv:last-child{border-bottom:0;}
+  .kv .k{color:var(--muted-fg);}
+  .codebox{font-family:var(--mono);font-size:12px;line-height:1.7;background:var(--muted);
+           border:1px solid var(--border);border-radius:10px;padding:12px;white-space:pre-wrap;max-height:220px;overflow:auto;}
+  @media (max-width:760px){ .hero h1{font-size:32px;} .block{padding:26px;} .nav .lbl{display:none;} }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#" data-nav="home">
+      <span class="logo" id="brandIcon"></span>
+      <span>掘漫</span>
+      <span class="badge outline" style="margin-left:2px">完整版</span>
+    </a>
+    <nav class="nav" id="nav"></nav>
+    <div class="row center g2">
+      <div class="cloudchip" id="cloudChip" data-nav="workbench">
+        <span class="dot"></span><span id="cloudChipText">云端在线</span>
+      </div>
+      <span class="badge ok" title="激活码产品字段：product=jueliu-full">已激活</span>
+    </div>
+  </div>
+</header>
+
+<main class="main" id="app"></main>
+<div id="modal-root"></div>
+<div class="toasts" id="toast-root"></div>
+
+<script>
+/* =========================================================================
+   掘漫 jueman 原型 —— 单文件交互稿
+   与掘流的差别：内置云端生成（ComfyUI / MiniMax H3）+ 工作台 + 云端连接管理
+   ========================================================================= */
+
+/* ---------------- icons ---------------- */
+const I = {
+  home:'<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/>',
+  film:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>',
+  grid:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
+  power:'<path d="M12 3v9"/><path d="M6.4 6.4a8 8 0 1 0 11.2 0"/>',
+  spark:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/>',
+  bolt:'<path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/>',
+  play:'<path d="m7 4 13 8-13 8V4Z"/>',
+  upload:'<path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/>',
+  download:'<path d="M12 4v12M6 10l6 6 6-6"/><path d="M4 20h16"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  x:'<path d="M6 6l12 12M18 6 6 18"/>',
+  check:'<path d="m4 12 5 5L20 6"/>',
+  layers:'<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/>',
+  wand:'<path d="M4 20 14 10M14 4v3M19 9h3M17.5 6.5l2-2M17.5 11.5l2 2"/>',
+  image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m4 18 5-5 4 4 3-3 4 4"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  alert:'<path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17h.01"/>',
+  refresh:'<path d="M4 12a8 8 0 0 1 14-5M20 12a8 8 0 0 1-14 5"/><path d="M18 3v4h-4M6 21v-4h4"/>',
+  cloud:'<path d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1.5A4 4 0 0 1 17 18H7Z"/>',
+  key:'<circle cx="8" cy="15" r="4"/><path d="m10.5 12.5 8-8M15 8l2 2M17.5 5.5l2 2"/>',
+  drag:'<circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/>',
+  book:'<path d="M4 4h7a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4V4Z"/><path d="M20 4h-7a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h7V4Z"/>',
+};
+function svg(name, cls){ return '<svg class="'+(cls||'sp')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+I[name]+'</svg>'; }
+function icon(name, size){ return '<svg style="width:'+size+'px;height:'+size+'px;flex:0 0 auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+I[name]+'</svg>'; }
+document.getElementById('brandIcon').innerHTML = icon('film',15);
+
+/* ---------------- state ---------------- */
+const state = {
+  route:'home',
+  episodeTab:'storyboard',
+  previewSeg:'seg2',
+  cloud:{
+    connected:true, baseUrl:'https://gpu-8f3a.nuwa-cloud.example:8188',
+    token:'sk-comfy-••••••••3f9c', engine:'MiniMax H3 极速版', gpu:'RTX 4090 24G',
+    maxMP:0.98, concurrency:2
+  },
+  jobs:[],            // {id,segId,label,kind,status,progress,startedAt,durMs}
+  jobSeq:0,
+  settings:{ llmKey:'dashscope-••••••••9a2b', model:'qwen3.7-flash-2026-07-15', autoPrompt:true },
+};
+const SERIES = [
+  { id:'s1', name:'城市广场的告白', createdAt:'2026-10-02 21:14', episodes:[
+      {id:'e1',name:'第1集'},{id:'e2',name:'第2集'},{id:'e3',name:'第3集'}] },
+  { id:'s2', name:'雨夜重逢', createdAt:'2026-10-08 10:02', episodes:[{id:'e1',name:'第1集'}] },
+  { id:'s3', name:'旧书店的约定', createdAt:'2026-10-11 15:47', episodes:[] },
+];
+const episode = {
+  name:'第1集 · 雨夜重逢', aspect:'9:16', vendor:'minimax-h3', target:'6.0s',
+  scenes:[
+    { id:'sc1', slug:'咖啡店·夜', axis:'林晚 ↔ 陈默', side:'左',
+      segments:[
+        {id:'seg1', label:'第1段', shots:3, dur:6.0, hardCut:false, video:true, refs:['林晚·正面','陈默·正面','咖啡店内景']},
+        {id:'seg2', label:'第2段', shots:2, dur:4.5, hardCut:false, video:false, refs:['林晚·正面','陈默·正面']},
+        {id:'seg3', label:'第3段', shots:3, dur:6.5, hardCut:true, video:false, refs:['咖啡店门口','雨夜街道']},
+      ]},
+    { id:'sc2', slug:'街道·雨', axis:'林晚 ↔ 画外', side:'右',
+      segments:[
+        {id:'seg4', label:'第1段', shots:2, dur:5.0, hardCut:false, video:false, refs:['林晚·侧','雨夜街道']},
+        {id:'seg5', label:'第2段', shots:3, dur:7.0, hardCut:true, video:false, refs:['街道远景','出租车']},
+      ]},
+  ]
+};
+const SHOT_TEXT = [
+  {l:'中景 · 35mm', a:'林晚推门进入咖啡店，抖落伞上的雨水。', d:'「……还是这条街。」'},
+  {l:'近景 · 50mm', a:'陈默抬头，目光停住。', d:''},
+  {l:'特写 · 85mm', a:'两人对视，雨声渐弱。', d:'陈默：「好久不见。」'},
+  {l:'全景 · 24mm', a:'街灯下两人并肩离开。', d:''},
+];
+
+/* ---------------- helpers ---------------- */
+const $ = (s,root)=> (root||document).querySelector(s);
+const $$ = (s,root)=> Array.from((root||document).querySelectorAll(s));
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function pad(n){ return n<10?'0'+n:''+n; }
+function nowTime(){ const d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()); }
+function allSegments(){ return episode.scenes.flatMap(sc=>sc.segments.map(s=>({scene:sc, seg:s}))); }
+function segById(id){ const e=allSegments().find(x=>x.seg.id===id); return e?e.seg:null; }
+function jobOf(segId){ return state.jobs.find(j=>j.segId===segId && (j.status==='queued'||j.status==='running')); }
+function activeJobs(){ return state.jobs.filter(j=>j.status==='running'||j.status==='queued'); }
+
+function toast(title, sub, type){
+  const el=document.createElement('div');
+  el.className='toast'+(type==='ok'?' ok':type==='err'?' err':'');
+  const icName = type==='ok'?'check' : type==='err'?'alert' : 'bolt';
+  el.innerHTML='<span style="margin-top:1px;display:flex">'+icon(icName,16)+'</span>'+
+    '<div><div class="tt">'+esc(title)+'</div>'+(sub?'<div class="ts">'+esc(sub)+'</div>':'')+'</div>';
+  $('#toast-root').appendChild(el);
+  setTimeout(()=>{ el.style.transition='opacity .3s, transform .3s'; el.style.opacity='0'; el.style.transform='translateY(6px)';
+    setTimeout(()=>el.remove(),300); }, 4200);
+}
+
+/* ---------------- nav ---------------- */
+const NAV=[
+  {k:'home',label:'首页',icon:'home'},
+  {k:'projects',label:'项目',icon:'grid'},
+  {k:'library',label:'资源库',icon:'book'},
+  {k:'workbench',label:'工作台',icon:'bolt',badge:()=>activeJobs().length},
+  {k:'settings',label:'设置',icon:'settings'},
+];
+function renderNav(){
+  $('#nav').innerHTML = NAV.map(n=>{
+    const badge = n.badge && n.badge()>0 ? '<span class="pill-badge">'+n.badge()+'</span>' : '';
+    return '<a href="#" data-nav="'+n.k+'" class="'+(state.route===n.k?'active':'')+'">'+svg(n.icon,'sp')+
+      '<span class="lbl">'+n.label+'</span>'+badge+'</a>';
+  }).join('');
+  const chip=$('#cloudChip');
+  chip.classList.toggle('off', !state.cloud.connected);
+  $('#cloudChipText').textContent = state.cloud.connected ? ('云端在线 · '+(activeJobs().length?activeJobs().length+' 任务':'空闲')) : '云端未连接';
+}
+
+/* ---------------- router ---------------- */
+function go(route, opts){
+  state.route=route; if(opts&&opts.tab) state.episodeTab=opts.tab;
+  render();
+  window.scrollTo({top:0});
+}
+function render(){
+  renderNav();
+  const app=$('#app');
+  if(state.route==='home') app.innerHTML=viewHome();
+  else if(state.route==='projects') app.innerHTML=viewProjects();
+  else if(state.route==='episode') app.innerHTML=viewEpisode();
+  else if(state.route==='library') app.innerHTML=viewLibrary();
+  else if(state.route==='workbench') app.innerHTML=viewWorkbench();
+  else if(state.route==='settings') app.innerHTML=viewSettings();
+}
+
+/* ---------------- views: home ---------------- */
+function viewHome(){
+  const steps=[
+    {t:'配置模型与云端',b:'填入 LLM Key，连接你自己的云端算力实例；两者都是一次性配置。'},
+    {t:'生成剧本与分镜',b:'自动把故事拆成分镜、段落，编译出画面与视频提示词。'},
+    {t:'一键云端生成',b:'在分镜页点「生成」，云端 ComfyUI 出图出片，进度实时回传。'},
+    {t:'合成导出成片',b:'素材自动落位，用内置 ffmpeg 合成，整集导出。'},
+  ];
+  return `
+  <div class="home">
+    <section class="hero">
+      <p class="eyebrow">掘漫 · JUEMAN · 完整版</p>
+      <h1>从故事到成片，这一次，在软件里做完。</h1>
+      <p class="muted">掘漫在你的工作流之上，接入了<strong>云端生成算力</strong>。写好提示词后一键出图出片，
+      进度在你的工作台里滚动，成片不再需要来回搬运素材。</p>
+    </section>
+
+    <section class="block" style="background:var(--lilac)">
+      <p class="eyebrow">核心差异</p>
+      <h2>掘流只到提示词，掘漫把最后一步也接上了。</h2>
+      <p style="margin-top:14px;max-width:680px">掘流产出剧本、分镜与提示词，出图出片交给你手动完成。
+      <strong>掘漫在同一套工作流里内置了生成层</strong>：云端算力、任务队列、自动回填，一步到位。</p>
+      <div class="mini-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+        <div class="mini"><span class="ic">${icon('cloud',18)}</span>
+          <strong>云端算力</strong><p style="margin:0">自建 ComfyUI 镜像（MiniMax H3 极速版），RTX 4090 24G。</p></div>
+        <div class="mini"><span class="ic">${icon('bolt',18)}</span>
+          <strong>一键生成</strong><p style="margin:0">分镜页直接提交，不用复制粘贴、不用上传参考图。</p></div>
+        <div class="mini"><span class="ic">${icon('layers',18)}</span>
+          <strong>自动回填</strong><p style="margin:0">生成结果自动写入本段视频槽与起始画面，下游零改动。</p></div>
+      </div>
+    </section>
+
+    <section class="block" style="background:var(--cream)">
+      <p class="eyebrow">工作流程</p>
+      <h2>四步走完一条漫剧</h2>
+      <div class="mini-grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
+        ${steps.map((s,i)=>`<div class="mini" style="flex-direction:row;gap:14px">
+          <span class="step-num">${i+1}</span>
+          <div><strong>${s.t}</strong><p style="margin:6px 0 0;font-size:14px">${s.b}</p></div></div>`).join('')}
+      </div>
+    </section>
+
+    <section class="block" style="background:var(--mint)">
+      <p class="eyebrow">一句话对比</p>
+      <h2>选哪个？</h2>
+      <div class="mini-grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
+        <div class="mini"><strong>掘流 · 纯工作流</strong>
+          <p style="margin:0;font-size:14px">只出剧本/分镜/提示词，你在外部平台生成后回传。适合已有各平台账号、想自己控成本的创作者。</p></div>
+        <div class="mini" style="outline:2px solid #000;outline-offset:-2px"><strong>掘漫 · 完整版（当前）</strong>
+          <p style="margin:0;font-size:14px">工作流 + 云端生成 + 工作台。接上算力后一键出片，适合想省掉搬运工序的团队。</p></div>
+      </div>
+    </section>
+
+    <section class="row wrap gap:12" style="gap:12px;padding-bottom:8px">
+      <button class="btn" data-nav="settings">${svg('key','sp')}连接云端算力</button>
+      <button class="btn outline" data-nav="projects">${svg('plus','sp')}开始创建项目</button>
+    </section>
+  </div>`;
+}
+
+/* ---------------- views: projects ---------------- */
+function viewProjects(){
+  return `
+  <div class="col g6">
+    <div class="row between wrap center g4">
+      <div class="col g2">
+        <div class="row center g2"><span style="width:10px;height:10px;border-radius:50%;background:var(--lilac)"></span>
+          <span class="eyebrow">Projects</span></div>
+        <h1 class="t">项目</h1>
+        <p class="sub">一部剧对应一个项目，其下按集拆分。工作流与产出全部存在本地 workspace。</p>
+      </div>
+      <button class="btn" data-act="new-project">${svg('plus','sp')}新建项目</button>
+    </div>
+    <div class="p-grid">
+      ${SERIES.map(s=>`
+        <div class="card card-pad col g3">
+          <div class="row center g2"><strong style="font-size:15px">${esc(s.name)}</strong>
+            <button class="icon-btn" title="重命名">${svg('wand','sp')}</button></div>
+          <div class="muted" style="font-size:12px">创建于 ${s.createdAt}${s.episodes.length?` · 共 ${s.episodes.length} 集`:''}</div>
+          ${s.episodes.length?`<div class="row wrap" style="gap:6px">${s.episodes.map(e=>'<span class="pill-link">'+e.name+'</span>').join('')}</div>`
+            :'<div class="muted" style="font-size:12px">还没有子集，进入后可新建。</div>'}
+          <div class="row g2" style="margin-top:2px">
+            <button class="btn sm grow" data-act="open-project" data-id="${s.id}">${svg('grid','sp')}打开</button>
+            <button class="btn sm outline" data-act="copy-project">复制</button>
+            <button class="btn sm outline" data-act="del-project" style="color:var(--destructive)">删除</button>
+          </div>
+        </div>`).join('')}
+    </div>
+    <p class="muted" style="font-size:12px">首次使用请先到「设置」配置 LLM 与云端算力连接。</p>
+  </div>`;
+}
+
+/* ---------------- views: episode ---------------- */
+const EP_TABS=[['story','故事'],['script','剧本'],['assets','资产'],['storyboard','分镜'],['compose','合成']];
+function viewEpisode(){
+  return `
+  <div class="col g4">
+    <div class="crumb">
+      <a href="#" data-nav="projects">← 项目</a><span style="opacity:.5">/</span>
+      <a href="#" data-nav="projects">雨夜重逢</a><span style="opacity:.5">/</span>
+      <span style="color:var(--fg)">${esc(episode.name)}</span>
+    </div>
+    <div class="row between wrap g4">
+      <div class="col g2">
+        <div class="row center g2"><span style="width:10px;height:10px;border-radius:50%;background:var(--coral)"></span>
+          <span class="eyebrow">Episode</span></div>
+        <h1 class="t">${esc(episode.name)}</h1>
+        <div class="row center wrap g2">
+          <span class="badge outline">${episode.aspect}</span>
+          <span class="badge outline">漫剧风格 · 赛博水墨</span>
+          <span class="muted" style="font-size:12px">默认段时长 ${episode.target}</span>
+        </div>
+      </div>
+    </div>
+    <div class="row center g2" style="position:sticky;top:56px;z-index:40;background:var(--bg);padding:8px 0">
+      <div class="tabs">${EP_TABS.map(([k,l])=>`<button data-act="ep-tab" data-tab="${k}" class="${state.episodeTab===k?'active':''}">${l}</button>`).join('')}</div>
+    </div>
+    ${episodeMain()}
+  </div>`;
+}
+function episodeMain(){
+  switch(state.episodeTab){
+    case 'storyboard': return viewStoryboard();
+    case 'story': return viewSimplePanel('story', storyContent());
+    case 'script': return viewSimplePanel('script', scriptContent());
+    case 'assets': return viewAssets();
+    case 'compose': return viewSimplePanel('compose', composeContent());
+  }
+}
+function viewSimplePanel(kind, inner){
+  const map={
+    story:{dot:'var(--lime)',title:'故事',desc:'输入原始故事/设定，作为后续剧本与分镜的原料。'},
+    script:{dot:'var(--cream)',title:'剧本',desc:'把故事拆成场次与台词，生成可拍摄的剧本。'},
+    'compose':{dot:'var(--pink)',title:'合成',desc:'把各段已生成的视频按顺序拼接，加片头片尾，导出成片。'},
+  }[kind];
+  return `
+  <div class="col g4">
+    <div class="banner" style="background:${map.dot}">
+      <div><h2 style="margin:0;font-size:16px">${map.title}</h2>
+        <p class="muted" style="margin:4px 0 0;font-size:13px">${map.desc}</p></div>
+    </div>
+    ${inner}
+  </div>`;
+}
+function storyContent(){
+  return `<div class="card card-pad col g3">
+    <div class="label">故事正文</div>
+    <textarea class="input" rows="7">雨夜的咖啡店，林晚推门而入，与五年未见的陈默重逢。她带着一个没说完的告白，他带着一句没寄出的信。雨声里，两人把当年的话重新说了一遍。</textarea>
+    <div class="row g2"><button class="btn">保存故事</button>
+      <button class="btn outline" data-act="skill" data-skill="story-to-script">${svg('spark','sp')}用故事生成剧本</button></div>
+  </div>`;
+}
+function scriptContent(){
+  return `<div class="card card-pad col g3">
+    <div class="row between center"><strong>第1场 · 咖啡店·夜</strong><span class="badge outline">3 段</span></div>
+    <div class="codebox">【场景】咖啡店内，雨声，暖光。
+林晚（推门进，收伞）：……还是这条街。
+陈默（抬头）：好久不见。
+林晚：我有个东西，一直没来得及给你。
+陈默：我知道。我也是。</div>
+    <div class="row g2"><button class="btn outline" data-act="skill" data-skill="script-to-assets">${svg('image','sp')}生成资产</button>
+      <button class="btn outline" data-act="skill" data-skill="script-to-storyboard">${svg('layers','sp')}生成分镜</button>
+      <button class="btn outline" data-act="move-sb">前往分镜 →</button></div>
+  </div>`;
+}
+function viewAssets(){
+  const assets=[['林晚','角色','正面 / 侧 / 背'],['陈默','角色','正面 / 侧'],['咖啡店内景','场景','主视角'],['雨夜街道','场景','远景']];
+  return `<div class="col g4">
+    <div class="banner" style="background:var(--mint)"><div><h2 style="margin:0;font-size:16px">资产</h2>
+      <p class="muted" style="margin:4px 0 0;font-size:13px">角色与场景多视角参考图，是分镜参考图与云端生成的一致性基础。</p></div>
+      <button class="btn outline" data-act="skill" data-skill="ensure-views">${svg('refresh','sp')}补齐多视角</button></div>
+    <div class="p-grid">
+      ${assets.map(a=>`<div class="card card-pad col g3">
+        <div class="row between center"><strong>${a[0]}</strong><span class="badge outline">${a[1]}</span></div>
+        <div class="thumbs">${a[2].split(' / ').map((v,i)=>`<div class="thumb" style="width:66px;height:66px;background:linear-gradient(135deg,${['#c5b0f4,#8b5cf6','#c8e6cd,#059669','#f3c9b6,#ea580c','#f4ecd6,#ca8a04'][i%4]})"><span class="tag">${v}</span></div>`).join('')}</div>
+        <button class="btn sm outline">${svg('wand','sp')}重新出图</button>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+function composeContent(){
+  const done=allSegments().filter(x=>x.seg.video).length;
+  const total=allSegments().length;
+  return `<div class="card card-pad col g3">
+    <div class="row between center"><strong>成片合成</strong>
+      <span class="badge ${done===total?'ok':'warn'}">${done}/${total} 段已生成</span></div>
+    <div class="bar ${done===total?'done':''}"><i style="width:${Math.round(done/total*100)}%"></i></div>
+    <p class="muted" style="font-size:13px">所有段落生成完毕后，可一键拼接并用内置 ffmpeg 导出整集。</p>
+    <div class="row g2"><button class="btn" ${done===total?'':'disabled'}>${svg('film','sp')}合成整集</button>
+      <button class="btn outline" data-act="move-sb">回分镜补齐段落</button></div>
+  </div>`;
+}
+
+/* ---------------- storyboard ---------------- */
+function segStatus(seg){
+  const j=jobOf(seg.id);
+  if(j) return j.status;
+  return seg.video?'done':'empty';
+}
+function viewStoryboard(){
+  const list=allSegments();
+  const cur=segById(state.previewSeg)||list[0].seg;
+  const curEntry=list.find(x=>x.seg.id===cur.id);
+  const curJob=jobOf(cur.id);
+  const idx=list.findIndex(x=>x.seg.id===cur.id)+1;
+  const totalDur=cur.shots; // placeholder
+  return `
+  <div class="col g4">
+    <div class="banner" style="background:var(--mint)">
+      <div><h2 style="margin:0;font-size:16px">分镜</h2>
+        <p class="muted" style="margin:4px 0 0;font-size:13px">场次拆分为段落与分镜；选择生成引擎后按该引擎规则编排，确认后可一键云端生成。</p></div>
+      <div class="row center wrap g2">
+        <label class="row center g2 muted" style="font-size:13px">引擎
+          <select class="input" style="width:auto;height:32px">
+            <option>MiniMax H3 极速版</option><option>本地 ComfyUI（自备）</option><option>仅出提示词（手动）</option>
+          </select></label>
+        <button class="btn outline" data-act="re-orchestrate" data-seg="${cur.id}">${svg('refresh','sp')}重新编排</button>
+        <button class="btn outline" data-act="batch-gen">${svg('bolt','sp')}云端批量生成</button>
+        <button class="btn">${svg('spark','sp')}重新生成分镜</button>
+      </div>
+    </div>
+
+    <div class="card card-pad col g3" style="gap:16px">
+      <div class="row between wrap center g2">
+        <div class="row center g2 wrap">
+          <strong>预览</strong>
+          <span class="muted" style="font-size:13px">${curEntry.scene.slug} · ${cur.label}</span>
+          <span class="muted" style="font-size:12px">${cur.shots} 镜 · ${cur.dur.toFixed(1)}s</span>
+          ${cur.hardCut?'<span class="badge outline">与上一段：硬切</span>':'<span class="badge outline">与上一段：连续</span>'}
+        </div>
+        <div class="row center g2">
+          <button class="btn xs outline">${svg('wand','sp')}编辑站位</button>
+          <button class="btn xs outline" data-act="re-orchestrate" data-seg="${cur.id}">${svg('refresh','sp')}复原本段</button>
+          <button class="btn xs" data-act="open-gen" data-seg="${cur.id}">${svg('bolt','sp')}生成</button>
+        </div>
+      </div>
+
+      <div style="display:grid;gap:16px;grid-template-columns:1fr 1fr" id="sb-grid">
+        <div class="col g2">
+          <div class="shot" style="background:var(--muted)">
+            <span class="muted" style="font-size:11px">本场站位</span>
+            <span>轴线 ${curEntry.scene.axis} ｜ 镜头侧${curEntry.scene.side}；林晚(0.30,0.55) 朝 12°；陈默(0.68,0.58) 朝 188°</span>
+          </div>
+          ${Array.from({length:cur.shots}).map((_,i)=>{
+            const s=SHOT_TEXT[i%SHOT_TEXT.length];
+            return `<div class="shot">
+              <div class="row between center"><strong>镜${i+1}</strong>
+                <span class="muted" style="font-size:11px">${(cur.dur/cur.shots).toFixed(1)}s · ${s.l}</span></div>
+              <span>${s.a}</span>
+              ${s.d?`<span class="muted">台词：${s.d}</span>`:''}
+              <div class="row wrap center" style="gap:6px">
+                ${cur.refs.slice(0,i+1).map(r=>`<span class="badge outline" style="gap:5px"><span class="refimg"></span>${r}</span>`).join('')}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+
+        <div class="col g2">
+          ${renderSegScreen(cur, curJob)}
+          ${renderScreenActions(cur, curJob)}
+        </div>
+      </div>
+    </div>
+
+    <div class="sticky-strip">
+      <div class="row center g2" style="margin-bottom:8px">
+        <strong style="font-size:13px">段落列表（${list.length}）</strong>
+        <span class="muted" style="font-size:12px">点击切换上方预览</span>
+      </div>
+      <div class="seg-strip">
+        ${list.map(x=>{
+          const st=segStatus(x.seg);
+          const j=jobOf(x.seg.id);
+          return `<div class="seg-card ${x.seg.id===cur.id?'active':''}" data-act="pick-seg" data-seg="${x.seg.id}">
+            <div class="seg-thumb">
+              ${x.seg.video?`<div style="position:absolute;inset:0;background:linear-gradient(135deg,#312e81,#0ea5e9)"></div>
+                <span style="position:relative;color:#fff">${icon('play',18)}</span>`
+                : j?`<span class="spinner"></span>`
+                : icon('film',18)}
+              ${x.seg.hardCut?'<span style="position:absolute;right:4px;top:4px;background:rgba(0,0,0,.7);color:#fff;border-radius:4px;padding:0 4px;font-size:10px">硬切</span>':''}
+            </div>
+            <span style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.scene.slug} · ${x.seg.label}</span>
+            <span class="muted" style="font-size:11px">${x.seg.shots} 镜 · ${x.seg.dur.toFixed(1)}s · ${stLabel(st)}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+function stLabel(st){ return {empty:'未生成',queued:'排队中',running:'生成中',done:'已生成',failed:'失败'}[st]||st; }
+function renderSegScreen(seg, job){
+  if(seg.video){
+    return `<div class="screen" style="aspect-ratio:9/16;background:linear-gradient(160deg,#1e1b4b,#0ea5e9)">
+      <div class="col center" style="gap:8px;color:#fff">${icon('play',34)}
+      <span style="font-size:12px;opacity:.9">已生成 · ${seg.dur.toFixed(1)}s · 768p</span></div>
+      <span class="badge ok" style="position:absolute;left:10px;top:10px">${svg('check','sp')}已回填 video_path</span>
+    </div>`;
+  }
+  if(job){
+    return `<div class="screen" style="aspect-ratio:9/16">
+      <div class="col center" style="gap:12px;width:70%">
+        <span class="spinner light" style="width:26px;height:26px;border-width:3px"></span>
+        <div style="width:100%"><div class="bar" style="background:rgba(255,255,255,.18)"><i class="infer" style="width:${job.progress}%"></i></div></div>
+        <span style="font-size:12px;color:#a1a1aa">${job.status==='queued'?'排队中…':'云端生成中'} ${job.progress}%</span>
+      </div>
+    </div>`;
+  }
+  return `<div class="screen" style="aspect-ratio:9/16;border:1px dashed var(--border);background:var(--muted);color:var(--muted-fg)">
+    <div class="col center" style="gap:6px">${icon('image',28)}
+    <span style="font-size:12px">该段尚未生成</span></div>
+  </div>`;
+}
+function renderScreenActions(seg, job){
+  if(seg.video){
+    return `<div class="row wrap g2">
+      <button class="btn sm outline">${svg('download','sp')}下载视频</button>
+      <button class="btn sm outline">${svg('image','sp')}截首帧 / 尾帧</button>
+      <button class="btn sm outline" data-act="open-gen" data-seg="${seg.id}">${svg('refresh','sp')}重新生成</button>
+      <button class="btn sm ghost" style="color:var(--destructive)">移除</button>
+    </div>`;
+  }
+  if(job){
+    return `<div class="warnbox">任务已提交到云端算力队列，可切换页面，完成后会自动刷新并回填。</div>
+      <button class="btn sm outline" data-act="jump-workbench">${svg('clock','sp')}去工作台查看详情</button>`;
+  }
+  return `<div class="row wrap g2">
+    <button class="btn" data-act="open-gen" data-seg="${seg.id}">${svg('bolt','sp')}云端生成此段</button>
+    <button class="btn outline" data-act="upload-video">${svg('upload','sp')}手动回传</button>
+  </div>`;
+}
+
+/* ---------------- view: library ---------------- */
+function viewLibrary(){
+  const groups={
+    styles:[['赛博水墨','漫剧风格','日系赛璐璐','国风水墨'],['3D 渲染','电影感写实']],
+    vendors:[['MiniMax H3','视频 · 已连通'],['ComfyUI 本地','图像/视频'],['豆包','图像 · 手动']],
+    skills:[['story-to-script','故事→剧本'],['script-to-storyboard','剧本→分镜'],['storyboard-to-ai-prompt','编译生成提示词']],
+  };
+  return `<div class="col g6">
+    <div class="col g2"><div class="row center g2"><span style="width:10px;height:10px;border-radius:50%;background:var(--lime)"></span>
+      <span class="eyebrow">Library</span></div><h1 class="t">资源库</h1>
+      <p class="sub">风格、厂商能力与技能（skill）集中维护；分镜编排与提示词编译都读取这里。</p></div>
+    <div class="col g3"><strong>风格</strong><div class="p-grid">${groups.styles.map(s=>`<div class="card card-pad col g2">
+      <div class="row between center"><strong>${s[0]}</strong><span class="badge outline">${s[1]}</span></div>
+      <div class="thumb" style="width:100%;height:80px;border-radius:10px;background:linear-gradient(135deg,#c5b0f4,#8b5cf6)"></div>
+      <button class="btn sm outline">设为默认</button></div>`).join('')}</div></div>
+    <div class="col g3"><strong>厂商 / 引擎能力</strong>
+      ${groups.vendors.map(v=>`<div class="card card-pad row between center"><div><strong>${v[0]}</strong>
+        <div class="muted" style="font-size:12px">${v[1]}</div></div>
+        <span class="badge ${v[1].includes('已连通')?'ok':'outline'}">${v[1].includes('已连通')?'已连通':'未配置'}</span></div>`).join('')}</div>
+    <div class="col g3"><strong>技能</strong>
+      ${groups.skills.map(s=>`<div class="card card-pad row between center"><div class="mono" style="font-size:12px">${s[0]}</div>
+        <span class="muted" style="font-size:12px">${s[1]}</span></div>`).join('')}</div>
+  </div>`;
+}
+
+/* ---------------- view: workbench ---------------- */
+function viewWorkbench(){
+  const running=state.jobs.filter(j=>j.status==='running');
+  const queued=state.jobs.filter(j=>j.status==='queued');
+  const done=state.jobs.filter(j=>j.status==='done');
+  const failed=state.jobs.filter(j=>j.status==='failed');
+  return `<div class="col g6">
+    <div class="row between wrap center g4">
+      <div class="col g2"><div class="row center g2"><span style="width:10px;height:10px;border-radius:50%;background:var(--coral)"></span>
+        <span class="eyebrow">Workbench</span></div><h1 class="t">工作台</h1>
+        <p class="sub">云端生成的任务队列与算力状态。提交后无需停留，完成后自动回填分镜。</p></div>
+      <div class="row g2"><button class="btn outline" data-act="pause-all">${svg('clock','sp')}暂停队列</button>
+        <button class="btn" data-act="batch-gen">${svg('bolt','sp')}批量生成全部段落</button></div>
+    </div>
+
+    <div style="display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+      ${statCard('算力实例状态', state.cloud.connected?'在线':'离线', state.cloud.connected?'ok':'warn')}
+      ${statCard('GPU / 显存', state.cloud.gpu, '')}
+      ${statCard('运行中', running.length+' / '+state.cloud.concurrency, running.length?'live':'')}
+      ${statCard('排队', queued.length, queued.length?'warn':'')}
+      ${statCard('已完成', done.length, '')}
+    </div>
+
+    ${state.cloud.connected?'':`<div class="warnbox">${svg('alert','sp')} 云端未连接，无法提交生成任务。请到「设置 → 云端连接」配置。</div>`}
+
+    <div class="col g3">
+      <div class="row between center"><strong>任务队列</strong>
+        <span class="muted" style="font-size:12px">共 ${state.jobs.length} 条 · 自动刷新中</span></div>
+      ${state.jobs.length===0?`<div class="empty">还没有任务。去「分镜」页点「云端生成」试试。</div>`:
+        state.jobs.map(j=>jobRow(j)).join('')}
+    </div>
+
+    <div class="col g3">
+      <strong>云端连接</strong>
+      <div class="card card-pad col g1" style="padding:4px 16px">
+        ${kv('连接地址', state.cloud.baseUrl)}
+        ${kv('引擎', state.cloud.engine)}
+        ${kv('最大分辨率', 'MP ≤ '+state.cloud.maxMP+'（原生 768p 上限）')}
+        ${kv('并发', state.cloud.concurrency+' 路')}
+        ${kv('鉴权', state.cloud.token)}
+      </div>
+    </div>
+  </div>`;
+}
+function statCard(k,v,tone){
+  return `<div class="stat"><span class="k">${k}</span>
+    <span class="v" style="color:${tone==='ok'?'var(--green)':tone==='warn'?'var(--amber)':tone==='live'?'var(--blue)':'var(--fg)'}">${esc(v)}</span></div>`;
+}
+function kv(k,v){ return `<div class="kv"><span class="k">${k}</span><span>${esc(v)}</span></div>`; }
+function jobRow(j){
+  const tone={running:'live',queued:'warn',done:'ok',failed:'warn'}[j.status];
+  const eta = j.status==='running' ? '· 剩余约 '+Math.max(1,Math.round((j.durMs*(100-j.progress)/100)/1000))+'s' : '';
+  return `<div class="job">
+    <div class="col g2" style="gap:6px">
+      <div class="title">
+        <span class="badge ${tone==='live'?'live':tone==='ok'?'ok':tone==='warn'?'warn':'outline'}">${
+          j.status==='running'?'生成中':j.status==='queued'?'排队中':j.status==='done'?'已完成':'失败'}</span>
+        ${esc(j.label)}
+        <span class="muted mono" style="font-size:11px">${j.id}</span>
+      </div>
+      <div class="bar ${j.status==='done'?'done':''}"><i style="width:${j.progress}%"></i></div>
+    </div>
+    <div class="gauge">${j.progress}% ${eta}<br><span style="font-size:11px">${j.status==='running'?'开始于 '+j.startedAt:(j.status==='done'?'完成于 '+j.startedAt:'等待调度')}</span></div>
+  </div>`;
+}
+
+/* ---------------- view: settings ---------------- */
+function viewSettings(){
+  return `<div class="col g6" style="max-width:860px">
+    <div class="col g2"><div class="row center g2"><span style="width:10px;height:10px;border-radius:50%;background:var(--pink)"></span>
+      <span class="eyebrow">Settings</span></div><h1 class="t">设置</h1>
+      <p class="sub">密钥只保存在本机工作区，不会上传。云端 Token 也会自动打码显示。</p></div>
+
+    <div class="card card-pad col g3">
+      <div class="row between center"><strong>${svg('cloud','sp')}云端连接（生成层）</strong>
+        <span class="badge ${state.cloud.connected?'ok':'outline'}">${state.cloud.connected?'已连接':'未连接'}</span></div>
+      <div class="col g2"><span class="label">ComfyUI 地址（baseUrl）</span>
+        <input class="input" id="set-url" value="${esc(state.cloud.baseUrl)}" /></div>
+      <div class="col g2"><span class="label">访问 Token</span>
+        <input class="input" id="set-token" value="${esc(state.cloud.token)}" /></div>
+      <div class="row g2"><button class="btn outline" data-act="test-cloud">${svg('refresh','sp')}测试连接</button>
+        <button class="btn" data-act="save-cloud">保存</button>
+        ${state.cloud.connected
+          ? `<button class="btn ghost" data-act="toggle-cloud" style="color:var(--destructive)">断开连接</button>`
+          : `<button class="btn" data-act="toggle-cloud">连接</button>`}</div>
+      <hr class="sep" />
+      <div class="warnbox">${svg('alert','sp')} 长任务务必走「提交 → 轮询」，生成 20 分钟很正常；Sage 加速 + 长片（≥15s）会崩，长片请关闭 Sage。</div>
+    </div>
+
+    <div class="card card-pad col g3">
+      <strong>${svg('key','sp')}提示词模型（LLM）</strong>
+      <div class="col g2"><span class="label">API Key</span>
+        <input class="input" value="${esc(state.settings.llmKey)}" /></div>
+      <div class="col g2"><span class="label">模型</span>
+        <input class="input" value="${esc(state.settings.model)}" /></div>
+      <label class="row center g2" style="font-size:13px">
+        <input type="checkbox" ${state.settings.autoPrompt?'checked':''} data-act="toggle-autoprompt" /> 打开生成弹窗时自动生成 AI 提示词</label>
+      <button class="btn" data-act="save-llm">保存</button>
+    </div>
+
+    <div class="card card-pad col g3">
+      <strong>授权</strong>
+      <div class="col g1" style="padding:0">
+        ${kv('产品', '掘漫 · 完整版 (product = jueliu-full)')}
+        ${kv('机器码', 'HW-3F9C-A21E-77B4（硬件派生）')}
+        ${kv('授权状态', '已激活 · 永久')}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---------------- generation modal ---------------- */
+function openGenModal(segId){
+  const seg=segById(segId); if(!seg) return;
+  state.modalSeg=segId;
+  const list=allSegments(); const entry=list.find(x=>x.seg.id===segId);
+  const root=$('#modal-root');
+  root.innerHTML=`<div class="overlay" data-act="close-modal">
+    <div class="modal" data-stop="1">
+      <div class="modal-head">
+        <div class="row between center">
+          <div><strong>生成 · ${entry.scene.slug} · ${seg.label}</strong>
+            <div class="muted" style="font-size:12px;margin-top:3px">${seg.shots} 镜 · ${seg.dur.toFixed(1)}s · 引擎 MiniMax H3 极速版</div></div>
+          <button class="icon-btn" data-act="close-modal">${svg('x','sp')}</button>
+        </div>
+      </div>
+      <div class="modal-body col g4">
+        <div class="subtabs" id="gen-tabs">
+          <button class="active" data-act="gen-tab" data-t="cloud">${svg('bolt','sp')}云端生成</button>
+          <button data-act="gen-tab" data-t="manual">${svg('upload','sp')}手动回传</button>
+        </div>
+        <div id="gen-pane"></div>
+      </div>
+      <div class="modal-foot" id="gen-foot"></div>
+    </div>
+  </div>`;
+  renderGenPane(seg, entry, 'cloud');
+}
+function renderGenPane(seg, entry, tab){
+  const pane=$('#gen-pane'), foot=$('#gen-foot');
+  if(tab==='manual'){
+    pane.innerHTML=`<div class="col g3">
+      <p class="muted" style="font-size:13px">按下方图片顺序上传参考图，复制提示词到第三方平台生成，再回传视频（与掘流一致）。</p>
+      <div><strong style="font-size:13px">上传这些参考图</strong>
+        <div class="thumbs" style="margin-top:8px">
+          ${seg.refs.map((r,i)=>`<div class="thumb" style="background:linear-gradient(135deg,#c5b0f4,#8b5cf6)"><span class="tag">图${i+1}</span></div>`).join('')}
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:6px">${seg.refs.map((r,i)=>`图${i+1}：${r}`).join('；')}</div>
+      </div>
+      <div><div class="row between center"><strong style="font-size:13px">视频生成提示词</strong>
+        <button class="btn xs outline" data-act="copy">复制</button></div>
+        <div class="codebox" style="margin-top:8px">【镜头】${SHOT_TEXT[0].a}
+【运镜】缓慢推近；轴线左；光线：暖色顶光
+【时长】${seg.dur.toFixed(1)}s　【比例】9:16　【一致性】保持林晚/陈默面部与服装</div></div>
+      <button class="btn outline">${svg('upload','sp')}回传视频文件</button>
+    </div>`;
+    foot.innerHTML=`<button class="btn outline" data-act="close-modal">关闭</button>`;
+    return;
+  }
+  pane.innerHTML=`<div class="col g3">
+    <p class="muted" style="font-size:13px">掘漫会调用已连接的云端算力自动完成：上传参考图 → 提交工作流 → 轮询 → 回传落槽。无需任何手工操作。</p>
+    <div class="col g1" style="padding:2px 0">
+      ${kv('目标槽位', `segment.video_path（本段第 ${entry.seg.shots} 镜合成）`)}
+      ${kv('参考图', seg.refs.length+' 张（自动上传）')}
+      ${kv('分辨率', 'MP ≤ 0.98（768p）')}
+      ${kv('起始画面', '自动取上一段尾帧（如有）')}
+    </div>
+    <div><strong style="font-size:13px">生成提示词预览</strong>
+      <div class="codebox" style="margin-top:8px">【镜头】${SHOT_TEXT[0].a}
+【运镜】缓慢推近；轴线左；光线：暖色顶光
+【时长】${seg.dur.toFixed(1)}s　【比例】9:16　【一致性】保持林晚/陈默面部与服装</div></div>
+    ${state.cloud.connected?'':`<div class="warnbox">${svg('alert','sp')} 云端未连接，请先到设置里连接算力实例。</div>`}
+  </div>`;
+  foot.innerHTML=`<button class="btn outline" data-act="close-modal">取消</button>
+    <button class="btn" data-act="submit-gen" data-seg="${seg.id}" ${state.cloud.connected?'':'disabled'}>
+      ${svg('bolt','sp')}开始云端生成</button>`;
+}
+
+/* ---------------- job engine ---------------- */
+function submitGen(segId){
+  const seg=segById(segId);
+  if(jobOf(segId)) { toast('该段已在队列中'); return; }
+  if(!state.cloud.connected){ toast('云端未连接','请先配置云端算力','err'); return; }
+  const label='生成 · '+seg.label;
+  const job={ id:'job-'+(++state.jobSeq)+'-'+(9000+state.jobSeq),
+    segId, label, kind:'gen-video', status:'queued', progress:0,
+    startedAt:nowTime(), durMs:16000+Math.round(Math.random()*8000) };
+  state.jobs.unshift(job);
+  toast('已提交到云端算力','任务 ' + job.id, 'ok');
+  ensureTicker();
+  closeModal();
+  render();
+}
+function ensureTicker(){ if(state._tick) return; state._tick=setInterval(tick,400); }
+function tick(){
+  const running=state.jobs.filter(j=>j.status==='running');
+  const queued=state.jobs.filter(j=>j.status==='queued');
+  if(running.length<state.cloud.concurrency && queued.length){
+    const j=queued[0]; j.status='running'; j.startedAt=nowTime();
+    toast('开始生成 · '+ (segById(j.segId)?.label||''), j.id);
+    renderNav();
+    if(state.route==='workbench'||state.route==='episode') render();
+  }
+  let changed=false;
+  running.forEach(j=>{
+    j.progress=Math.min(100, j.progress + 4 + Math.round(Math.random()*8));
+    if(j.progress>=100){ j.status='done'; j.progress=100; changed=true;
+      const seg=segById(j.segId); if(seg) seg.video=true;
+      toast('生成完成 · '+(seg?seg.label:''), '已回填 video_path', 'ok');
+    }
+  });
+  renderNav();
+  if(state.route==='workbench') render();
+  else if(state.route==='episode' && state.episodeTab==='storyboard' && (changed||running.length)) render();
+  if(!activeJobs().length){ clearInterval(state._tick); state._tick=null; if(state.route==='workbench'||state.route==='episode') render(); }
+}
+function batchGen(){
+  if(!state.cloud.connected){ toast('云端未连接','请先配置','err'); return; }
+  const pending=allSegments().filter(x=>!x.seg.video && !jobOf(x.seg.id));
+  pending.forEach(x=> submitGen(x.seg.id));
+  if(pending.length) toast('已批量提交 '+pending.length+' 段','完成后自动回填分镜','ok');
+  else toast('没有待生成的段落');
+}
+
+/* ---------------- modal ---------------- */
+function closeModal(){ $('#modal-root').innerHTML=''; }
+
+/* ---------------- events ---------------- */
+document.addEventListener('click',(e)=>{
+  const nav=e.target.closest('[data-nav]');
+  if(nav){ e.preventDefault(); go(nav.dataset.nav); return; }
+  const act=e.target.closest('[data-act]');
+  if(act){
+    const a=act.dataset.act;
+    if(a==='close-modal'){
+      const box=e.target.closest('[data-stop]');
+      const hitClose=e.target.closest('[data-act="close-modal"]');
+      if(box && (!hitClose || hitClose.classList.contains('overlay'))) return;
+      closeModal(); return;
+    }
+    if(a==='ep-tab'){ state.episodeTab=act.dataset.tab; render(); return; }
+    if(a==='pick-seg'){ state.previewSeg=act.dataset.seg; render(); return; }
+    if(a==='open-gen'){ openGenModal(act.dataset.seg); return; }
+    if(a==='gen-tab'){ 
+      $$('#gen-tabs button').forEach(b=>b.classList.toggle('active',b===act)); 
+      const mid=state.modalSeg||state.previewSeg;
+      const seg=segById(mid); const list=allSegments();
+      renderGenPane(seg, list.find(x=>x.seg.id===mid), act.dataset.t); return; }
+    if(a==='submit-gen'){ submitGen(act.dataset.seg); return; }
+    if(a==='jump-workbench'){ closeModal(); go('workbench'); return; }
+    if(a==='move-sb'){ state.episodeTab='storyboard'; render(); return; }
+    if(a==='batch-gen'){ batchGen(); return; }
+    if(a==='pause-all'){ toast('已暂停队列','（原型示意）'); return; }
+    if(a==='re-orchestrate'){ toast('已按引擎重新编排分镜','重新打包段落（原型示意）','ok'); return; }
+    if(a==='upload-video'){ toast('选择视频文件后回传','（原型示意）'); return; }
+    if(a==='test-cloud'){ toast('连接成功','MiniMax H3 极速版 · RTX 4090 24G 就绪','ok'); return; }
+    if(a==='save-cloud'){ state.cloud.baseUrl=$('#set-url').value.trim(); state.cloud.token=$('#set-token').value.trim()||state.cloud.token; toast('云端设置已保存','','ok'); render(); return; }
+    if(a==='toggle-cloud'){ state.cloud.connected=!state.cloud.connected;
+      toast(state.cloud.connected?'已连接云端':'已断开云端', state.cloud.connected?state.cloud.engine:'', state.cloud.connected?'ok':''); render(); return; }
+    if(a==='save-llm'){ toast('已保存','','ok'); return; }
+    if(a==='toggle-autoprompt'){ state.settings.autoPrompt=act.checked; return; }
+    if(a==='new-project'){ SERIES.unshift({id:'s'+(SERIES.length+1),name:'未命名项目',createdAt:'刚刚',episodes:[]}); toast('项目已创建','','ok'); render(); return; }
+    if(a==='open-project'){ toast('打开项目', '原型中固定在示例剧集'); go('episode',{tab:'storyboard'}); return; }
+    if(a==='copy-project'){ toast('已复制项目','','ok'); return; }
+    if(a==='del-project'){ toast('已删除（原型示意）'); return; }
+    if(a==='skill'){ toast('技能运行中：'+act.dataset.skill,'可切换页面，完成后自动刷新'); return; }
+    if(a==='copy'){ toast('已复制','','ok'); return; }
+    return;
+  }
+});
+function currentModalSeg(){
+  const b=$('#gen-foot [data-seg]'); return b?b.dataset.seg:state.previewSeg;
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
+
+/* ---------------- boot ---------------- */
+render();
+</script>
+</body>
+</html>

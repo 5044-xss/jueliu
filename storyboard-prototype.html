@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>掘漫 · 分镜页优化原型</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#18181b; --card:#ffffff; --muted:#f4f4f5; --muted-fg:#71717a;
+    --border:#e4e4e7; --input:#e4e4e7; --primary:#18181b; --primary-fg:#fafafa;
+    --accent:#f4f4f5; --accent-fg:#18181b; --ring:#a1a1aa; --destructive:#dc2626;
+    --radius:12px; --radius-sm:8px; --radius-lg:16px;
+    --mint:#c8e6cd; --cream:#f4ecd6; --lilac:#c5b0f4; --lime:#dceeb1;
+    --amber:#b45309; --amber-bg:rgba(245,158,11,.12); --amber-bd:rgba(245,158,11,.4);
+    --green:#059669; --green-bg:rgba(16,185,129,.12); --green-bd:rgba(16,185,129,.35);
+    --blue:#2563eb; --blue-bg:rgba(37,99,235,.10);
+    --note:#7c3aed; --note-bg:rgba(124,58,237,.10);
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  }
+  *{box-sizing:border-box; border-color:var(--border);}
+  html,body{height:100%;}
+  body{margin:0; background:var(--bg); color:var(--fg); font-family:var(--font);
+       -webkit-font-smoothing:antialiased; font-size:14px; line-height:1.45;}
+  button{font-family:inherit;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:#d4d4d8;border:3px solid #fff;border-radius:8px;}
+  svg.ic{width:15px;height:15px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:2;
+         stroke-linecap:round;stroke-linejoin:round;}
+
+  /* layout */
+  .topbar{position:sticky; top:0; z-index:50; background:var(--bg); border-bottom:1px solid var(--border);}
+  .topbar-inner{max-width:1240px; margin:0 auto; height:56px; display:flex; align-items:center;
+                justify-content:space-between; gap:16px; padding:0 16px;}
+  .brand{display:flex; align-items:center; gap:8px; font-weight:600; font-size:15px;}
+  .brand .logo{width:26px;height:26px;border-radius:7px;background:var(--fg);color:#fff;
+               display:flex;align-items:center;justify-content:center;}
+  .nav{display:flex; align-items:center; gap:4px;}
+  .nav a{display:flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px;
+         font-size:13px; font-weight:500; color:var(--muted-fg); text-decoration:none;}
+  .nav a:hover{background:var(--accent); color:var(--fg);}
+  .nav a.active{background:var(--primary); color:var(--primary-fg);}
+
+  .main{max-width:1240px; margin:0 auto; padding:20px 16px 72px;}
+  .crumb{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted-fg); margin-bottom:12px;}
+  .crumb a{color:inherit; text-decoration:none;} .crumb a:hover{color:var(--fg);}
+  .tabs{display:inline-flex;gap:4px;background:var(--muted);padding:4px;border-radius:999px;margin-bottom:18px;}
+  .tabs button{border:0;background:transparent;padding:6px 16px;border-radius:999px;font-size:13px;
+               font-weight:500;color:var(--muted-fg);cursor:pointer;}
+  .tabs button.active{background:var(--primary);color:var(--primary-fg);}
+
+  .page{display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:24px; align-items:start;}
+  @media (max-width:1040px){ .page{grid-template-columns:1fr;} }
+
+  /* primitives */
+  .card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius);}
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:6px; height:36px;
+       padding:0 14px; border-radius:10px; border:1px solid transparent; background:var(--primary);
+       color:var(--primary-fg); font-size:13px; font-weight:500; cursor:pointer; white-space:nowrap;}
+  .btn:hover{opacity:.9;}
+  .btn:disabled{opacity:.45; cursor:not-allowed;}
+  .btn.outline{background:transparent; color:var(--fg); border-color:var(--border);}
+  .btn.outline:hover{background:var(--accent);}
+  .btn.ghost{background:transparent; color:var(--fg);}
+  .btn.ghost:hover{background:var(--accent);}
+  .btn.sm{height:30px; padding:0 10px; font-size:12px; border-radius:8px;}
+  .btn.xs{height:26px; padding:0 8px; font-size:12px; border-radius:7px; gap:4px;}
+  .btn.danger{background:var(--destructive); color:#fff;}
+  .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
+            border-radius:9px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--fg);}
+  .icon-btn:hover{background:var(--accent);}
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;
+         font-size:11px;font-weight:500;background:var(--muted);color:var(--fg);border:1px solid transparent;}
+  .badge.outline{background:transparent;border-color:var(--border);color:var(--muted-fg);}
+  .badge.ok{background:var(--green-bg);color:var(--green);}
+  .badge.warn{background:var(--amber-bg);color:var(--amber);}
+  .badge.live{background:var(--blue);color:#fff;}
+  .badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+  .muted{color:var(--muted-fg);}
+  .mono{font-family:var(--mono);}
+  .grow{flex:1;}
+
+  /* annotation tags */
+  .tag{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;
+       background:var(--note);color:#fff;font-size:11px;font-weight:700;font-family:var(--mono);
+       flex:0 0 auto; box-shadow:0 0 0 3px var(--note-bg);}
+  .tag.margin{margin-left:2px;}
+
+  /* banner */
+  .banner{border-radius:var(--radius-lg);padding:18px 20px;display:flex;flex-wrap:wrap;
+          align-items:flex-start;justify-content:space-between;gap:14px;background:var(--mint);}
+
+  /* action clusters + menus */
+  .actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
+  .vendor-chip{display:flex;align-items:center;gap:8px;padding:5px 6px 5px 12px;border:1px solid var(--border);
+               border-radius:999px;background:#fff;font-size:13px;}
+  .vendor-chip .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px var(--green-bg);}
+  .vendor-chip.off .dot{background:var(--muted-fg);box-shadow:none;}
+  .menu-wrap{position:relative;}
+  .menu{position:absolute;right:0;top:calc(100% + 6px);min-width:210px;background:#fff;border:1px solid var(--border);
+        border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.12);padding:6px;z-index:40;display:none;}
+  .menu.open{display:block;}
+  .menu button{display:flex;width:100%;align-items:center;gap:9px;padding:9px 10px;border:0;background:transparent;
+               border-radius:8px;font-size:13px;cursor:pointer;color:var(--fg);text-align:left;}
+  .menu button:hover{background:var(--accent);}
+  .menu button.danger{color:var(--destructive);}
+  .menu .sep{height:1px;background:var(--border);margin:5px 4px;}
+  .menu small{display:block;color:var(--muted-fg);font-size:11px;font-weight:400;margin-top:1px;}
+  .menu button.col{flex-direction:column;align-items:flex-start;gap:2px;}
+
+  /* preview card */
+  .card-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--border);}
+  .card-body{padding:16px;display:grid;gap:16px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);}
+  @media (max-width:820px){ .card-body{grid-template-columns:1fr;} }
+  .shot{border:1px solid var(--border);border-radius:10px;padding:12px;font-size:13px;display:flex;flex-direction:column;gap:6px;}
+  .shot .hd{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .refchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--muted);
+           border-radius:7px;padding:2px 6px;font-size:11px;}
+  .refimg{width:20px;height:20px;border-radius:5px;background:linear-gradient(135deg,#c5b0f4,#8b5cf6);flex:0 0 auto;}
+  .blocking-note{border:1px solid var(--border);background:var(--muted);border-radius:10px;padding:10px 12px;
+                 font-size:12px;line-height:1.7;color:var(--muted-fg);}
+  .screen{min-height:150px;border:1px solid var(--border);border-radius:10px;background:#0b0b0c;color:#71717a;
+          display:flex;align-items:center;justify-content:center;font-size:13px;overflow:hidden;position:relative;}
+  .screen .play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
+
+  .framebar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px;}
+
+  /* segment strip */
+  .seg-wrap{position:sticky;bottom:0;z-index:30;margin:4px -16px 0;border-top:1px solid var(--border);
+            background:var(--bg);padding:12px 16px;}
+  .seg-strip{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px;}
+  .seg-card{width:184px;flex:0 0 auto;border:1px solid var(--border);border-radius:10px;padding:8px;
+            cursor:pointer;display:flex;flex-direction:column;gap:6px;background:#fff;transition:background .15s,border-color .15s;}
+  .seg-card:hover{background:var(--muted);}
+  .seg-card.active{border-color:rgba(24,24,27,.4);background:var(--accent);}
+  .seg-thumb{position:relative;aspect-ratio:16/9;border-radius:7px;background:#0b0b0c;display:flex;
+             align-items:center;justify-content:center;color:#52525b;overflow:hidden;}
+  .seg-thumb .st{position:absolute;right:5px;top:5px;}
+  .seg-thumb .cut{position:absolute;left:5px;top:5px;background:rgba(0,0,0,.72);color:#fff;border-radius:4px;
+                  padding:0 5px;font-size:10px;line-height:16px;}
+
+  /* notice */
+  .notice{display:flex;align-items:flex-start;gap:8px;border:1px solid var(--amber-bd);background:var(--amber-bg);
+          color:var(--amber);border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.6;}
+  .nextstep{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:10px;
+            padding:10px 14px;font-size:13px;font-weight:500;background:#fff;cursor:pointer;}
+
+  /* aside */
+  .aside{position:sticky; top:76px; display:flex; flex-direction:column; gap:12px;}
+  .aside .hd{display:flex;align-items:center;gap:8px;font-weight:600;}
+  .change{display:flex;gap:10px;padding:12px;border:1px solid var(--border);border-radius:12px;background:#fff;}
+  .change .body{display:flex;flex-direction:column;gap:3px;}
+  .change b{font-size:13px;}
+  .change p{margin:0;font-size:12px;color:var(--muted-fg);line-height:1.6;}
+  .change .was{color:var(--destructive);}
+  .change .now{color:var(--green);}
+
+  /* dialog */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;
+           z-index:100;padding:20px;}
+  .overlay.open{display:flex;}
+  .dialog{background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:88vh;overflow:auto;
+          box-shadow:0 24px 60px rgba(0,0,0,.3);}
+  .dialog .dh{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 12px;}
+  .dialog .dh h3{margin:0;font-size:16px;}
+  .dialog .dh p{margin:4px 0 0;font-size:12.5px;color:var(--muted-fg);line-height:1.6;max-width:520px;}
+  .dialog .db{padding:4px 20px 20px;}
+  .dialog .df{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--border);
+              position:sticky;bottom:0;background:#fff;}
+  .vopt{border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;}
+  .vopt:hover{background:var(--muted);}
+  .vopt.sel{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary) inset;}
+  .vopt .info{display:flex;flex-direction:column;gap:2px;flex:1;}
+  .vopt .info b{font-size:13.5px;}
+  .vopt .info span{font-size:11.5px;color:var(--muted-fg);}
+  .impact{margin-top:14px;border:1px solid var(--amber-bd);background:var(--amber-bg);border-radius:12px;padding:12px 14px;}
+  .impact b{color:var(--amber);font-size:12.5px;}
+  .impact ul{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--fg);line-height:1.8;}
+  .seg-label{font-size:11px;font-weight:600;color:var(--muted-fg);letter-spacing:.02em;margin:16px 0 8px;}
+  .thumbrow{display:flex;flex-wrap:wrap;gap:8px;}
+  .thumb{position:relative;width:56px;height:56px;border-radius:8px;overflow:hidden;border:1px solid var(--border);
+         background:linear-gradient(135deg,#c5b0f4,#8b5cf6);}
+  .thumb .n{position:absolute;left:3px;top:3px;background:rgba(0,0,0,.72);color:#fff;border-radius:4px;
+            padding:0 5px;font-size:10px;line-height:16px;}
+  .dialog pre{margin:0;background:var(--muted);border:1px solid var(--border);border-radius:10px;padding:12px;
+              font-family:var(--mono);font-size:12px;line-height:1.7;white-space:pre-wrap;color:#3f3f46;}
+  .tabs-mini{display:inline-flex;background:var(--muted);padding:3px;border-radius:9px;font-size:12px;}
+  .tabs-mini button{border:0;background:transparent;padding:5px 11px;border-radius:7px;cursor:pointer;color:var(--muted-fg);font-weight:500;}
+  .tabs-mini button.active{background:#fff;color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08);}
+  .hint{display:flex;align-items:center;gap:7px;border:1px solid var(--blue-bg);background:var(--blue-bg);
+        color:var(--blue);border-radius:10px;padding:9px 11px;font-size:12px;}
+  .row{display:flex;align-items:center;gap:8px;}
+  .col{display:flex;flex-direction:column;gap:8px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand"><span class="logo">漫</span> 掘漫</div>
+    <nav class="nav">
+      <a href="#">首页</a>
+      <a href="#">项目</a>
+      <a href="#">素材</a>
+      <a href="#">设置</a>
+    </nav>
+  </div>
+</div>
+
+<div class="main">
+  <div class="crumb">
+    <a href="#">我的项目</a> / <a href="#">替身千金</a> / <span class="mono">EP01</span>
+  </div>
+  <div class="tabs">
+    <button>故事</button><button>剧本</button><button>资产</button>
+    <button class="active">分镜</button><button>合成</button>
+  </div>
+
+  <div class="page">
+    <!-- ============ LEFT: page ============ -->
+    <div class="col" style="gap:16px;">
+
+      <!-- banner + actions -->
+      <div class="banner">
+        <div style="max-width:520px;">
+          <h2 style="margin:0;font-size:16px;font-weight:500;">分镜</h2>
+          <p class="muted" style="margin:4px 0 0;font-size:13px;">
+            场次拆分为段落与分镜；选择厂商后按该厂商的镜数/时长/参考图规则重新编排。
+          </p>
+        </div>
+
+        <div class="actions">
+          <!-- ① vendor = explicit action -->
+          <div class="vendor-chip off">
+            <span class="dot"></span>
+            <span>厂商：豆包 Doubao</span>
+            <span class="badge warn" title="仅 MiniMax H3 支持云端出图/出片">非 H3</span>
+            <button class="btn xs outline" onclick="openDialog('vendor')">切换</button>
+            <span class="tag" style="margin:0 6px 0 2px;">1</span>
+          </div>
+
+          <div class="grow"></div>
+
+          <!-- ② batch grouped -->
+          <div class="menu-wrap">
+            <button class="btn outline" onclick="toggleMenu(this)">
+              <svg class="ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+              批量生成
+            </button>
+            <div class="menu">
+              <button class="col" onclick="toast('已提交 6 段画面生成');closeMenus()">
+                一键生成画面
+                <small>为所有段落云端生成起始画面（跳过已有）</small>
+              </button>
+              <button class="col" onclick="openDialog('batchvideo')">
+                一键生成视频
+                <small>长片单段可能耗时 20 分钟</small>
+              </button>
+            </div>
+            <span class="tag" style="position:absolute;top:-8px;right:-8px;">2</span>
+          </div>
+
+          <!-- ② overflow -->
+          <div class="menu-wrap">
+            <button class="btn outline" onclick="toggleMenu(this)">
+              <svg class="ic" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+              更多
+            </button>
+            <div class="menu">
+              <button class="col" onclick="toast('已按当前厂商重新编排');closeMenus()">
+                重新编排
+                <small>按当前厂商重新打包分镜为段落</small>
+              </button>
+              <div class="sep"></div>
+              <button class="col danger" onclick="openDialog('clear')">
+                清空分镜
+                <small>删除全部分镜与已回传视频</small>
+              </button>
+            </div>
+          </div>
+
+          <!-- primary -->
+          <button class="btn" onclick="toast('正在调用 LLM 生成分镜…')">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.7 4.6L18 9.3l-4.3 1.7L12 15.6l-1.7-4.6L6 9.3l4.3-1.7z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
+            重新生成
+          </button>
+        </div>
+      </div>
+
+      <div class="notice">
+        <svg class="ic" viewBox="0 0 24 24" style="margin-top:1px;"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        <span>云端出图 / 出片仅适配 <b>MiniMax H3</b>；当前厂商「豆包」请用「第三方生成」手动回传，或点右上角切换厂商。</span>
+      </div>
+
+      <button class="nextstep">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+        下一步：合成成片
+      </button>
+
+      <!-- preview -->
+      <div class="card">
+        <div class="card-head">
+          <b style="font-size:15px;">预览</b>
+          <span class="badge outline">第1场 · 第2段</span>
+          <span class="muted" style="font-size:12px;">3 镜 · 9.0s / 目标</span>
+          <span class="badge outline mono" title="段目标时长由编排派生">9.0s</span>
+          <span class="badge outline">与上一段：连续</span>
+
+          <div class="grow"></div>
+
+          <!-- ③ primary action kept; rest in overflow -->
+          <button class="btn" onclick="openDialog('gen')">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.7 4.6L18 9.3l-4.3 1.7L12 15.6l-1.7-4.6L6 9.3l4.3-1.7z"/></svg>
+            第三方生成
+          </button>
+          <div class="menu-wrap">
+            <button class="icon-btn" onclick="toggleMenu(this)" title="更多操作">
+              <svg class="ic" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+            </button>
+            <div class="menu">
+              <button onclick="toast('已提交该段云端出图');closeMenus()">
+                <svg class="ic" viewBox="0 0 24 24"><path d="M6 18h12a4 4 0 000-8 6 6 0 00-11.6 1.5A3.5 3.5 0 006 18z"/><path d="M12 12v6"/><path d="M9.5 14.5L12 12l2.5 2.5"/></svg>
+                云端生成图
+              </button>
+              <button onclick="toast('已提交该段云端出片');closeMenus()">
+                <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 5v14M16 5v14"/></svg>
+                云端生成视频
+              </button>
+              <div class="sep"></div>
+              <button class="col" onclick="openDialog('restore');closeMenus()">
+                复原本段
+                <small>把本段分镜还原为生成时的内容</small>
+              </button>
+              <button class="col" onclick="toast('打开站位编辑（高级）');closeMenus()">
+                编辑站位（高级）
+                <small>轴线 / 站位坐标 / 朝向</small>
+              </button>
+            </div>
+            <span class="tag" style="position:absolute;top:-8px;right:-8px;">3</span>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="col">
+            <div class="blocking-note">
+              <b style="color:var(--fg);">本场站位：</b>轴线 林晚 ↔ 陆时衍 ｜镜头侧 左；
+              林晚(0.35,0.55) 朝10°；陆时衍(0.68,0.52) 朝200°
+            </div>
+
+            <div class="shot">
+              <div class="hd">
+                <b>镜1</b>
+                <span class="row" style="gap:6px;">
+                  <span class="muted" style="font-size:12px;">3.0s · 中景 · 35mm · 平视 · 固定</span>
+                  <button class="icon-btn" style="width:26px;height:26px;" title="编辑本镜">
+                    <svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+                  </button>
+                </span>
+              </div>
+              <p style="margin:0;line-height:1.6;">林晚推门而入，目光扫过空荡的客厅。</p>
+              <div style="font-size:12.5px;"><span class="muted">台词：</span>林晚：「这里……没有人？」</div>
+              <div class="row" style="flex-wrap:wrap;gap:6px;">
+                <span class="refchip"><span class="refimg" style="width:20px;height:20px;"></span>林晚·默认·正面</span>
+                <span class="refchip"><span class="refimg" style="width:20px;height:20px;"></span>客厅·全景</span>
+              </div>
+            </div>
+
+            <div class="shot">
+              <div class="hd">
+                <b>镜2</b>
+                <span class="row" style="gap:6px;">
+                  <span class="muted" style="font-size:12px;">3.0s · 近景 · 50mm · 平视 · 推</span>
+                  <button class="icon-btn" style="width:26px;height:26px;" title="编辑本镜">
+                    <svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+                  </button>
+                </span>
+              </div>
+              <p style="margin:0;line-height:1.6;">特写她的手指微微收紧，指节发白。</p>
+            </div>
+          </div>
+
+          <div class="col">
+            <div class="screen">
+              <div class="play">
+                <svg class="ic" viewBox="0 0 24 24" style="width:34px;height:34px;opacity:.6;"><circle cx="12" cy="12" r="9"/><path d="M10 9l5 3-5 3z"/></svg>
+              </div>
+            </div>
+
+            <div class="framebar">
+              <button class="btn sm outline" onclick="toast('请选择视频文件')">
+                <svg class="ic" viewBox="0 0 24 24"><path d="M12 16V4"/><path d="M8 8l4-4 4 4"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+                回传视频
+              </button>
+              <span class="badge">未回传</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- segment strip -->
+      <div class="seg-wrap">
+        <div class="row" style="gap:8px;padding-bottom:8px;">
+          <b style="font-size:14px;">段落列表（7）</b>
+          <span class="muted" style="font-size:12px;">点击切换上方预览</span>
+          <div class="grow"></div>
+          <span class="badge ok"><span class="dot"></span>4 已回传</span>
+          <span class="badge live"><span class="dot"></span>2 生成中</span>
+          <span class="tag">4</span>
+        </div>
+        <div class="seg-strip">
+          <div class="seg-card">
+            <div class="seg-thumb"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 5v14M16 5v14"/></svg>
+              <span class="st badge ok">已回传</span></div>
+            <b style="font-size:13px;">第1场 · 第1段</b>
+            <span class="muted" style="font-size:12px;">3 镜 · 9.0s</span>
+          </div>
+          <div class="seg-card active">
+            <div class="seg-thumb"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 5v14M16 5v14"/></svg>
+              <span class="st badge ok">已回传</span></div>
+            <b style="font-size:13px;">第1场 · 第2段</b>
+            <span class="muted" style="font-size:12px;">3 镜 · 9.0s</span>
+          </div>
+          <div class="seg-card">
+            <div class="seg-thumb"><svg class="ic" viewBox="0 0 24 24" style="color:#3f3f46;"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 5v14M16 5v14"/></svg>
+              <span class="st badge live"><span class="dot"></span>生成中</span></div>
+            <b style="font-size:13px;">第1场 · 第3段</b>
+            <span class="muted" style="font-size:12px;">2 镜 · 8.0s</span>
+          </div>
+          <div class="seg-card">
+            <div class="seg-thumb"><svg class="ic" viewBox="0 0 24 24" style="color:#3f3f46;"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 5v14M16 5v14"/></svg>
+              <span class="cut">硬切</span></div>
+            <b style="font-size:13px;">第2场 · 第1段</b>
+            <span class="muted" style="font-size:12px;">3 镜 · 10.0s</span>
+          </div>
+          <div class="seg-card">
+            <div class="seg-thumb"><svg class="ic" viewBox="0 0 24 24" style="color:#3f3f46;"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 5v14M16 5v14"/></svg>
+              <span class="st badge live"><span class="dot"></span>生成中</span></div>
+            <b style="font-size:13px;">第2场 · 第2段</b>
+            <span class="muted" style="font-size:12px;">2 镜 · 7.0s</span>
+          </div>
+          <div class="seg-card">
+            <div class="seg-thumb"><svg class="ic" viewBox="0 0 24 24" style="color:#3f3f46;"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 5v14M16 5v14"/></svg></div>
+            <b style="font-size:13px;">第3场 · 第1段</b>
+            <span class="muted" style="font-size:12px;">4 镜 · 12.0s</span>
+          </div>
+          <div class="seg-card">
+            <div class="seg-thumb"><svg class="ic" viewBox="0 0 24 24" style="color:#3f3f46;"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 5v14M16 5v14"/></svg></div>
+            <b style="font-size:13px;">第3场 · 第2段</b>
+            <span class="muted" style="font-size:12px;">3 镜 · 9.0s</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ============ RIGHT: change notes ============ -->
+    <aside class="aside">
+      <div class="card" style="padding:14px;">
+        <div class="hd" style="margin-bottom:10px;">本次改动 · 4 项</div>
+        <div class="col" style="gap:10px;">
+          <div class="change">
+            <span class="tag">1</span>
+            <div class="body">
+              <b>切换厂商 = 明确动作</b>
+              <p>项目级设置不再伪装成筛选下拉。点击「切换」打开弹窗，列出各厂商平台、镜数/时长/参考图上限与影响。</p>
+            </div>
+          </div>
+          <div class="change">
+            <span class="tag">2</span>
+            <div class="body">
+              <b>按钮分层</b>
+              <p class="was">原来 6 个按钮平铺：重新编排 / 一键生成画面 / 一键生成视频 / 清空 / 生成</p>
+              <p class="now">主操作实心「生成」；「批量生成」合并画面+视频；「重新编排 / 清空」收进「更多」。</p>
+            </div>
+          </div>
+          <div class="change">
+            <span class="tag">3</span>
+            <div class="body">
+              <b>预览卡只留高频操作</b>
+              <p>保留「第三方生成」；云端出图 / 出片 / 复原本段 / 编辑站位收进「⋯」。编辑站位降级为「高级」。</p>
+            </div>
+          </div>
+          <div class="change">
+            <span class="tag">4</span>
+            <div class="body">
+              <b>段落列表加状态</b>
+              <p>每段显示 已回传 / 生成中 / 未回传，顶部汇总；长任务时知道哪几段在跑。</p>
+            </div>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:12px;">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M12 16v-4"/><path d="M12 8h.01"/><circle cx="12" cy="12" r="9"/></svg>
+          这是静态原型，可点「切换 / 批量生成 / 更多 / ⋯ / 第三方生成」试交互。
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- toast -->
+<div id="toast" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);
+     background:#18181b;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;
+     transition:.2s;pointer-events:none;z-index:200;"></div>
+
+<!-- ============ vendor dialog ============ -->
+<div class="overlay" id="dlg-vendor">
+  <div class="dialog">
+    <div class="dh">
+      <div>
+        <h3>切换厂商</h3>
+        <p>厂商是<b>项目级</b>设置，会决定分镜如何被打包成段落，以及云端出图/出片是否可用。</p>
+      </div>
+      <button class="icon-btn" onclick="closeDialog('vendor')">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="db">
+      <div class="col" style="gap:8px;">
+        <div class="vopt" onclick="pickVendor(this)">
+          <span class="refimg" style="width:30px;height:30px;border-radius:8px;"></span>
+          <span class="info"><b>豆包 Doubao</b><span>平台 Doubao · 支持多镜 · ≤6 镜/段 · ≤4 参考图</span></span>
+          <span class="badge outline">当前</span>
+        </div>
+        <div class="vopt" onclick="pickVendor(this)">
+          <span class="refimg" style="width:30px;height:30px;border-radius:8px;"></span>
+          <span class="info"><b>即梦 Jimeng</b><span>平台 Jimeng · 支持多镜 · ≤4 镜/段 · ≤3 参考图</span></span>
+          <span class="badge warn">非 H3</span>
+        </div>
+        <div class="vopt" onclick="pickVendor(this)">
+          <span class="refimg" style="width:30px;height:30px;border-radius:8px;"></span>
+          <span class="info"><b>MiniMax H3</b><span>平台 H3 · 单镜/段 · ≤8 参考图 · <b style="color:var(--green)">支持云端出图/出片</b></span></span>
+          <span class="badge ok">云端</span>
+        </div>
+      </div>
+
+      <div class="impact">
+        <b>⚠ 切换后会发生什么</b>
+        <ul>
+          <li>按新厂商规则<b>重新编排</b>分镜为段落（镜数 / 时长 / 参考图数量可能改变）</li>
+          <li>各段已回传的视频 / 截帧按厂商<b>分别缓存</b>，切回原厂商可自动恢复</li>
+          <li>后续「第三方生成」将按新厂商的模板与平台参数编译提示词</li>
+        </ul>
+      </div>
+    </div>
+    <div class="df">
+      <button class="btn outline" onclick="closeDialog('vendor')">取消</button>
+      <button class="btn" onclick="toast('已按 MiniMax H3 重新编排');closeDialog('vendor')">确认切换</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ third-party generation dialog ============ -->
+<div class="overlay" id="dlg-gen">
+  <div class="dialog">
+    <div class="dh">
+      <div>
+        <h3>第三方生成 · 第2段</h3>
+        <p>按下方图片顺序上传参考图，复制提示词到平台生成，再回传视频。</p>
+      </div>
+      <button class="icon-btn" onclick="closeDialog('gen')">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="db">
+      <div class="hint">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12 16v-4"/><path d="M12 8h.01"/><circle cx="12" cy="12" r="9"/></svg>
+        打开本弹窗<b>不会自动调用</b> AI；仅在点「生成 AI 提示词」时调用一次，起始画面变化也只重算一次。
+      </div>
+
+      <div class="seg-label">起始画面（可选）</div>
+      <div class="row" style="gap:12px;">
+        <span class="thumb" style="width:72px;height:72px;"><span class="n">图1</span></span>
+        <div class="col" style="gap:6px;">
+          <span style="font-size:12px;">上一段的结尾画面，可用作本段开头</span>
+          <div class="row" style="gap:6px;">
+            <button class="btn xs outline" onclick="toast('已设为本段起始画面')">用作起始画面</button>
+            <button class="btn xs ghost" onclick="toast('已下载')">下载</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="seg-label">上传这些图片（按图号顺序）</div>
+      <div class="thumbrow">
+        <span class="thumb"><span class="n">图1</span></span>
+        <span class="thumb"><span class="n">图2</span></span>
+        <span class="thumb"><span class="n">图3</span></span>
+        <span class="thumb" style="background:var(--muted);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted-fg);">未上传</span>
+      </div>
+      <p class="muted" style="font-size:11.5px;margin:8px 0 0;">图1 林晚·默认·正面；图2 陆时衍·默认·正面；图3 客厅·全景</p>
+
+      <div class="seg-label" style="display:flex;align-items:center;gap:10px;">
+        提示词
+        <span class="tabs-mini" style="margin-left:auto;">
+          <button class="active" onclick="miniTab(this,'ai')">视频生成提示词</button>
+          <button onclick="miniTab(this,'body')">正文</button>
+        </span>
+      </div>
+      <div class="row" id="gen-ai-tools" style="justify-content:flex-end;margin-bottom:8px;">
+        <button class="btn sm outline" onclick="toast('已生成 AI 提示词（调用一次）')">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.7 4.6L18 9.3l-4.3 1.7L12 15.6l-1.7-4.6L6 9.3l4.3-1.7z"/></svg>
+          生成 AI 提示词
+        </button>
+        <button class="btn xs ghost" onclick="toast('已复制')">复制</button>
+      </div>
+      <pre id="gen-ai-body">（示例）中景，林晚推门而入，冷调自然光，镜头缓慢推进；人物服装与参考图一致……</pre>
+      <pre id="gen-raw-body" style="display:none;">（正文）第1场·第2段，目标时长 9.0s。人物：林晚、陆时衍。轴线锁定……</pre>
+    </div>
+    <div class="df">
+      <button class="btn outline" onclick="closeDialog('gen')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ simple confirm dialogs ============ -->
+<div class="overlay" id="dlg-clear">
+  <div class="dialog" style="max-width:460px;">
+    <div class="dh"><div><h3>清空分镜</h3><p>将删除全部分镜、段落编排，以及各段已回传的视频与截帧。</p></div></div>
+    <div class="db"><div class="impact"><b>⚠ 不可恢复</b><ul><li>共 7 段、18 镜将被删除</li><li>其中 4 段已回传视频会一并删除</li></ul></div></div>
+    <div class="df">
+      <button class="btn outline" onclick="closeDialog('clear')">取消</button>
+      <button class="btn danger" onclick="toast('已清空分镜');closeDialog('clear')">清空</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="dlg-restore">
+  <div class="dialog" style="max-width:460px;">
+    <div class="dh"><div><h3>复原本段</h3><p>把本段所有分镜还原为「生成时」的内容，将覆盖你对分镜的手工编辑。</p></div></div>
+    <div class="df">
+      <button class="btn outline" onclick="closeDialog('restore')">取消</button>
+      <button class="btn danger" onclick="toast('已还原本段');closeDialog('restore')">还原</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="dlg-batchvideo">
+  <div class="dialog" style="max-width:480px;">
+    <div class="dh"><div><h3>批量生成视频</h3><p>为所有「未生成视频」的段落提交云端视频生成。</p></div></div>
+    <div class="db"><div class="impact"><b>⚠ 长片很慢</b><ul><li>单段可能耗时约 20 分钟，会长时间占用实例</li><li>当前将有 3 段提交生成</li></ul></div></div>
+    <div class="df">
+      <button class="btn outline" onclick="closeDialog('batchvideo')">取消</button>
+      <button class="btn" onclick="toast('已提交 3 段视频生成');closeDialog('batchvideo')">提交生成</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function toggleMenu(btn){
+    const menu = btn.parentElement.querySelector('.menu');
+    const open = menu.classList.contains('open');
+    closeMenus();
+    if(!open) menu.classList.add('open');
+  }
+  function closeMenus(){ document.querySelectorAll('.menu.open').forEach(m=>m.classList.remove('open')); }
+  document.addEventListener('click', (e)=>{ if(!e.target.closest('.menu-wrap')) closeMenus(); });
+
+  function openDialog(id){ document.getElementById('dlg-'+id).classList.add('open'); closeMenus(); }
+  function closeDialog(id){ document.getElementById('dlg-'+id).classList.remove('open'); }
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ closeMenus(); document.querySelectorAll('.overlay.open').forEach(o=>o.classList.remove('open')); }});
+
+  function pickVendor(el){ el.parentElement.querySelectorAll('.vopt').forEach(v=>v.classList.remove('sel')); el.classList.add('sel'); }
+
+  function miniTab(btn, which){
+    btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('gen-ai-body').style.display = which==='ai' ? '' : 'none';
+    document.getElementById('gen-raw-body').style.display = which==='body' ? '' : 'none';
+    document.getElementById('gen-ai-tools').style.display = which==='ai' ? '' : 'none';
+  }
+
+  let toastTimer;
+  function toast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.opacity = '1'; t.style.transform = 'translateX(-50%) translateY(0)';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(20px)'; }, 1900);
+  }
+</script>
+</body>
+</html>
