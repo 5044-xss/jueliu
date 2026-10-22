@@ -42,7 +42,10 @@ import {
 import type { StoredShot } from "@core/shared/schemas/storyboard";
 import { cn } from "@core/client/utils";
 import { useConfirm } from "@/components/confirm-dialog";
-import { RevealExportButton } from "@/components/workspace-actions";
+import {
+  OpenExportsFolderButton,
+  RevealExportButton,
+} from "@/components/workspace-actions";
 import { readError } from "@/lib/http";
 
 const DURATION_ITEMS = TRANSITION_DURATIONS_MS.map((ms) => ({
@@ -277,14 +280,17 @@ export default function ComposePage() {
             选择并排序已回传的段落，统一分辨率/帧率后拼接导出成片。
           </p>
         </div>
-        <Button onClick={compose} disabled={busy || selected.length === 0}>
-          {busy ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Wand2 className="size-4" />
-          )}
-          合成导出
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <OpenExportsFolderButton projectId={id} size="default" />
+          <Button onClick={compose} disabled={busy || selected.length === 0}>
+            {busy ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Wand2 className="size-4" />
+            )}
+            合成导出
+          </Button>
+        </div>
       </div>
 
       {segments.length === 0 && (

@@ -1,0 +1,30 @@
+{
+  "id": "PIPE-019",
+  "title": "短段必须补到厂商最短时长，不能低于 minSegmentMs",
+  "stage": "pack-v2",
+  "tags": ["packing", "duration", "regression"],
+  "input": {
+    "defaultSegmentMs": 10000,
+    "options": { "maxCastPerSegment": 4 },
+    "vendor": {
+      "id": "h3",
+      "name": "H3",
+      "platform": "h3",
+      "supportMultiShot": true,
+      "supportFirstFrame": true,
+      "supportLastFrame": true,
+      "maxShotsPerSegment": 6,
+      "maxRefImages": 9,
+      "minSegmentMs": 4000,
+      "maxSegmentMs": 12000,
+      "durationStepMs": 1000
+    },
+    "shots": [
+      { "minMs": 1500, "idealMs": 1500, "maxMs": 1500, "continuesPrev": false, "subjectKey": "a", "castIds": ["n_chen"], "refLabels": [] }
+    ]
+  },
+  "expect": {
+    "segments": [[0]],
+    "minMs": 4000
+  }
+}

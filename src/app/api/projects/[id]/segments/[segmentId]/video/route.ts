@@ -12,6 +12,7 @@ import { buildManifest } from "@core/server/render";
 import { mediaSignature } from "@core/server/media-signature";
 import { getSegmentVideoPath as getPath } from "@core/server/paths";
 import { getProject, projectExists } from "@core/server/projects";
+import { runSegmentQc } from "@core/server/qc";
 import { captureAndAdoptTail } from "@/lib/generation/tail";
 
 type Ctx = { params: Promise<{ id: string; segmentId: string }> };
@@ -106,13 +107,36 @@ export async function POST(request: Request, { params }: Ctx) {
   const ext = EXT_BY_MIME[file.type] ?? "mp4";
   const dest = getPath(id, vendor, segmentId, ext);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
+  const attempt = path.join(
+    path.dirname(dest),
+    `upload-${Date.now()}.${ext}`,
+  );
   const previous = getSegmentVideoPath(id, segmentId);
   // 记录回传时的分镜内容签名，之后编辑分镜才能准确判定视频「已过期」。
   const built = buildManifest(id, segmentId);
   const mediaSig = built
     ? mediaSignature(built.scene.blocking, built.segment)
     : null;
-  fs.writeFileSync(dest, Buffer.from(await file.arrayBuffer()));
+  fs.writeFileSync(attempt, Buffer.from(await file.arrayBuffer()));
+  let qc = null;
+  try {
+    qc = await runSegmentQc({ projectId: id, segmentId, videoPath: attempt });
+  } catch {
+    qc = null;
+  }
+  if (qc?.hardFail) {
+    return NextResponse.json(
+      {
+        error: `QC 未通过，已保留旧视频：${qc.issues
+          .filter((issue) => issue.level === "hard")
+          .map((issue) => issue.message)
+          .join("；")}`,
+        qc,
+      },
+      { status: 422 },
+    );
+  }
+  fs.copyFileSync(attempt, dest);
   setSegmentVideo(id, segmentId, dest, mediaSig);
   // 扩展名变化会换路径，清掉旧文件避免残留。
   if (previous && previous !== dest && fs.existsSync(previous)) {
@@ -128,7 +152,7 @@ export async function POST(request: Request, { params }: Ctx) {
   } catch (error) {
     tail = { captured: false, reason: (error as Error).message };
   }
-  return NextResponse.json({ videoPath: dest, status: "returned", tail });
+  return NextResponse.json({ videoPath: dest, status: "returned", tail, qc });
 }
 
 export async function DELETE(_request: Request, { params }: Ctx) {

@@ -1,0 +1,27 @@
+{
+  "id": "PIPE-008b",
+  "title": "图生模式提交 payload：首帧/尾帧进入正确槽位",
+  "stage": "submit-payload",
+  "tags": ["submit", "h3", "payload", "regression"],
+  "input": {
+    "prompt": "integrated_multimodal_description:\n[Shot 1] Chen sweeps.\noverall_soundscape: N/A\nnon_diegetic_music: N/A",
+    "name": "S1-2段",
+    "images": ["first.png", "last.png"],
+    "useReference": false,
+    "gen": {
+      "duration": 6,
+      "seed": 777,
+      "seedAuto": false,
+      "aspect": "16:9",
+      "steps": 8
+    }
+  },
+  "expect": {
+    "promptNode": "209",
+    "conditionalClass": "MiniMaxH3ImageToVideo",
+    "imageCount": 2,
+    "duration": 6,
+    "filenamePrefix": "jueman/H3Studio-S1-2段",
+    "modeContains": "图生"
+  }
+}

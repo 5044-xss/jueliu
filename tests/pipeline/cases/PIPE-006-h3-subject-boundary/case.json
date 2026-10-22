@@ -1,0 +1,43 @@
+{
+  "id": "PIPE-006",
+  "title": "H3 每镜只出现本镜主体，retention 和台词不串镜",
+  "stage": "h3-render",
+  "tags": ["h3", "subject-boundary", "dialogue", "regression", "R2"],
+  "input": {
+    "mode": "reference",
+    "aspectRatio": "16:9",
+    "subjects": [
+      { "id": "n_chen", "name": "陈平生", "kind": "character", "sourcePictures": [2] },
+      { "id": "n_wan", "name": "陈婉儿", "kind": "character", "sourcePictures": [3] },
+      { "id": "scene", "name": "广场", "kind": "scene", "sourcePictures": [1] }
+    ],
+    "shots": [
+      {
+        "index": 1,
+        "durationMs": 2000,
+        "visual": "Chen sweeps the plaza.",
+        "sound": "broom on stone",
+        "subjectIds": ["n_chen"],
+        "dialogue": [{ "character": "陈平生", "text": "第一句台词。" }]
+      },
+      {
+        "index": 2,
+        "durationMs": 3000,
+        "visual": "Wan turns away.",
+        "sound": "silk footsteps",
+        "subjectIds": ["n_wan"],
+        "dialogue": [{ "character": "陈婉儿", "text": "第二句台词。" }]
+      }
+    ],
+    "soundscape": "mountain wind",
+    "music": "N/A"
+  },
+  "expect": {
+    "shotCount": 2,
+    "shotSubjectIds": { "1": [1], "2": [2] },
+    "retention": { "1": [1], "2": [2], "3": [1, 2] },
+    "dialogueByShot": { "1": ["第一句台词。"], "2": ["第二句台词。"] },
+    "timecodes": [null, 2000],
+    "contains": ["At 00:02.000, the camera cuts to"]
+  }
+}

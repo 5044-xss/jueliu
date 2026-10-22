@@ -1,0 +1,13 @@
+{
+  "id": "PIPE-014",
+  "title": "四视图存在单视图裁剪时，视频参考必须使用 video-ref.png",
+  "stage": "video-ref",
+  "tags": ["reference", "video-issue", "four-view"],
+  "input": {
+    "hasImage": true,
+    "hasDerived": true
+  },
+  "expect": {
+    "usesDerived": true
+  }
+}

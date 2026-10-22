@@ -5,6 +5,7 @@ import { updateStyle, deleteStyle } from "@core/server/library/styles";
 const patchSchema = z.object({
   name: z.string().min(1).optional(),
   prompt: z.string().optional(),
+  videoStyle: z.string().optional(),
 });
 
 type Ctx = { params: Promise<{ id: string }> };

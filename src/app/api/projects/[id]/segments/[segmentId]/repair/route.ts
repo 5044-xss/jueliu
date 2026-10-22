@@ -16,6 +16,8 @@ import { segmentRepairSchema } from "@core/shared/schemas/storyboard";
 import { STORYBOARD_REPAIR_PROMPT } from "@core/server/skills/prompts";
 import { getActiveSkillTemperature } from "@core/server/library/skills";
 import { startJob, finishJob } from "@core/server/jobs";
+import { validateSegmentBeatIds } from "@core/shared/storyboard-coverage";
+import { shotBudget } from "@core/shared/shot-budget";
 import type { StoredSceneStoryboard } from "@core/shared/schemas/storyboard";
 
 type Ctx = { params: Promise<{ id: string; segmentId: string }> };
@@ -133,6 +135,7 @@ export async function POST(_request: Request, { params }: Ctx) {
     : "";
 
   const currentShots = segment.shots.map((s) => ({
+    beatIds: s.beatIds,
     durationMs: s.durationMs,
     continuesPrev: s.continuesPrev,
     camera: s.camera,
@@ -197,6 +200,20 @@ export async function POST(_request: Request, { params }: Ctx) {
       continue;
     }
 
+    const beatErrors = validateSegmentBeatIds(
+      segment.shots.map((shot) => shot.beatIds),
+      output.shots,
+    );
+    if (beatErrors.length > 0) {
+      lastReason = beatErrors.join("；");
+      feedback = `上一次输出改了镜位：${lastReason}。必须保持镜数与 beatIds 不变。`;
+      continue;
+    }
+
+    const budgets = output.shots.map((shot) =>
+      shotBudget({ dialogue: toDialogue(shot.dialogue), action: shot.action }),
+    );
+
     const db = getProjectDb(id);
     let reason = "";
     try {
@@ -226,8 +243,8 @@ export async function POST(_request: Request, { params }: Ctx) {
             shotId,
             segmentId,
             i,
-            shot.durationMs,
-            shot.durationMs,
+            budgets[i].minMs,
+            budgets[i].idealMs,
             shot.continuesPrev ? 1 : 0,
             JSON.stringify(shot.camera),
             shot.lighting,
@@ -252,6 +269,15 @@ export async function POST(_request: Request, { params }: Ctx) {
             );
           });
         });
+
+        const repairedTargetMs = budgets.reduce(
+          (sum, budget) => sum + budget.minMs,
+          0,
+        );
+        db.prepare("UPDATE segment SET target_ms = ? WHERE id = ?").run(
+          repairedTargetMs,
+          segmentId,
+        );
 
         // 修复可能改了首镜的延续标记，同步段的硬切状态。
         const first = output.shots[0];

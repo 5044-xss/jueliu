@@ -1,0 +1,17 @@
+{
+  "id": "PIPE-015",
+  "title": "视频抽帧里缺人/多人必须能判 character-missing / character-extra",
+  "stage": "video-qc",
+  "pending": true,
+  "pendingReason": "等待阶段 5 内容 QC 实现（抽帧 + 人脸/人物匹配）",
+  "tags": ["qc", "character", "regression", "video-issue"],
+  "input": {
+    "segmentIdx": 5,
+    "shotIdx": 1,
+    "expectedPresentCast": ["n_jia", "n_chen"],
+    "detectedPresentCast": ["n_xiao", "n_chen"]
+  },
+  "expect": {
+    "codes": ["character-missing", "character-extra"]
+  }
+}

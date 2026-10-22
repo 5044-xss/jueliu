@@ -1,0 +1,21 @@
+{
+  "id": "PIPE-007",
+  "title": "动作没有朝向线索时，站位文本必须包含朝向",
+  "stage": "h3-blocking",
+  "tags": ["blocking", "h3", "regression", "R3"],
+  "input": {
+    "blocking": {
+      "nodes": [
+        { "id": "n_he", "label": "何文成", "type": "character", "pos": { "x": 0.8, "y": 0.6 }, "facing": 90 }
+      ],
+      "axis": { "from": "n_he", "to": "n_he" },
+      "cameraSide": "left"
+    },
+    "subjectNodeIds": ["n_he"],
+    "action": "何文成整理袖口，漫不经心地开口。"
+  },
+  "expect": {
+    "contains": ["right side of the frame", "facing the camera"],
+    "notContains": []
+  }
+}

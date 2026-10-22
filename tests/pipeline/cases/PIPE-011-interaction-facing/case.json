@@ -1,0 +1,25 @@
+{
+  "id": "PIPE-011",
+  "title": "两人互动镜必须按相对位置面向对方，而不是都面向镜头",
+  "stage": "h3-blocking",
+  "tags": ["blocking", "facing", "regression", "video-issue"],
+  "input": {
+    "blocking": {
+      "nodes": [
+        { "id": "n_chen", "label": "陈平生", "type": "character", "pos": { "x": 0.3, "y": 0.6 }, "facing": 90 },
+        { "id": "n_xiao", "label": "小厮", "type": "character", "pos": { "x": 0.5, "y": 0.55 }, "facing": 270 }
+      ],
+      "axis": { "from": "n_chen", "to": "n_xiao" },
+      "cameraSide": "left"
+    },
+    "subjectNodeIds": ["n_chen", "n_xiao"],
+    "action": "小厮将金元递向陈平生，下巴微扬。"
+  },
+  "expect": {
+    "contains": [
+      "陈平生 is on the left side of the frame, in the midground, facing the right side of the frame",
+      "小厮 is on the center of the frame, in the midground, facing the left side of the frame"
+    ],
+    "notContains": []
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "id": "PIPE-018",
+  "title": "台词对象画外时，说话人仍然在画面内开口，不能写成画外音",
+  "stage": "h3-render",
+  "tags": ["h3", "dialogue", "offscreen", "regression"],
+  "input": {
+    "mode": "reference",
+    "aspectRatio": "16:9",
+    "subjects": [
+      { "id": "n_he", "name": "何文成", "kind": "character", "sourcePictures": [2] },
+      { "id": "n_chen", "name": "陈平生", "kind": "character", "sourcePictures": [] },
+      { "id": "scene", "name": "广场", "kind": "scene", "sourcePictures": [1] }
+    ],
+    "shots": [
+      {
+        "index": 1,
+        "durationMs": 3000,
+        "visual": "He Wencheng speaks calmly.",
+        "sound": "wind",
+        "subjectIds": ["n_he"],
+        "dialogue": [
+          {
+            "character": "何文成",
+            "text": "我知道你急。",
+            "target": "陈平生",
+            "offscreen": true
+          }
+        ]
+      }
+    ],
+    "soundscape": "mountain wind",
+    "music": "N/A"
+  },
+  "expect": {
+    "contains": ["addressing <Subject 2> who is off-screen", "speaks on-screen"],
+    "notContains": ["lips remain completely closed", "off-screen voiceover"]
+  }
+}

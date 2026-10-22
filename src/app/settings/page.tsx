@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
+  BookOpen,
   CheckCircle2,
   ChevronDown,
   CloudUpload,
@@ -409,6 +411,16 @@ export default function SettingsPage() {
         accent="mint"
         title="设置"
         description="配置 LLM 供应商。配置保存在 workspace/settings.json。"
+        actions={
+          <Button
+            variant="outline"
+            nativeButton={false}
+            render={<Link href="/help" />}
+          >
+            <BookOpen className="size-4" />
+            使用说明
+          </Button>
+        }
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-cream p-4 text-sm leading-relaxed">

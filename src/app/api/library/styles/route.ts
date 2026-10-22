@@ -5,6 +5,7 @@ import { getStyles, createStyle } from "@core/server/library/styles";
 const createSchema = z.object({
   name: z.string().min(1, "名称不能为空"),
   prompt: z.string().default(""),
+  videoStyle: z.string().optional(),
 });
 
 export async function GET() {

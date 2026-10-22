@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Sparkles, Trash2 } from "lucide-react";
+import { ChevronDown, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,7 +18,6 @@ import { useProjectJobs, isJobRunning } from "@core/client/use-jobs";
 import { Elapsed } from "@/components/elapsed";
 import { CopyButton } from "@/components/copy-button";
 import { LlmKeyNotice, useLlmConfigured } from "@/components/llm-notice";
-import { NextStepLink } from "@/components/next-step";
 import { useConfirm } from "@/components/confirm-dialog";
 import { describeCascade, fetchCascadeImpact } from "@/lib/impact";
 import { readError } from "@/lib/http";
@@ -54,7 +53,7 @@ function scriptToText(script: StoredScript): string {
 }
 
 export default function ScriptPage() {
-  const { seriesId, episodeId: id } = useParams<{
+  const { episodeId: id } = useParams<{
     seriesId: string;
     episodeId: string;
   }>();
@@ -225,27 +224,28 @@ export default function ScriptPage() {
 
       {llmMissing && <LlmKeyNotice />}
 
-      {script && (
-        <NextStepLink
-          href={`/projects/${seriesId}/${id}/assets`}
-          label="下一步：生成资产"
-        />
-      )}
-
       {!busy && (
-        <Card>
-          <CardHeader>
-            <CardTitle>额外要求（可选，下次生成时生效）</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <details className="group rounded-lg border border-border bg-muted/20 px-3 py-2">
+          <summary className="flex cursor-pointer list-none select-none items-center justify-between text-sm font-medium [&::-webkit-details-marker]:hidden">
+            额外要求（可选，下次生成时生效）
+            <span className="flex items-center gap-2">
+              {extra.trim() && (
+                <span className="text-xs font-normal text-muted-foreground">
+                  已填写
+                </span>
+              )}
+              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            </span>
+          </summary>
+          <div className="mt-3">
             <Textarea
               value={extra}
               onChange={(e) => setExtra(e.target.value)}
               placeholder="例如：控制在 5 场内；加强喜剧节奏；避免血腥描写。"
               className="min-h-[90px]"
             />
-          </CardContent>
-        </Card>
+          </div>
+        </details>
       )}
 
       {busy && (

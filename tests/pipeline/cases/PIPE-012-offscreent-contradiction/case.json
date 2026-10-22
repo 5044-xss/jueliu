@@ -1,0 +1,13 @@
+{
+  "id": "PIPE-012",
+  "title": "主体集合包含的角色，动作里不应再写「画外的X」",
+  "stage": "normalize-action",
+  "tags": ["cast", "action", "regression", "video-issue"],
+  "input": {
+    "action": "何文成揽着陈婉儿，居高临下俯视画外的陈平生，嘴角挂着嘲弄。",
+    "subjectLabels": ["何文成", "陈婉儿", "陈平生"]
+  },
+  "expect": {
+    "action": "何文成揽着陈婉儿，居高临下俯视陈平生，嘴角挂着嘲弄。"
+  }
+}

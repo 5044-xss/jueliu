@@ -1,0 +1,13 @@
+{
+  "id": "PIPE-014b",
+  "title": "没有单视图裁剪时，视频参考回退原图",
+  "stage": "video-ref",
+  "tags": ["reference", "video-issue", "four-view"],
+  "input": {
+    "hasImage": true,
+    "hasDerived": false
+  },
+  "expect": {
+    "usesDerived": false
+  }
+}

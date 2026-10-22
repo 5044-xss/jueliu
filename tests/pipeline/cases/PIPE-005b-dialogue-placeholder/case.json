@@ -1,0 +1,19 @@
+{
+  "id": "PIPE-005b",
+  "title": "编译结果只有占位句、没有任何 <d> 时必须判失败",
+  "stage": "dialogue-coverage",
+  "tags": ["dialogue", "compile", "regression", "R2"],
+  "input": {
+    "prompt": "detailed_description:\nThe character speaks his line and the shot ends.\noverall_soundscape: N/A\nnon_diegetic_music: N/A",
+    "sources": [
+      { "character": "陈平生", "text": "第一句台词。" },
+      { "character": "陈婉儿", "text": "第二句台词。" }
+    ]
+  },
+  "expect": {
+    "sourceCount": 2,
+    "compiledCount": 0,
+    "placeholderOnly": true,
+    "missingTexts": ["第一句台词。", "第二句台词。"]
+  }
+}

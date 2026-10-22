@@ -195,8 +195,32 @@ export default function HomePage() {
         </div>
       ) : series.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            还没有项目，点击右上角「新建项目」开始。
+          <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
+            <div className="flex flex-col gap-1">
+              <p className="font-medium">还没有项目</p>
+              <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
+                先在设置里填好模型 API Key，再新建项目，从故事一路做成成片。
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button
+                variant="outline"
+                nativeButton={false}
+                render={<Link href="/settings#llm" />}
+              >
+                去填写 API Key
+              </Button>
+              <Button onClick={openCreate}>
+                <Plus className="size-4" />
+                新建项目
+              </Button>
+            </div>
+            <Link
+              href="/help"
+              className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+            >
+              查看使用说明
+            </Link>
           </CardContent>
         </Card>
       ) : (

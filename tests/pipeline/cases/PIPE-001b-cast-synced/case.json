@@ -1,0 +1,53 @@
+{
+  "id": "PIPE-001b",
+  "title": "补全主体和角色引用后 preflight 必须通过",
+  "stage": "preflight",
+  "tags": ["cast", "regression", "R1"],
+  "input": {
+    "enforceErrors": true,
+    "vendor": {
+      "maxRefImages": 9,
+      "maxShotsPerSegment": 6,
+      "minSegmentMs": 4000,
+      "maxSegmentMs": 12000
+    },
+    "scene": {
+      "index": "1-1",
+      "blocking": {
+        "nodes": [
+          { "id": "n_chen", "label": "陈平生", "type": "character", "pos": { "x": 0.2, "y": 0.6 }, "facing": 90 },
+          { "id": "n_wan", "label": "陈婉儿", "type": "character", "pos": { "x": 0.8, "y": 0.6 }, "facing": 270 }
+        ],
+        "axis": { "from": "n_chen", "to": "n_wan" },
+        "cameraSide": "left"
+      }
+    },
+    "segments": [
+      {
+        "id": "seg-1",
+        "index": 1,
+        "targetMs": 4000,
+        "hardCut": true,
+        "shots": [
+          {
+            "id": "shot-1",
+            "index": 0,
+            "durationMs": 4000,
+            "camera": { "shotSize": "中景", "focal": "50mm" },
+            "action": "陈婉儿看向陈平生",
+            "dialogue": [],
+            "subjectNodeIds": ["n_wan", "n_chen"],
+            "refs": [
+              { "role": "character", "assetName": "陈婉儿", "variantLabel": "", "viewLabel": "" },
+              { "role": "character", "assetName": "陈平生", "variantLabel": "", "viewLabel": "" }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "errors": [],
+    "warnings": []
+  }
+}

@@ -1,0 +1,179 @@
+{
+  "generatedAt": "2026-10-21T04:07:45.764Z",
+  "dbPath": "E:/ai/02_projects/jueman/workspace/4dcd5535-87bb-47bc-a04f-9bb0b2f52f5b/project.db",
+  "projectId": "4dcd5535-87bb-47bc-a04f-9bb0b2f52f5b",
+  "project": {
+    "id": "4dcd5535-87bb-47bc-a04f-9bb0b2f52f5b",
+    "name": "第一集(16/9-自动化测试)",
+    "style": "国漫玄幻风格，东方仙侠，次世代CG动画，半写实比例，国漫3D动画风，电影级渲染，高细节，8K，虚幻引擎质感，电影级构图，景深，动态模糊，史诗感，玄黑赤金，月白青碧，紫电银蓝，赤焰金红，体积光，边缘光，逆光，丁达尔光，氛围光，高对比，灵气粒子环绕，符文法阵，剑罡，雷霆紫电，冰晶寒霜，妖兽虚影，灵气漩涡，法术光效",
+    "style_id": "style_cn_xianxia",
+    "aspect_ratio": "16:9",
+    "default_segment_ms": 15000,
+    "vendor": "h3",
+    "created_at": "2026-10-21T03:03:57.667Z",
+    "updated_at": "2026-10-21T03:03:57.667Z",
+    "video_style": ""
+  },
+  "baseline": [
+    {
+      "idx": 1,
+      "id": "5a67153d-48c0-4509-aca3-eedcce28cbc4",
+      "status": "returned",
+      "genStatus": "completed",
+      "targetMs": 10000,
+      "hardCut": 1,
+      "aiPromptSig": "50f68ac62a3ae2ac4bf3367736bbd4998225e52a0f0e9c27c59672356693d8c8",
+      "aiPromptLength": 5537,
+      "compiledDialogueCount": 3,
+      "sourceDialogueCount": 3,
+      "shotCount": 3,
+      "shotDurationSum": 10000,
+      "firstFrameOrigin": null,
+      "videoPath": "E:\\ai\\02_projects\\jueman\\workspace\\4dcd5535-87bb-47bc-a04f-9bb0b2f52f5b\\media\\videos\\h3\\5a67153d-48c0-4509-aca3-eedcce28cbc4\\output.mp4",
+      "video": {
+        "durationMs": 10130,
+        "width": 1344,
+        "height": 768,
+        "fps": 24
+      }
+    },
+    {
+      "idx": 2,
+      "id": "2cfae203-0f6f-43ff-9dd8-8494d8c8fd4c",
+      "status": "returned",
+      "genStatus": "completed",
+      "targetMs": 10000,
+      "hardCut": 1,
+      "aiPromptSig": "fb32009d76e08e02d1c2f7676474e0baa97597a7349eb5c3353cc13946f7f2e2",
+      "aiPromptLength": 4345,
+      "compiledDialogueCount": 2,
+      "sourceDialogueCount": 2,
+      "shotCount": 3,
+      "shotDurationSum": 10000,
+      "firstFrameOrigin": null,
+      "videoPath": "E:\\ai\\02_projects\\jueman\\workspace\\4dcd5535-87bb-47bc-a04f-9bb0b2f52f5b\\media\\videos\\h3\\2cfae203-0f6f-43ff-9dd8-8494d8c8fd4c\\output.mp4",
+      "video": {
+        "durationMs": 10130,
+        "width": 1344,
+        "height": 768,
+        "fps": 24
+      }
+    },
+    {
+      "idx": 3,
+      "id": "56683225-f7df-4395-ab8f-03d6c2a212d1",
+      "status": "returned",
+      "genStatus": "completed",
+      "targetMs": 11000,
+      "hardCut": 1,
+      "aiPromptSig": "c7b194ae4062b02f4ad5252c802e86e8a6663e6daa572a1698764db4350d9fd4",
+      "aiPromptLength": 5821,
+      "compiledDialogueCount": 2,
+      "sourceDialogueCount": 2,
+      "shotCount": 4,
+      "shotDurationSum": 11000,
+      "firstFrameOrigin": null,
+      "videoPath": "E:\\ai\\02_projects\\jueman\\workspace\\4dcd5535-87bb-47bc-a04f-9bb0b2f52f5b\\media\\videos\\h3\\56683225-f7df-4395-ab8f-03d6c2a212d1\\output.mp4",
+      "video": {
+        "durationMs": 11540,
+        "width": 1344,
+        "height": 768,
+        "fps": 24
+      }
+    },
+    {
+      "idx": 4,
+      "id": "ff4e7245-e24a-4915-812c-163036e05b7a",
+      "status": "returned",
+      "genStatus": "completed",
+      "targetMs": 10000,
+      "hardCut": 1,
+      "aiPromptSig": "fcb4b5fa570df838445f015b115be1bd36525cb59235b8a55e4a3a7b2278721f",
+      "aiPromptLength": 5681,
+      "compiledDialogueCount": 3,
+      "sourceDialogueCount": 3,
+      "shotCount": 4,
+      "shotDurationSum": 10000,
+      "firstFrameOrigin": null,
+      "videoPath": "E:\\ai\\02_projects\\jueman\\workspace\\4dcd5535-87bb-47bc-a04f-9bb0b2f52f5b\\media\\videos\\h3\\ff4e7245-e24a-4915-812c-163036e05b7a\\output.mp4",
+      "video": {
+        "durationMs": 10130,
+        "width": 1344,
+        "height": 768,
+        "fps": 24
+      }
+    },
+    {
+      "idx": 5,
+      "id": "12672618-5256-41b2-bc29-bb8d3e7ae081",
+      "status": "returned",
+      "genStatus": "completed",
+      "targetMs": 12000,
+      "hardCut": 1,
+      "aiPromptSig": "2d4891d7d700252bbda14a3d198911e2d74fd92a2625c2443a816110de863c67",
+      "aiPromptLength": 6095,
+      "compiledDialogueCount": 5,
+      "sourceDialogueCount": 5,
+      "shotCount": 4,
+      "shotDurationSum": 12000,
+      "firstFrameOrigin": null,
+      "videoPath": "E:\\ai\\02_projects\\jueman\\workspace\\4dcd5535-87bb-47bc-a04f-9bb0b2f52f5b\\media\\videos\\h3\\12672618-5256-41b2-bc29-bb8d3e7ae081\\output.mp4",
+      "video": {
+        "durationMs": 12250,
+        "width": 1120,
+        "height": 608,
+        "fps": 24
+      }
+    },
+    {
+      "idx": 6,
+      "id": "0587a81b-9076-4f1e-b405-0265afa6d4a5",
+      "status": "returned",
+      "genStatus": "completed",
+      "targetMs": 12000,
+      "hardCut": 1,
+      "aiPromptSig": "4e6b92f37e569c3fbead8107be7164d55526976dbe1d842a4d44412fb400d6bd",
+      "aiPromptLength": 7510,
+      "compiledDialogueCount": 2,
+      "sourceDialogueCount": 2,
+      "shotCount": 5,
+      "shotDurationSum": 12000,
+      "firstFrameOrigin": null,
+      "videoPath": "E:\\ai\\02_projects\\jueman\\workspace\\4dcd5535-87bb-47bc-a04f-9bb0b2f52f5b\\media\\videos\\h3\\0587a81b-9076-4f1e-b405-0265afa6d4a5\\output.mp4",
+      "video": {
+        "durationMs": 12250,
+        "width": 1120,
+        "height": 608,
+        "fps": 24
+      }
+    },
+    {
+      "idx": 7,
+      "id": "6a1f8209-f625-4303-9b19-6a95078e2c54",
+      "status": "returned",
+      "genStatus": "completed",
+      "targetMs": 4000,
+      "hardCut": 1,
+      "aiPromptSig": "6e92b9649e844afd1b031a7cc44049d64b7513025b539c1a676251873ebab686",
+      "aiPromptLength": 2403,
+      "compiledDialogueCount": 0,
+      "sourceDialogueCount": 0,
+      "shotCount": 1,
+      "shotDurationSum": 4000,
+      "firstFrameOrigin": null,
+      "videoPath": "E:\\ai\\02_projects\\jueman\\workspace\\4dcd5535-87bb-47bc-a04f-9bb0b2f52f5b\\media\\videos\\h3\\6a1f8209-f625-4303-9b19-6a95078e2c54\\output.mp4",
+      "video": {
+        "durationMs": 4460,
+        "width": 1344,
+        "height": 768,
+        "fps": 24
+      }
+    }
+  ],
+  "issues": [],
+  "summary": {
+    "errorCount": 0,
+    "warningCount": 0,
+    "segmentCount": 7
+  }
+}

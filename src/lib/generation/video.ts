@@ -1,15 +1,22 @@
 import fs from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { buildManifest } from "@core/server/render";
 import { startJob, finishJob, cancelRunningJobs } from "@core/server/jobs";
 import { getProject } from "@core/server/projects";
 import { getVendor } from "@core/server/library/vendors";
 import { getStoryboard } from "@core/server/storyboard";
 import { mediaSignature } from "@core/server/media-signature";
-import { getSegmentVideoPath } from "@core/server/paths";
+import { getSegmentVideoPath, getProjectMediaDir, isSafeId } from "@core/server/paths";
 import { setSegmentVideo } from "@core/server/frames";
 import { getProjectDb, nowIso } from "@core/server/db";
-import { getOrCompileH3Prompt } from "./prompt";
+import { runSegmentQc } from "@core/server/qc";
+import { isAutoRetryableQc } from "./retry";
+import {
+  attachGenerationSnapshotVideo,
+  saveGenerationSnapshot,
+} from "@core/server/generation-snapshot";
+import { getOrCompileH3PromptInfo } from "./prompt";
 import { captureAndAdoptTail } from "./tail";
 import {
   getGenerationSettings,
@@ -93,10 +100,15 @@ function collectImages(projectId: string, segmentId: string, max: number): { sta
 
 async function uploadAll(client: ComfyClient, paths: string[]): Promise<UploadedImage[]> {
   const out: UploadedImage[] = [];
+  // 每张图必须用全局唯一文件名：人物参考图都叫 video-ref.png，
+  // ComfyUI 以 overwrite=true 上传时同名文件会互相覆盖，导致所有参考槽位
+  // 实际指向同一张图（人物身份错乱/重复）。
+  const batch = randomUUID().slice(0, 8);
   for (const p of paths) {
-    const ext = path.extname(p).toLowerCase();
+    const ext = path.extname(p).toLowerCase() || ".png";
     const mime = ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : ext === ".webp" ? "image/webp" : "image/png";
-    const up = await client.uploadImage(fs.readFileSync(p), path.basename(p) || `ref${out.length}${ext || ".png"}`, mime);
+    const filename = `ref-${batch}-${out.length}${ext}`;
+    const up = await client.uploadImage(fs.readFileSync(p), filename, mime);
     out.push({ name: up.subfolder ? `${up.subfolder}/${up.name}` : up.name });
   }
   return out;
@@ -111,6 +123,10 @@ interface Prepared {
   name: string;
   /** 提交时（即提示词依据的）分镜内容签名，回传视频时一并写入。 */
   mediaSig: string;
+  /** 本次实际使用的编译提示词与签名，用于生成快照。 */
+  prompt: string;
+  promptSig: string;
+  humanPrompt: string;
   /** 复用 prepare 里已拉取的 /object_info，避免重复请求。 */
   objectInfo: ObjectInfo | null;
 }
@@ -140,7 +156,7 @@ async function prepare(projectId: string, segmentId: string, settings: Generatio
   }
 
   // 只有「仅首帧、无内容参考」时用基础模式；其余用全参考模式。
-  const prompt = await getOrCompileH3Prompt(
+  const compiled = await getOrCompileH3PromptInfo(
     projectId,
     segmentId,
     !useReference && !!startFrame,
@@ -148,7 +164,7 @@ async function prepare(projectId: string, segmentId: string, settings: Generatio
 
   const gen = resolveH3GenParams(settings, { targetMs: built.segment.targetMs, aspect });
   const name = `${built.scene.sceneSlug || `S${built.scene.sceneIndex}`}-第${built.segment.index}段`;
-  const { workflow, mode } = buildH3Workflow({ prompt, name, images: images.map((i) => i.name), gen, caps, useReference });
+  const { workflow, mode } = buildH3Workflow({ prompt: compiled.prompt, name, images: images.map((i) => i.name), gen, caps, useReference });
 
   return {
     client,
@@ -158,6 +174,9 @@ async function prepare(projectId: string, segmentId: string, settings: Generatio
     targetMs: built.segment.targetMs,
     name,
     mediaSig: mediaSignature(built.scene.blocking, built.segment),
+    prompt: compiled.prompt,
+    promptSig: compiled.sig,
+    humanPrompt: compiled.humanPrompt,
     objectInfo,
   };
 }
@@ -192,6 +211,28 @@ function commitVideo(
     throw new Error("段落已被删除或重新编排，已丢弃本次生成结果");
   }
   setSegmentVideo(projectId, segmentId, target, mediaSig);
+  attachGenerationSnapshotVideo(projectId, segmentId, target);
+}
+
+/** 提交成功后写入本次实际提示词快照（失败不影响主流程）。 */
+function recordSnapshot(
+  projectId: string,
+  segmentId: string,
+  jobId: string,
+  prep: Prepared,
+): void {
+  try {
+    saveGenerationSnapshot(projectId, {
+      segmentId,
+      jobId,
+      humanPrompt: prep.humanPrompt,
+      compiledPrompt: prep.prompt,
+      promptSig: prep.promptSig,
+      mediaSig: prep.mediaSig,
+    });
+  } catch {
+    // 快照是诊断信息，写失败不能阻断生成。
+  }
 }
 
 /** 提交本段视频任务；同步返回 prompt_id，后台轮询接管。 */
@@ -203,6 +244,7 @@ export async function submitSegmentVideo(projectId: string, segmentId: string): 
   try {
     const prep = await prepare(projectId, segmentId, settings);
     const promptId = await prep.client.queuePrompt(prep.workflow, prep.objectInfo);
+    recordSnapshot(projectId, segmentId, jobId, prep);
     updateSegmentGen(projectId, segmentId, { taskId: promptId, status: "queued" });
     void runVideoJob(
       projectId,
@@ -233,8 +275,21 @@ async function runVideoJob(projectId: string, segmentId: string, jobId: string, 
       timeoutMs: settings.videoTimeoutMs,
       isCancelled: stopped,
     });
-    const target = await downloadToSegment(client, projectId, segmentId, item);
-    commitVideo(projectId, segmentId, target, mediaSig);
+    const attempt = await downloadToSegment(client, projectId, segmentId, item);
+    const finalized = await finalizeAttempt(projectId, segmentId, attempt, mediaSig);
+    if (finalized.qcFailed) {
+      updateSegmentGen(projectId, segmentId, { taskId: promptId, status: "qc_failed" });
+      finishJob(
+        projectId,
+        jobId,
+        "failed",
+        `QC 未通过（${finalized.qc?.score ?? 0} 分）：${finalized.qc?.issues
+          .filter((issue) => issue.level === "hard")
+          .map((issue) => issue.message)
+          .join("；")}`,
+      );
+      return;
+    }
     // 尾帧只服务下一段连续性；失败不应把已成功的视频判为失败。
     let tail = { captured: false };
     try {
@@ -243,7 +298,14 @@ async function runVideoJob(projectId: string, segmentId: string, jobId: string, 
       // 忽略尾帧失败。
     }
     updateSegmentGen(projectId, segmentId, { taskId: promptId, status: "completed" });
-    finishJob(projectId, jobId, "succeeded", `已生成视频${tail.captured ? "（尾帧已接为下一段起始画面）" : ""}`);
+    finishJob(
+      projectId,
+      jobId,
+      "succeeded",
+      `已生成视频${tail.captured ? "（尾帧已接为下一段起始画面）" : ""}${
+        finalized.qc ? `；QC ${finalized.qc.status}（${finalized.qc.score ?? 0} 分）` : ""
+      }`,
+    );
   } catch (error) {
     const cancelled = stopped();
     updateSegmentGen(projectId, segmentId, { taskId: promptId, status: cancelled ? "cancelled" : "failed" });
@@ -254,7 +316,14 @@ async function runVideoJob(projectId: string, segmentId: string, jobId: string, 
 async function downloadToSegment(client: ComfyClient, projectId: string, segmentId: string, item: ComfyViewItem): Promise<string> {
   const vendor = getProject(projectId)?.vendor ?? "custom";
   const ext = path.extname(item.filename).replace(".", "").toLowerCase() || "mp4";
-  const target = getSegmentVideoPath(projectId, vendor, segmentId, ext);
+  const safeVendor = isSafeId(vendor) ? vendor : "custom";
+  const dir = path.join(getProjectMediaDir(projectId), "videos", safeVendor, segmentId);
+  fs.mkdirSync(dir, { recursive: true });
+  let attempt = 1;
+  while (fs.existsSync(path.join(dir, `attempt-${attempt}.${ext}`))) {
+    attempt += 1;
+  }
+  const target = path.join(dir, `attempt-${attempt}.${ext}`);
   return client.downloadToFile(item, target);
 }
 
@@ -304,6 +373,37 @@ async function waitForVideo(client: ComfyClient, promptId: string, opts: WaitOpt
   }
 }
 
+interface FinalizeAttemptResult {
+  target: string | null;
+  qcFailed: boolean;
+  qc: Awaited<ReturnType<typeof runSegmentQc>> | null;
+}
+
+async function finalizeAttempt(
+  projectId: string,
+  segmentId: string,
+  attempt: string,
+  mediaSig: string,
+): Promise<FinalizeAttemptResult> {
+  let qc: Awaited<ReturnType<typeof runSegmentQc>> | null = null;
+  try {
+    qc = await runSegmentQc({ projectId, segmentId, videoPath: attempt });
+  } catch {
+    qc = null;
+  }
+  if (qc?.hardFail) {
+    updateSegmentGen(projectId, segmentId, { status: "qc_failed" });
+    return { target: null, qcFailed: true, qc };
+  }
+  const vendor = getProject(projectId)?.vendor ?? "custom";
+  const ext = path.extname(attempt).replace(".", "").toLowerCase() || "mp4";
+  const target = getSegmentVideoPath(projectId, vendor, segmentId, ext);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.copyFileSync(attempt, target);
+  commitVideo(projectId, segmentId, target, mediaSig);
+  return { target, qcFailed: false, qc };
+}
+
 /** 同步版本：提交 → 轮询 → 落槽，供脚本 / 需要立即拿到结果的场景。 */
 export async function generateSegmentVideo(projectId: string, segmentId: string): Promise<GenerateVideoResult> {
   const settings = getGenerationSettings();
@@ -311,6 +411,7 @@ export async function generateSegmentVideo(projectId: string, segmentId: string)
   try {
     const prep = await prepare(projectId, segmentId, settings);
     const promptId = await prep.client.queuePrompt(prep.workflow, prep.objectInfo);
+    recordSnapshot(projectId, segmentId, jobId, prep);
     updateSegmentGen(projectId, segmentId, { taskId: promptId, status: "queued" });
     const stopped = () =>
       segmentGenStatus(projectId, segmentId) === "cancelled" ||
@@ -320,8 +421,16 @@ export async function generateSegmentVideo(projectId: string, segmentId: string)
       timeoutMs: settings.videoTimeoutMs,
       isCancelled: stopped,
     });
-    const target = await downloadToSegment(prep.client, projectId, segmentId, item);
-    commitVideo(projectId, segmentId, target, prep.mediaSig);
+    const attempt = await downloadToSegment(prep.client, projectId, segmentId, item);
+    const finalized = await finalizeAttempt(projectId, segmentId, attempt, prep.mediaSig);
+    if (finalized.qcFailed) {
+      throw new Error(
+        `QC 未通过：${finalized.qc?.issues
+          .filter((issue) => issue.level === "hard")
+          .map((issue) => issue.message)
+          .join("；")}`,
+      );
+    }
     try {
       await captureAndAdoptTail(projectId, segmentId);
     } catch {
@@ -329,12 +438,21 @@ export async function generateSegmentVideo(projectId: string, segmentId: string)
     }
     updateSegmentGen(projectId, segmentId, { taskId: promptId, status: "completed" });
     finishJob(projectId, jobId, "succeeded", "已生成视频");
-    return { jobId, promptId, mode: prep.mode, refCount: prep.refCount, videoPath: target };
+    return {
+      jobId,
+      promptId,
+      mode: prep.mode,
+      refCount: prep.refCount,
+      videoPath: finalized.target ?? attempt,
+    };
   } catch (error) {
     const cancelled =
       segmentGenStatus(projectId, segmentId) === "cancelled" ||
       jobStatus(projectId, jobId) !== "running";
-    updateSegmentGen(projectId, segmentId, { status: cancelled ? "cancelled" : "failed" });
+    const qcFailed = segmentGenStatus(projectId, segmentId) === "qc_failed";
+    updateSegmentGen(projectId, segmentId, {
+      status: cancelled ? "cancelled" : qcFailed ? "qc_failed" : "failed",
+    });
     finishJob(projectId, jobId, "failed", cancelled ? "已取消" : (error as Error).message);
     throw error;
   }
@@ -419,6 +537,7 @@ async function runSequentialJob(
           prep.workflow,
           prep.objectInfo,
         );
+        recordSnapshot(projectId, segment.id, jobId, prep);
         updateSegmentGen(projectId, segment.id, { taskId: promptId, status: "running" });
         const item = await waitForVideo(prep.client, promptId, {
           intervalMs: 8_000,
@@ -426,8 +545,25 @@ async function runSequentialJob(
           isCancelled: () =>
             stopped() || segmentGenStatus(projectId, segment.id) === "cancelled",
         });
-        const target = await downloadToSegment(prep.client, projectId, segment.id, item);
-        commitVideo(projectId, segment.id, target, prep.mediaSig);
+        const attempt = await downloadToSegment(prep.client, projectId, segment.id, item);
+        const finalized = await finalizeAttempt(
+          projectId,
+          segment.id,
+          attempt,
+          prep.mediaSig,
+        );
+        if (finalized.qcFailed) {
+          const message = `QC 未通过：${finalized.qc?.issues
+            .filter((issue) => issue.level === "hard")
+            .map((issue) => issue.message)
+            .join("；")}`;
+          if (!isAutoRetryableQc(finalized.qc?.issues ?? [])) {
+            updateSegmentGen(projectId, segment.id, { status: "qc_failed" });
+            lastError = new Error(message);
+            break;
+          }
+          throw new Error(message);
+        }
         updateSegmentGen(projectId, segment.id, { taskId: promptId, status: "completed" });
         done += 1;
         lastError = null;
@@ -454,7 +590,10 @@ async function runSequentialJob(
       }
     }
     if (lastError) {
-      updateSegmentGen(projectId, segment.id, { status: "failed" });
+      const qcFailed = segmentGenStatus(projectId, segment.id) === "qc_failed";
+      updateSegmentGen(projectId, segment.id, {
+        status: qcFailed ? "qc_failed" : "failed",
+      });
       failed += 1;
       if (!firstError) firstError = lastError.message;
     }

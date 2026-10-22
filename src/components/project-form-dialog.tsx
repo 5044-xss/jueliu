@@ -182,7 +182,11 @@ export function ProjectFormDialog({
               <SelectField
                 id="pf-style"
                 value={styleId}
-                onChange={setStyleId}
+                onChange={(id) => {
+                  setStyleId(id);
+                  const chosen = styles.find((s) => s.id === id);
+                  setVideoStyle(chosen?.videoStyle?.trim() ?? "");
+                }}
                 options={[
                   { value: "", label: "自定义" },
                   ...styles.map((s) => ({ value: s.id, label: s.name })),
@@ -199,19 +203,21 @@ export function ProjectFormDialog({
                 风格库在「资源库 → 风格库」中管理。
               </p>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="pf-video-style">视频风格（可选）</Label>
-              <Textarea
-                id="pf-video-style"
-                value={videoStyle}
-                onChange={(e) => setVideoStyle(e.target.value)}
-                placeholder="留空＝沿用上面的风格，但自动剔除特效词（粒子/法阵/剑气等）。想要特效就写这里。"
-                className="min-h-[70px]"
-              />
-              <p className="text-xs text-muted-foreground">
-                只影响视频。留空时用上方风格并自动去掉特效类词，保留画质/色调；填了就只用这段（想全程特效也可写进来）。
-              </p>
-            </div>
+            {mode === "edit" && (
+              <div className="grid gap-2">
+                <Label htmlFor="pf-video-style">视频风格（可选）</Label>
+                <Textarea
+                  id="pf-video-style"
+                  value={videoStyle}
+                  onChange={(e) => setVideoStyle(e.target.value)}
+                  placeholder="留空＝沿用上面的风格，但自动剔除特效词（粒子/法阵/剑气等）。想要特效就写这里。"
+                  className="min-h-[70px]"
+                />
+                <p className="text-xs text-muted-foreground">
+                  选择风格时自动带出；留空＝沿用上方画面风格并自动去掉特效类词。只影响视频。
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="pf-ratio">画面比例</Label>

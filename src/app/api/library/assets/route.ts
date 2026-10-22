@@ -63,14 +63,31 @@ export async function POST(request: Request) {
   if (!source.imagePath || !fs.existsSync(source.imagePath)) {
     return NextResponse.json({ error: "该视角尚未回传图片" }, { status: 400 });
   }
+  const targetSeriesId = scope === "global" ? null : seriesId ?? null;
+  const existing = listLibraryAssets(scope, targetSeriesId).find(
+    (item) =>
+      item.sourceViewId === viewId ||
+      (!item.sourceViewId &&
+        item.type === source.type &&
+        item.name === source.name &&
+        item.variantLabel === source.variantLabel &&
+        item.prompt === source.prompt),
+  );
+  if (existing) {
+    return NextResponse.json(
+      { error: "该资产已在资产库中，无需重复添加", item: existing },
+      { status: 409 },
+    );
+  }
   const item = addLibraryAsset({
     scope,
-    seriesId: scope === "global" ? null : seriesId ?? null,
+    seriesId: targetSeriesId,
     type: source.type,
     name: source.name,
     variantLabel: source.variantLabel,
     prompt: source.prompt,
     sourceImagePath: source.imagePath,
+    sourceViewId: viewId,
   });
   return NextResponse.json({ item }, { status: 201 });
 }

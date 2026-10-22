@@ -33,10 +33,15 @@ function StyleDialog({
 }) {
   const [name, setName] = useState(style?.name ?? "");
   const [prompt, setPrompt] = useState(style?.prompt ?? "");
+  const [videoStyle, setVideoStyle] = useState(style?.videoStyle ?? "");
   const [saving, setSaving] = useState(false);
   const confirm = useConfirm();
 
-  const dirty = style ? name !== style.name || prompt !== style.prompt : false;
+  const dirty = style
+    ? name !== style.name ||
+      prompt !== style.prompt ||
+      videoStyle !== (style.videoStyle ?? "")
+    : false;
 
   async function save() {
     if (!style) return;
@@ -45,7 +50,7 @@ function StyleDialog({
       const res = await fetch(`/api/library/styles/${style.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, prompt }),
+        body: JSON.stringify({ name, prompt, videoStyle }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "保存失败");
@@ -93,7 +98,7 @@ function StyleDialog({
             {style?.builtin && <Badge variant="secondary">内置</Badge>}
           </DialogTitle>
           <DialogDescription>
-            风格提示词会注入到剧本/资产/分镜与厂商提示词中。
+            画面风格会注入剧本/资产/分镜与图片提示词；视频风格只用于视频，留空则用画面风格并自动剔除特效词。
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
@@ -106,12 +111,21 @@ function StyleDialog({
             />
           </div>
           <div className="grid gap-1.5">
-            <label className="text-xs font-medium">风格提示词</label>
+            <label className="text-xs font-medium">画面风格提示词</label>
             <Textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="例如：国风水墨，青绿山水，留白，柔和光线"
               className="min-h-[200px] text-sm"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <label className="text-xs font-medium">视频风格（可选）</label>
+            <Textarea
+              value={videoStyle}
+              onChange={(e) => setVideoStyle(e.target.value)}
+              placeholder="留空＝沿用画面风格并自动剔除特效词。想保留特效或单独控制视频质感时填写，例如：电影级渲染，体积光，轻微胶片颗粒。"
+              className="min-h-[120px] text-sm"
             />
           </div>
         </div>
@@ -197,7 +211,7 @@ export default function StylesPage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-lime p-5">
         <p className="text-sm">
-          新建项目时可从此处选择风格。点击卡片查看或编辑提示词。
+          新建子集时可从此处选择风格，选中后自动带出对应的视频风格。点击卡片查看或编辑提示词。
         </p>
         <Button onClick={create} disabled={creating}>
           {creating ? (
@@ -226,6 +240,11 @@ export default function StylesPage() {
                 <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                   {style.prompt.trim() || "未填写提示词"}
                 </p>
+                {style.videoStyle?.trim() && (
+                  <p className="mt-1 line-clamp-1 text-xs text-muted-foreground/70">
+                    视频：{style.videoStyle.trim()}
+                  </p>
+                )}
               </button>
               <Button
                 size="icon-sm"

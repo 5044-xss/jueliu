@@ -1,0 +1,135 @@
+{
+  "project": {
+    "id": "8c235423-318b-46b5-83da-f1f5da47cbd4",
+    "name": "第一集(16/9-自动化测试) 副本",
+    "vendor": "h3"
+  },
+  "generatedAt": "2026-10-21T07:38:10.416Z",
+  "summary": {
+    "segments": 9,
+    "errors": 0,
+    "warnings": 0,
+    "byCode": {}
+  },
+  "preflight": [],
+  "segments": [
+    {
+      "segmentIdx": 1,
+      "segmentId": "b3c687f4-a71a-4dfe-99f8-f4ab9d332325",
+      "shots": 3,
+      "promptShots": 3,
+      "promptLength": 3908,
+      "sourceDialogue": 2,
+      "compiledDialogue": 2,
+      "subjects": 4,
+      "issues": [],
+      "cached": false,
+      "durationMs": 10927
+    },
+    {
+      "segmentIdx": 2,
+      "segmentId": "3c019671-0c73-4f73-b72d-7eedaa1a7b1f",
+      "shots": 2,
+      "promptShots": 2,
+      "promptLength": 2892,
+      "sourceDialogue": 2,
+      "compiledDialogue": 2,
+      "subjects": 3,
+      "issues": [],
+      "cached": false,
+      "durationMs": 7109
+    },
+    {
+      "segmentIdx": 3,
+      "segmentId": "837c9141-45bd-45ef-979c-e46f495d64a2",
+      "shots": 4,
+      "promptShots": 4,
+      "promptLength": 4888,
+      "sourceDialogue": 2,
+      "compiledDialogue": 2,
+      "subjects": 6,
+      "issues": [],
+      "cached": false,
+      "durationMs": 11925
+    },
+    {
+      "segmentIdx": 4,
+      "segmentId": "0288e867-844e-4bb5-9a6b-e453dde09644",
+      "shots": 5,
+      "promptShots": 5,
+      "promptLength": 5724,
+      "sourceDialogue": 2,
+      "compiledDialogue": 2,
+      "subjects": 7,
+      "issues": [],
+      "cached": false,
+      "durationMs": 12846
+    },
+    {
+      "segmentIdx": 5,
+      "segmentId": "2dd27cd0-9e06-4ebc-8bdc-57c3ef6f692d",
+      "shots": 4,
+      "promptShots": 4,
+      "promptLength": 5237,
+      "sourceDialogue": 2,
+      "compiledDialogue": 2,
+      "subjects": 6,
+      "issues": [],
+      "cached": false,
+      "durationMs": 13404
+    },
+    {
+      "segmentIdx": 6,
+      "segmentId": "0ee1e43b-f1ea-4523-9a57-2daba5236d59",
+      "shots": 2,
+      "promptShots": 2,
+      "promptLength": 2710,
+      "sourceDialogue": 1,
+      "compiledDialogue": 1,
+      "subjects": 3,
+      "issues": [],
+      "cached": false,
+      "durationMs": 6872
+    },
+    {
+      "segmentIdx": 7,
+      "segmentId": "e0e0d816-8e2e-44f0-9b3a-39e47b849ab2",
+      "shots": 4,
+      "promptShots": 4,
+      "promptLength": 4514,
+      "sourceDialogue": 3,
+      "compiledDialogue": 3,
+      "subjects": 5,
+      "issues": [],
+      "cached": false,
+      "durationMs": 23878
+    },
+    {
+      "segmentIdx": 8,
+      "segmentId": "41553081-705a-4230-b981-5cc6af7e8a33",
+      "shots": 5,
+      "promptShots": 5,
+      "promptLength": 5593,
+      "sourceDialogue": 1,
+      "compiledDialogue": 1,
+      "subjects": 4,
+      "issues": [],
+      "cached": false,
+      "durationMs": 14874
+    },
+    {
+      "segmentIdx": 9,
+      "segmentId": "469d5cac-1eef-490c-b55a-87522f4c822e",
+      "shots": 5,
+      "promptShots": 5,
+      "promptLength": 5806,
+      "sourceDialogue": 2,
+      "compiledDialogue": 2,
+      "subjects": 6,
+      "issues": [],
+      "cached": false,
+      "durationMs": 14603
+    }
+  ],
+  "issues": []
+}

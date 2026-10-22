@@ -1,0 +1,34 @@
+{
+  "id": "PIPE-007c",
+  "title": "逐镜站位由代码注入 H3 提示词，不依赖 LLM 转述",
+  "stage": "h3-render",
+  "tags": ["blocking", "h3", "regression", "R3"],
+  "input": {
+    "mode": "reference",
+    "aspectRatio": "16:9",
+    "subjects": [
+      { "id": "n_he", "name": "何文成", "kind": "character", "sourcePictures": [2] }
+    ],
+    "shots": [
+      {
+        "index": 1,
+        "durationMs": 2000,
+        "visual": "He straightens his sleeve.",
+        "sound": "cloth rustle",
+        "subjectIds": ["n_he"],
+        "dialogue": [],
+        "blocking": "何文成 is on the right side of the frame, in the midground, facing the camera"
+      }
+    ],
+    "soundscape": "wind",
+    "music": "N/A"
+  },
+  "expect": {
+    "contains": [
+      "何文成 is on the right side of the frame, in the midground, facing the camera."
+    ],
+    "blockingContains": {
+      "1": "facing the camera"
+    }
+  }
+}

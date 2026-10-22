@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getStoryboard, clearStoryboard } from "@core/server/storyboard";
+import { preflightStoryboard } from "@core/server/preflight";
+import { getLatestQcByProject, getQcSummary } from "@core/server/qc";
 import { projectExists } from "@core/server/projects";
 import { cancelProjectGeneration } from "@/lib/generation/cancel";
 
@@ -10,7 +12,13 @@ export async function GET(_request: Request, { params }: Ctx) {
   if (!projectExists(id)) {
     return NextResponse.json({ error: "项目不存在" }, { status: 404 });
   }
-  return NextResponse.json({ scenes: getStoryboard(id) });
+  const scenes = getStoryboard(id);
+  return NextResponse.json({
+    scenes,
+    preflight: preflightStoryboard(id, scenes),
+    qc: getLatestQcByProject(id),
+    qcSummary: getQcSummary(id),
+  });
 }
 
 export async function DELETE(_request: Request, { params }: Ctx) {

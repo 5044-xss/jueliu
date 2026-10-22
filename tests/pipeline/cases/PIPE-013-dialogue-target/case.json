@@ -1,0 +1,88 @@
+{
+  "id": "PIPE-013",
+  "title": "何文成对陈平生说话时，不能把陈婉儿留在主体集合里",
+  "stage": "dialogue-target",
+  "tags": [
+    "dialogue",
+    "target",
+    "regression",
+    "video-issue"
+  ],
+  "input": {
+    "blocking": {
+      "nodes": [
+        {
+          "id": "n_chen",
+          "label": "陈平生",
+          "type": "character",
+          "pos": {
+            "x": 0.3,
+            "y": 0.6
+          },
+          "facing": 90
+        },
+        {
+          "id": "n_wan",
+          "label": "陈婉儿",
+          "type": "character",
+          "pos": {
+            "x": 0.65,
+            "y": 0.65
+          },
+          "facing": 270
+        },
+        {
+          "id": "n_he",
+          "label": "何文成",
+          "type": "character",
+          "pos": {
+            "x": 0.7,
+            "y": 0.65
+          },
+          "facing": 270
+        }
+      ],
+      "axis": {
+        "from": "n_chen",
+        "to": "n_he"
+      },
+      "cameraSide": "left"
+    },
+    "shot": {
+      "subjectNodeIds": [
+        "n_he",
+        "n_wan"
+      ],
+      "action": "何文成整理了一下袖口，漫不经心地开口。",
+      "dialogue": [
+        {
+          "character": "何文成",
+          "text": "我知道你急。今天大喜日子，不跟一条狗见识。"
+        }
+      ]
+    },
+    "previousShot": {
+      "subjectNodeIds": [
+        "n_he",
+        "n_chen"
+      ],
+      "dialogue": [
+        {
+          "character": "陈平生",
+          "text": "像你这样胡咬乱吠的狗么？"
+        }
+      ]
+    }
+  },
+  "expect": {
+    "speaker": "n_he",
+    "addressee": "n_chen",
+    "presentCast": [
+      "n_he",
+      "n_chen"
+    ],
+    "removed": [
+      "n_wan"
+    ]
+  }
+}

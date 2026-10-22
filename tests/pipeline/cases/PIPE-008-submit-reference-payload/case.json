@@ -1,0 +1,27 @@
+{
+  "id": "PIPE-008",
+  "title": "全参考模式提交 payload：提示词、参考图、时长、输出名一致",
+  "stage": "submit-payload",
+  "tags": ["submit", "h3", "payload", "regression"],
+  "input": {
+    "prompt": "subject_definitions:\n<Subject 1> is the character 陈平生 in <Picture 2>.\noverall_soundscape: N/A\nnon_diegetic_music: N/A",
+    "name": "S1-1段",
+    "images": ["ref-a.png", "ref-b.png", "ref-c.png"],
+    "useReference": true,
+    "gen": {
+      "duration": 10,
+      "seed": 12345,
+      "seedAuto": false,
+      "aspect": "16:9",
+      "steps": 8
+    }
+  },
+  "expect": {
+    "promptNode": "209",
+    "conditionalClass": "MiniMaxH3ReferenceToVideo",
+    "imageCount": 3,
+    "duration": 10,
+    "filenamePrefix": "jueman/H3Studio-S1-1段",
+    "modeContains": "Ref2VA"
+  }
+}

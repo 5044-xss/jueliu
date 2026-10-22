@@ -1,0 +1,15 @@
+{
+  "id": "PIPE-003",
+  "title": "景别跨 4 档且焦段比 2.43 时必须判为不连续",
+  "stage": "camera-jump",
+  "tags": ["hardcut", "continuity", "regression", "R1"],
+  "input": {
+    "prev": { "shotSize": "近景", "focal": "85mm" },
+    "next": { "shotSize": "全景", "focal": "35mm" }
+  },
+  "expect": {
+    "continuous": false,
+    "rankDiff": 4,
+    "focalRatio": 2.43
+  }
+}

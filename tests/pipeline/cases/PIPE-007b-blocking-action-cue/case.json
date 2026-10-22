@@ -1,0 +1,21 @@
+{
+  "id": "PIPE-007b",
+  "title": "动作已写明朝向时，站位文本不再重复朝向",
+  "stage": "h3-blocking",
+  "tags": ["blocking", "h3", "regression", "R3"],
+  "input": {
+    "blocking": {
+      "nodes": [
+        { "id": "n_chen", "label": "陈平生", "type": "character", "pos": { "x": 0.2, "y": 0.6 }, "facing": 90 }
+      ],
+      "axis": { "from": "n_chen", "to": "n_chen" },
+      "cameraSide": "left"
+    },
+    "subjectNodeIds": ["n_chen"],
+    "action": "陈平生抬眼看向何文成。"
+  },
+  "expect": {
+    "contains": ["left side of the frame"],
+    "notContains": ["facing"]
+  }
+}

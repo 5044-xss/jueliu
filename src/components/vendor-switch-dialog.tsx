@@ -23,6 +23,9 @@ export interface VendorOption {
   supportMultiShot?: boolean;
   maxShotsPerSegment?: number;
   maxRefImages?: number;
+  minSegmentMs?: number;
+  maxSegmentMs?: number;
+  durationStepMs?: number;
 }
 
 export function VendorSwitchDialog({

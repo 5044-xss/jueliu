@@ -8,21 +8,19 @@ import {
   CloudUpload,
   Film,
   Loader2,
-  MoreHorizontal,
   Pencil,
-  RotateCcw,
   Sparkles,
+  Stethoscope,
   Trash2,
   Wand2,
 } from "lucide-react";
-import { GenerationDialog } from "@/components/generation-dialog";
 import { SegmentVideo } from "@/components/segment-video";
+import { SegmentComposer } from "@/components/segment-composer";
 import { ShotEditDialog } from "@/components/shot-edit-dialog";
 import { BlockingEditDialog } from "@/components/blocking-edit-dialog";
 import { Elapsed } from "@/components/elapsed";
 import { LoadErrorState, LoadingState } from "@/components/load-state";
 import { LlmKeyNotice, useLlmConfigured } from "@/components/llm-notice";
-import { NextStepLink } from "@/components/next-step";
 import { useConfirm } from "@/components/confirm-dialog";
 import {
   VendorSwitchDialog,
@@ -30,6 +28,7 @@ import {
 } from "@/components/vendor-switch-dialog";
 import { describeCascade, fetchCascadeImpact } from "@/lib/impact";
 import { readError } from "@/lib/http";
+import { suggestQcRetry } from "@/lib/generation/retry";
 import { useProjectJobs, isJobRunning } from "@core/client/use-jobs";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +38,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Card,
   CardContent,
@@ -50,11 +57,25 @@ import type {
   StoredSceneStoryboard,
   StoredShot,
 } from "@core/shared/schemas/storyboard";
+import type { PreflightIssue } from "@core/shared/preflight";
+import type { SegmentQcRecord, QcSummary } from "@core/shared/qc";
 import type { StoredAsset } from "@core/shared/schemas/assets";
 
-const TERMINAL_GEN_STATUS = new Set(["completed", "failed", "cancelled"]);
+const TERMINAL_GEN_STATUS = new Set([
+  "completed",
+  "failed",
+  "cancelled",
+  "qc_failed",
+]);
 function isSegmentGenerating(status: string | null): boolean {
   return !!status && !TERMINAL_GEN_STATUS.has(status);
+}
+
+function clock(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 function ShotView({
@@ -135,11 +156,19 @@ function ShotView({
 }
 
 export default function StoryboardPage() {
-  const { seriesId, episodeId: id } = useParams<{
+  const { episodeId: id } = useParams<{
     seriesId: string;
     episodeId: string;
   }>();
   const [scenes, setScenes] = useState<StoredSceneStoryboard[]>([]);
+  const [preflight, setPreflight] = useState<PreflightIssue[]>([]);
+  const [qcList, setQcList] = useState<SegmentQcRecord[]>([]);
+  const [qcSummary, setQcSummary] = useState<QcSummary | null>(null);
+  const [qcBusy, setQcBusy] = useState(false);
+  const [recompileBusy, setRecompileBusy] = useState(false);
+  const [repairBusy, setRepairBusy] = useState(false);
+  const [preflightOpen, setPreflightOpen] = useState(false);
+  const [hardCutBusy, setHardCutBusy] = useState(false);
   const [hasScript, setHasScript] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -152,15 +181,16 @@ export default function StoryboardPage() {
   const [vendorOptions, setVendorOptions] = useState<VendorOption[]>([]);
   const [orchestrating, setOrchestrating] = useState(false);
   const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
+  const [viewTab, setViewTab] = useState<"generate" | "preview">("generate");
+  const [composerReloadKey, setComposerReloadKey] = useState(0);
+  const [projectAspectRatio, setProjectAspectRatio] = useState("16:9");
   const [editShot, setEditShot] = useState<{
     shot: StoredShot;
     nodes: { id: string; label: string }[];
   } | null>(null);
   const [editBlocking, setEditBlocking] =
     useState<StoredSceneStoryboard | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [framesVersion, setFramesVersion] = useState(0);
-  const [cloudGen, setCloudGen] = useState(false);
   const [videoGen, setVideoGen] = useState(false);
   const [batchBusy, setBatchBusy] = useState<null | "videos">(null);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
@@ -179,24 +209,36 @@ export default function StoryboardPage() {
       return (await res.json()) as T;
     }
     const [sb, script, assetsRes, projectRes, vendorsRes] = await Promise.all([
-      get<{ scenes?: StoredSceneStoryboard[] }>(
+      get<{
+        scenes?: StoredSceneStoryboard[];
+        preflight?: PreflightIssue[];
+        qc?: SegmentQcRecord[];
+        qcSummary?: QcSummary;
+      }>(
         `/api/projects/${id}/storyboard`,
         "分镜",
       ),
       get<{ script?: unknown }>(`/api/projects/${id}/script`, "剧本"),
       get<{ assets?: StoredAsset[] }>(`/api/projects/${id}/assets`, "资产"),
-      get<{ project?: { vendor?: string } }>(`/api/projects/${id}`, "项目"),
+      get<{ project?: { vendor?: string; aspectRatio?: string } }>(
+        `/api/projects/${id}`,
+        "项目",
+      ),
       get<{ vendors?: VendorOption[] }>(`/api/library/vendors`, "厂商"),
     ]);
     const vendors = (vendorsRes.vendors ?? []) as VendorOption[];
     return {
       scenes: (sb.scenes ?? []) as StoredSceneStoryboard[],
+      preflight: (sb.preflight ?? []) as PreflightIssue[],
+      qc: (sb.qc ?? []) as SegmentQcRecord[],
+      qcSummary: (sb.qcSummary ?? null) as QcSummary | null,
       hasScript: Boolean(script.script),
       assets: (assetsRes.assets ?? []) as StoredAsset[],
       vendor:
         (projectRes.project?.vendor as string) ||
         vendors.find((v) => v.isDefault)?.id ||
         "h3",
+      aspectRatio: projectRes.project?.aspectRatio || "16:9",
       vendors,
     };
   }, [id]);
@@ -208,9 +250,13 @@ export default function StoryboardPage() {
         const data = await load();
         if (cancelled) return;
         setScenes(data.scenes);
+        setPreflight(data.preflight);
+        setQcList(data.qc);
+        setQcSummary(data.qcSummary);
         setHasScript(data.hasScript);
         setAssets(data.assets);
         setVendor(data.vendor);
+        setProjectAspectRatio(data.aspectRatio);
         setVendorOptions(data.vendors);
         setLoaded(true);
       } catch (error) {
@@ -227,7 +273,11 @@ export default function StoryboardPage() {
   const refresh = useCallback(async () => {
     const data = await load();
     setScenes(data.scenes);
+    setPreflight(data.preflight);
+    setQcList(data.qc);
+    setQcSummary(data.qcSummary);
     setAssets(data.assets);
+    setProjectAspectRatio(data.aspectRatio);
     setFramesVersion((v) => v + 1);
   }, [load]);
 
@@ -237,18 +287,88 @@ export default function StoryboardPage() {
     if (!res.ok) return;
     const data = await res.json().catch(() => null);
     if (data?.scenes) setScenes(data.scenes as StoredSceneStoryboard[]);
+    if (data?.preflight) setPreflight(data.preflight as PreflightIssue[]);
+    if (data?.qc) setQcList(data.qc as SegmentQcRecord[]);
+    if (data?.qcSummary) setQcSummary(data.qcSummary as QcSummary);
     // 让预览里的 SegmentVideo 也重读视频/帧，边出边显示。
     setFramesVersion((v) => v + 1);
   }, [id]);
 
-  const { jobs } = useProjectJobs(id, (job) => {
-    // 上游（剧本/资产）重新生成会清空分镜，必须一起刷新，
+  async function runQc() {
+    if (!preview || qcBusy) return;
+    setQcBusy(true);
+    try {
+      const res = await fetch(
+        `/api/projects/${id}/segments/${preview.id}/qc`,
+        { method: "POST" },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "QC 失败");
+      const record = data.qc as SegmentQcRecord;
+      setQcList((list) => [
+        record,
+        ...list.filter((item) => item.segmentId !== record.segmentId),
+      ]);
+      toast.success(
+        record.hardFail
+          ? `QC 未通过（${record.score ?? 0} 分）`
+          : `QC ${record.status === "passed" ? "通过" : "待复核"}（${record.score ?? 0} 分）`,
+      );
+    } catch (error) {
+      toast.error((error as Error).message || "QC 失败");
+    } finally {
+      setQcBusy(false);
+    }
+  }
+
+  async function compileSegmentPrompt(
+    segmentId: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const platform =
+      vendorOptions.find((item) => item.id === vendor)?.platform ?? "h3";
+    const res = await fetch("/api/skills/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        skillId: "storyboard-to-ai-prompt",
+        projectId: id,
+        input: { segmentId, platform },
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: data?.error || "重新编译失败",
+      };
+    }
+    return { ok: true };
+  }
+
+  async function recompilePrompt() {
+    if (!preview || recompileBusy) return;
+    setRecompileBusy(true);
+    try {
+      const result = await compileSegmentPrompt(preview.id);
+      if (!result.ok) throw new Error(result.error);
+      toast.success("提示词已重新编译");
+      setComposerReloadKey((key) => key + 1);
+      await refresh();
+    } catch (error) {
+      toast.error((error as Error).message || "重新编译失败");
+    } finally {
+      setRecompileBusy(false);
+    }
+  }
+
+  const { jobs } = useProjectJobs(id, (job) => {    // 上游（剧本/资产）重新生成会清空分镜，必须一起刷新，
     // 否则页面会残留已被删除的旧分镜，点「第三方生成」就会报「段落不存在」。
     if (
       job.kind === "script-to-storyboard" ||
       job.kind === "script-to-assets" ||
       job.kind === "story-to-script" ||
       job.kind === "segment-regenerate" ||
+      job.kind === "repair" ||
       job.kind === "gen-image" ||
       job.kind === "gen-video" ||
       job.kind === "gen-videos"
@@ -257,10 +377,57 @@ export default function StoryboardPage() {
     }
   });
 
+  // 生成前静默体检：只自动处理可安全修复的硬错误（目前是连续段的硬切冲突），
+  // 软提醒不打扰用户，其余问题交给成片后的自动 QC。
+  async function silentPreflightFix(
+    segmentIds: string[],
+  ): Promise<PreflightIssue[]> {
+    try {
+      const res = await fetch(`/api/projects/${id}/storyboard`);
+      if (!res.ok) return [];
+      const data = (await res.json().catch(() => null)) as {
+        preflight?: PreflightIssue[];
+      } | null;
+      const targets = new Set(segmentIds);
+      const scoped = (data?.preflight ?? []).filter((issue) =>
+        targets.has(issue.segmentId),
+      );
+      const autoHardCut = [
+        ...new Set(
+          scoped
+            .filter(
+              (issue) =>
+                issue.level === "error" && issue.fixAction === "set-hard-cut",
+            )
+            .map((issue) => issue.segmentId),
+        ),
+      ];
+      await Promise.all(
+        autoHardCut.map((segmentId) =>
+          fetch(`/api/projects/${id}/segments/${segmentId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ hardCut: true }),
+          }).catch(() => null),
+        ),
+      );
+      if (autoHardCut.length > 0) await refresh();
+      return scoped.filter(
+        (issue) =>
+          issue.level === "error" &&
+          !(
+            issue.fixAction === "set-hard-cut" &&
+            autoHardCut.includes(issue.segmentId)
+          ),
+      );
+    } catch {
+      return [];
+    }
+  }
+
   // 云端生成该段「起始画面」（Toapi）。提交后由后台轮询回填，进度看任务条。
   async function cloudGenerate() {
     if (!preview) return;
-    setCloudGen(true);
     try {
       const res = await fetch(
         `/api/projects/${id}/segments/${preview.id}/generate-image`,
@@ -273,8 +440,6 @@ export default function StoryboardPage() {
       });
     } catch (error) {
       toast.error((error as Error).message);
-    } finally {
-      setCloudGen(false);
     }
   }
 
@@ -283,6 +448,12 @@ export default function StoryboardPage() {
     if (!preview) return;
     setVideoGen(true);
     try {
+      const remaining = await silentPreflightFix([preview.id]);
+      if (remaining.length > 0) {
+        toast.warning(`本段还有 ${remaining.length} 个体检问题未自动修复`, {
+          description: "已继续生成，成片完成后会自动质检。",
+        });
+      }
       const res = await fetch(
         `/api/projects/${id}/segments/${preview.id}/generate-video`,
         { method: "POST" },
@@ -313,6 +484,15 @@ export default function StoryboardPage() {
     }
     setBatchBusy("videos");
     try {
+      const targetIds = allSegments
+        .filter((entry) => !entry.segment.videoPath)
+        .map((entry) => entry.segment.id);
+      const remaining = await silentPreflightFix(targetIds);
+      if (remaining.length > 0) {
+        toast.warning(`还有 ${remaining.length} 个体检问题未自动修复`, {
+          description: "已继续生成，成片完成后会自动质检。",
+        });
+      }
       const res = await fetch(`/api/projects/${id}/segments/generate-videos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -387,6 +567,7 @@ export default function StoryboardPage() {
         await refresh();
       }
       setPreviewId(segmentId);
+      setComposerReloadKey((key) => key + 1);
       toast.success("本段分镜已重新生成", { id: toastId });
     } catch (error) {
       toast.error((error as Error).message || "重新生成本段失败", {
@@ -440,6 +621,156 @@ export default function StoryboardPage() {
   const previewTotal = preview
     ? preview.shots.reduce((a, s) => a + s.durationMs, 0)
     : 0;
+  const previewFlatIndex = preview
+    ? allSegments.findIndex((entry) => entry.segment.id === preview.id)
+    : -1;
+  const previewStartMs =
+    previewFlatIndex > 0
+      ? allSegments
+          .slice(0, previewFlatIndex)
+          .reduce((sum, entry) => sum + entry.segment.targetMs, 0)
+      : 0;
+  const previewTimeRange = preview
+    ? `${clock(previewStartMs)}–${clock(previewStartMs + preview.targetMs)}`
+    : "00:00–00:00";
+
+  function openShotForIssue(issue?: PreflightIssue) {
+    if (!preview) return;
+    const shot =
+      typeof issue?.shotIndex === "number"
+        ? preview.shots[issue.shotIndex]
+        : preview.shots[0];
+    if (shot) setEditShot({ shot, nodes: previewNodes });
+  }
+
+  function editIssueShot() {
+    openShotForIssue(
+      [...previewIssues.errors, ...previewIssues.warnings].find(
+        (item) => typeof item.shotIndex === "number",
+      ),
+    );
+  }
+
+  async function repairSegment(segmentId: string) {
+    if (repairBusy) return;
+    setRepairBusy(true);
+    const toastId = toast.loading("正在修复本段并重新编译提示词…");
+    try {
+      const res = await fetch(
+        `/api/projects/${id}/segments/${segmentId}/repair`,
+        { method: "POST" },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "修复失败");
+      if (Array.isArray(data?.scenes)) {
+        setScenes(data.scenes as StoredSceneStoryboard[]);
+        setFramesVersion((v) => v + 1);
+      }
+      const repaired = !data?.message;
+      const compile = await compileSegmentPrompt(segmentId);
+      await refresh();
+      setComposerReloadKey((key) => key + 1);
+      if (compile.ok) {
+        if (repaired) {
+          toast.success(
+            data?.attempts
+              ? `本段已修复并重新编译（尝试 ${data.attempts} 次）`
+              : "本段已修复并重新编译",
+            { id: toastId },
+          );
+        } else {
+          toast.info("本段无需修复，提示词已重新编译", { id: toastId });
+        }
+      } else if (repaired) {
+        toast.warning(`本段分镜已修复，但提示词编译失败：${compile.error}`, {
+          id: toastId,
+        });
+      } else {
+        toast.warning(`本段无需修复；提示词编译失败：${compile.error}`, {
+          id: toastId,
+        });
+      }
+    } catch (error) {
+      toast.error((error as Error).message || "修复失败", { id: toastId });
+    } finally {
+      setRepairBusy(false);
+    }
+  }
+
+  async function forceHardCut(segmentId: string) {
+    if (hardCutBusy) return;
+    setHardCutBusy(true);
+    try {
+      const res = await fetch(`/api/projects/${id}/segments/${segmentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hardCut: true }),
+      });
+      if (!res.ok) throw new Error(await readError(res, "设置硬切失败"));
+      toast.success("已设为硬切");
+      await refresh();
+    } catch (error) {
+      toast.error((error as Error).message || "设置硬切失败");
+    } finally {
+      setHardCutBusy(false);
+    }
+  }
+
+  async function fixIssue(issue: PreflightIssue) {
+    if (!preview) return;
+    if (issue.fixAction === "edit-storyboard" || issue.fixAction === "edit-target") {
+      openShotForIssue(issue);
+      return;
+    }
+    if (issue.fixAction === "set-hard-cut") {
+      await forceHardCut(preview.id);
+      return;
+    }
+    if (issue.fixAction === "recompile-prompt") {
+      await recompilePrompt();
+      return;
+    }
+    if (issue.fixAction === "regenerate-video") {
+      await cloudGenerateVideo();
+    }
+  }
+
+  function fixActionLabel(action: PreflightIssue["fixAction"]): string {
+    switch (action) {
+      case "edit-storyboard":
+        return "修此镜";
+      case "edit-target":
+        return "改台词对象";
+      case "set-hard-cut":
+        return "设为硬切";
+      case "recompile-prompt":
+        return "重新编译";
+      case "regenerate-video":
+        return "重生成视频";
+      default:
+        return "修复";
+    }
+  }
+  const preflightBySegment = new Map<
+    string,
+    { errors: PreflightIssue[]; warnings: PreflightIssue[] }
+  >();
+  for (const issue of preflight) {
+    const entry = preflightBySegment.get(issue.segmentId) ?? {
+      errors: [],
+      warnings: [],
+    };
+    if (issue.level === "error") entry.errors.push(issue);
+    else entry.warnings.push(issue);
+    preflightBySegment.set(issue.segmentId, entry);
+  }
+  const previewIssues = preview
+    ? (preflightBySegment.get(preview.id) ?? { errors: [], warnings: [] })
+    : { errors: [], warnings: [] };
+  const qcBySegment = new Map(qcList.map((item) => [item.segmentId, item]));
+  const previewQc = preview ? (qcBySegment.get(preview.id) ?? null) : null;
+  const retrySuggestions = previewQc ? suggestQcRetry(previewQc.issues) : [];
+  const needsSeedRetry = retrySuggestions.some((item) => item.seedChange);
 
   async function restoreSegment(segmentId: string) {
     try {
@@ -449,6 +780,7 @@ export default function StoryboardPage() {
       );
       if (!res.ok) throw new Error(await readError(res, "还原失败"));
       await refresh();
+      setComposerReloadKey((key) => key + 1);
       toast.success("已还原本段");
     } catch (error) {
       toast.error((error as Error).message || "还原失败");
@@ -615,6 +947,14 @@ export default function StoryboardPage() {
               」请用「第三方生成」手动回传。
             </p>
           )}
+          {qcSummary && qcSummary.checkedSegments > 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              QC 已检 {qcSummary.checkedSegments}/{qcSummary.totalSegments} ·
+              首次硬失败 {qcSummary.firstAttemptHardFail}（
+              {(qcSummary.firstPassHardFailRate * 100).toFixed(0)}%）· 重试成功{" "}
+              {qcSummary.retrySucceeded}/{qcSummary.retriedSegments}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -670,7 +1010,7 @@ export default function StoryboardPage() {
                 更多
                 <ChevronDown className="size-3.5" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent>
+              <DropdownMenuContent className="max-h-72 overflow-y-auto">
                 <DropdownMenuItem
                   onClick={() => runOrchestrate(vendor)}
                   title="按当前厂商重新打包分镜为段落"
@@ -681,6 +1021,13 @@ export default function StoryboardPage() {
                     <Wand2 className="size-4" />
                   )}
                   重新编排（按当前厂商）
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setPreflightOpen(true)}
+                  title="查看本段的体检问题并手动修复"
+                >
+                  <Stethoscope className="size-4" />
+                  本段体检与修复
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -710,13 +1057,6 @@ export default function StoryboardPage() {
 
       {llmMissing && <LlmKeyNotice />}
 
-      {hasStoryboard && !busyGenerate && (
-        <NextStepLink
-          href={`/projects/${seriesId}/${id}/compose`}
-          label="下一步：合成成片"
-        />
-      )}
-
       {!hasScript && (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
@@ -726,19 +1066,27 @@ export default function StoryboardPage() {
       )}
 
       {hasScript && !busyGenerate && (
-        <Card>
-          <CardHeader>
-            <CardTitle>额外要求（可选，下次生成时生效）</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <details className="group rounded-lg border border-border bg-muted/20 px-3 py-2">
+          <summary className="flex cursor-pointer list-none select-none items-center justify-between text-sm font-medium [&::-webkit-details-marker]:hidden">
+            额外要求（可选，下次生成时生效）
+            <span className="flex items-center gap-2">
+              {extra.trim() && (
+                <span className="text-xs font-normal text-muted-foreground">
+                  已填写
+                </span>
+              )}
+              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            </span>
+          </summary>
+          <div className="mt-3">
             <textarea
               value={extra}
               onChange={(e) => setExtra(e.target.value)}
               placeholder="例如：多用户外自然光；避免快速推拉运镜。"
               className="min-h-[80px] w-full rounded-lg border border-input bg-transparent p-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
             />
-          </CardContent>
-        </Card>
+          </div>
+        </details>
       )}
 
       {busyGenerate && (
@@ -753,141 +1101,216 @@ export default function StoryboardPage() {
 
       {!busyGenerate && hasStoryboard && preview && previewScene && (
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1 rounded-full bg-muted p-1">
+              <button
+                type="button"
+                onClick={() => setViewTab("generate")}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+                  viewTab === "generate"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Sparkles className="size-3.5" />
+                生成
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewTab("preview")}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+                  viewTab === "preview"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Film className="size-3.5" />
                 预览
-                <span className="text-sm font-normal">
-                  {previewScene.sceneSlug || `第${previewScene.sceneIndex}场`} ·
-                  第{preview.index}段
-                </span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  {preview.shots.length} 镜 · {(previewTotal / 1000).toFixed(1)}s
-                  / 目标
-                </span>
-                <span
-                  className="rounded border border-input px-1 py-0.5 text-center text-xs font-normal"
-                  title="段目标时长由编排按厂商从各镜理想时长派生，不可直接编辑。"
-                >
-                  {(preview.targetMs / 1000).toFixed(1)}
-                </span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  s（编排派生）
-                </span>
-                {!previewEntry?.isFirstOfScene && (
-                  <span
-                    className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
-                    title="由本段首镜的「延续上一镜」自动决定；如需修改请编辑该镜。"
-                  >
-                    {preview.hardCut ? "与上一段：硬切" : "与上一段：连续"}
-                  </span>
-                )}
-                {preview.stale && (
-                  <span
-                    className="rounded-full border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-300"
-                    title="本段视频生成后分镜内容又改过，视频与当前分镜不再对应；建议重新生成视频。"
-                  >
-                    视频已过期
-                  </span>
-                )}
-                <span className="ml-auto flex items-center gap-1">
-                  <Button
-                    size="xs"
-                    onClick={cloudGenerateVideo}
-                    disabled={videoGen || !isH3 || cloudRunning}
-                    title={
-                      !isH3
-                        ? "云端生成仅适配 MiniMax H3，请先切换厂商"
-                        : cloudRunning
-                          ? "已有云端任务在运行"
-                          : "用自建 ComfyUI（MiniMax H3）云端生成该段视频（提交后后台轮询并回填）"
-                    }
-                  >
-                    {videoGen ? (
-                      <Loader2 className="size-3 animate-spin" />
-                    ) : (
-                      <Film className="size-3" />
-                    )}
-                    云端生成视频
-                    {!isH3 && (
-                      <span className="text-[10px] font-normal text-muted-foreground">
-                        需 H3
+              </button>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {viewTab === "generate"
+                ? "提交内容以输入框内的提示词为准 · 高级操作收在「更多」里"
+                : "只读查看本段分镜 · 底部段落列表始终保留"}
+            </span>
+          </div>
+
+          {viewTab === "generate" ? (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex flex-wrap items-center gap-2">
+                    生成结果
+                    <span className="text-sm font-normal">
+                      {previewScene.sceneSlug || `第${previewScene.sceneIndex}场`} ·
+                      第{preview.index}段
+                    </span>
+                    <span className="text-xs font-normal text-muted-foreground">
+                      {preview.shots.length} 镜 · {(previewTotal / 1000).toFixed(1)}s
+                    </span>
+                    {!previewEntry?.isFirstOfScene && (
+                      <span
+                        className="rounded-full border border-border px-2 py-0.5 text-[11px] font-normal text-muted-foreground"
+                        title="由本段首镜的「延续上一镜」自动决定；如需修改请编辑该镜。"
+                      >
+                        {preview.hardCut ? "与上一段：硬切" : "与上一段：连续"}
                       </span>
                     )}
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={
-                        <Button
-                          size="icon-xs"
-                          variant="outline"
-                          title="更多本段操作"
-                          aria-label="更多本段操作"
-                        />
-                      }
-                    >
-                      <MoreHorizontal className="size-3.5" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      <DropdownMenuItem
-                        onClick={cloudGenerate}
-                        disabled={cloudGen || !isH3}
-                        title={
-                          isH3
-                            ? "用 Toapi 云端生成该段起始画面（自动上传参考图并回填）"
-                            : "云端生成仅适配 MiniMax H3，请先切换厂商"
-                        }
+                    {preview.stale && (
+                      <span
+                        className="rounded-full border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-[11px] font-normal text-amber-700 dark:text-amber-300"
+                        title="本段视频生成后分镜、参考图或参数又改过，视频与当前内容不再对应。"
                       >
-                        <CloudUpload className="size-4" />
-                        云端生成起始画面
-                        {!isH3 && (
-                          <span className="ml-auto text-xs text-muted-foreground">
-                            需 H3
-                          </span>
-                        )}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setDialogOpen(true)}
-                        title="复制提示词并上传参考图到第三方平台生成，再回传视频"
-                      >
-                        <Wand2 className="size-4" />
-                        第三方生成
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => void regenerateSegment(preview.id)}
-                        disabled={regeneratingId !== null || cloudRunning}
-                        title="让 AI 只重写本段分镜；前后段与已回传视频都保留"
-                      >
-                        {regeneratingId === preview.id ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <Sparkles className="size-4" />
-                        )}
-                        重新生成本段分镜
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => restoreSegment(preview.id)}
-                        title="把本段所有分镜还原为生成时的内容"
-                      >
-                        <RotateCcw className="size-4" />
-                        复原本段分镜
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setEditBlocking(previewScene)}
-                        title="编辑本场人物站位与轴线；会进入提示词，但不会自动重算已有分镜"
-                      >
-                        <Pencil className="size-4" />
-                        编辑站位（高级）
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 lg:grid-cols-2">
-              {/* 中间：本段对应的信息（站位 + 分镜） */}
-              <div className="flex flex-col gap-2">
+                        视频已过期
+                      </span>
+                    )}
+                    <span className="ml-auto flex flex-wrap items-center gap-1.5">
+                      {preview.videoPath ? (
+                        <>
+                          {previewQc ? (
+                            <span
+                              className={cn(
+                                "rounded-full px-2 py-0.5 text-xs font-normal",
+                                previewQc.status === "failed"
+                                  ? "bg-destructive/10 text-destructive"
+                                  : previewQc.status === "passed"
+                                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                                    : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+                              )}
+                            >
+                              QC{" "}
+                              {previewQc.status === "failed"
+                                ? "未通过"
+                                : previewQc.status === "passed"
+                                  ? "通过"
+                                  : "待复核"}{" "}
+                              · {previewQc.score ?? 0} 分
+                            </span>
+                          ) : (
+                            <span className="text-xs font-normal text-muted-foreground">
+                              待质检
+                            </span>
+                          )}
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            onClick={runQc}
+                            disabled={qcBusy}
+                            title="重新质检本段视频"
+                          >
+                            {qcBusy ? (
+                              <Loader2 className="size-3 animate-spin" />
+                            ) : null}
+                            重新质检
+                          </Button>
+                        </>
+                      ) : null}
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3">
+                  <SegmentVideo
+                    projectId={id}
+                    segmentId={preview.id}
+                    segmentLabel={`第${preview.index}段`}
+                    nextSegmentId={nextSegmentId}
+                    refreshKey={framesVersion}
+                    onChanged={refresh}
+                  />
+
+                  {((previewQc?.issues.length ?? 0) > 0 ||
+                    retrySuggestions.length > 0) && (
+                    <div className="rounded-lg border p-2.5 text-xs leading-5">
+                      <div className="font-medium">QC 建议</div>
+                      {retrySuggestions.length > 0 && (
+                        <p className="mt-1 text-muted-foreground">
+                          {retrySuggestions.map((item) => item.reason).join(" ")}
+                          {needsSeedRetry ? " 建议换种子后重新生成。" : ""}
+                        </p>
+                      )}
+                      {previewQc && previewQc.issues.length > 0 && (
+                        <ul className="mt-1 flex flex-col gap-1">
+                          {previewQc.issues.map((issue, i) => (
+                            <li
+                              key={`${issue.code}:${i}`}
+                              className={cn(
+                                issue.level === "hard"
+                                  ? "text-destructive"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              {issue.message}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                </CardContent>
+              </Card>
+
+              <SegmentComposer
+                key={`${preview.id}:${currentVendor?.platform ?? "h3"}:${composerReloadKey}`}
+                projectId={id}
+                segment={preview}
+                scene={previewScene}
+                assets={assets}
+                platform={currentVendor?.platform ?? "h3"}
+                aspectRatio={projectAspectRatio}
+                vendorName={currentVendor?.name ?? vendor}
+                isH3={isH3}
+                maxRefs={currentVendor?.maxRefImages ?? 14}
+                minDurationSec={Math.max(
+                  1,
+                  Math.round((currentVendor?.minSegmentMs ?? 4000) / 1000),
+                )}
+                maxDurationSec={Math.max(
+                  1,
+                  Math.round((currentVendor?.maxSegmentMs ?? 15000) / 1000),
+                )}
+                durationStepSec={Math.max(
+                  1,
+                  Math.round((currentVendor?.durationStepMs ?? 1000) / 1000),
+                )}
+                timeRange={previewTimeRange}
+                reloadToken={composerReloadKey}
+                cloudRunning={cloudRunning}
+                onRefresh={refresh}
+                onCloudStart={() => void cloudGenerate()}
+                onRegenerateSegment={(segmentId) =>
+                  void regenerateSegment(segmentId)
+                }
+                onRestoreSegment={(segmentId) => void restoreSegment(segmentId)}
+                onEditBlocking={(scene) => setEditBlocking(scene)}
+                onOpenPreflight={() => setPreflightOpen(true)}
+              />
+            </>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex flex-wrap items-center gap-2">
+                  预览
+                  <span className="text-sm font-normal">
+                    {previewScene.sceneSlug || `第${previewScene.sceneIndex}场`} ·
+                    第{preview.index}段
+                  </span>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {preview.shots.length} 镜 · {(previewTotal / 1000).toFixed(1)}s
+                  </span>
+                  {!previewEntry?.isFirstOfScene && (
+                    <span className="rounded-full border border-border px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
+                      {preview.hardCut ? "与上一段：硬切" : "与上一段：连续"}
+                    </span>
+                  )}
+                  <span className="ml-auto text-xs font-normal text-muted-foreground">
+                    只读展示 · 逐镜修正可点卡片右上角
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
                 {previewScene.blocking && (
                   <div className="rounded-lg border bg-muted/30 p-2.5 text-xs leading-5 text-muted-foreground">
                     <span className="font-medium text-foreground">本场站位：</span>
@@ -917,25 +1340,9 @@ export default function StoryboardPage() {
                     onEdit={() => setEditShot({ shot, nodes: previewNodes })}
                   />
                 ))}
-              </div>
-              {/* 右侧：视频上传 / 预览；没有视频时给占位 */}
-              <div className="flex flex-col gap-2">
-                {!preview.videoPath && (
-                  <div className="flex min-h-48 items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">
-                    该段尚未回传视频
-                  </div>
-                )}
-                <SegmentVideo
-                  projectId={id}
-                  segmentId={preview.id}
-                  segmentLabel={`第${preview.index}段`}
-                  nextSegmentId={nextSegmentId}
-                  refreshKey={framesVersion}
-                  onChanged={refresh}
-                />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           <div className="sticky bottom-0 z-30 -mx-4 border-t bg-background px-4 py-3">
             <div className="flex flex-wrap items-center gap-2 pb-2">
@@ -954,7 +1361,7 @@ export default function StoryboardPage() {
                 已回传 {returnedCount}/{allSegments.length}
               </span>
               <span className="text-xs text-muted-foreground">
-                点击切换上方预览
+                点击切换段落
               </span>
               {cloudRunning && (
                 <span className="flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
@@ -1032,32 +1439,40 @@ export default function StoryboardPage() {
                             生成中
                           </span>
                         )}
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void regenerateSegment(segment.id);
-                        }}
-                        disabled={regeneratingId !== null || cloudRunning}
-                        className="absolute right-1 bottom-1 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white transition-colors hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-50"
-                        title="让 AI 只重写本段分镜；前后段与已回传视频都保留"
-                      >
-                        {regeneratingId === segment.id ? (
-                          <Loader2 className="size-2.5 animate-spin" />
-                        ) : (
-                          <Sparkles className="size-2.5" />
-                        )}
-                        重新生成
-                      </button>
                     </div>
                     <span className="truncate text-sm font-medium">
                       {scene.sceneSlug || `第${scene.sceneIndex}场`} · 第
                       {segment.index}段
                     </span>
                     <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1.5">
                       <span>
                         {segment.shots.length} 镜 · {(total / 1000).toFixed(1)}s
                       </span>
+                      {qcBySegment.get(segment.id) && (
+                        <span
+                          className={cn(
+                            "rounded px-1 py-0.5 text-[10px] font-medium",
+                            qcBySegment.get(segment.id)?.status === "failed"
+                              ? "bg-destructive/10 text-destructive"
+                              : qcBySegment.get(segment.id)?.status === "passed"
+                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                                : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+                          )}
+                          title={qcBySegment
+                            .get(segment.id)
+                            ?.issues.map((issue) => issue.message)
+                            .join("\n")}
+                        >
+                          QC
+                          {qcBySegment.get(segment.id)?.status === "failed"
+                            ? "未过"
+                            : qcBySegment.get(segment.id)?.status === "passed"
+                              ? "过"
+                              : "复核"}
+                        </span>
+                      )}
+                    </span>
                       <span
                         className={cn(
                           "flex items-center gap-1",
@@ -1084,19 +1499,95 @@ export default function StoryboardPage() {
         </>
       )}
 
-      {dialogOpen && preview && (
-        <GenerationDialog
-          key={`${preview.id}:${vendor}`}
-          projectId={id}
-          segmentId={preview.id}
-          segmentLabel={`第${preview.index}段`}
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          onStale={refresh}
-          onChanged={refresh}
-          defaultPlatform={currentVendor?.platform}
-        />
-      )}
+      <Dialog open={preflightOpen} onOpenChange={setPreflightOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>本段体检与修复</DialogTitle>
+            <DialogDescription>
+              只在主动查看时展开。生成视频前不再提示；成片完成后会自动质检。
+            </DialogDescription>
+          </DialogHeader>
+          {preview &&
+          previewIssues.errors.length + previewIssues.warnings.length > 0 ? (
+            <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto">
+              <ul className="flex flex-col gap-1.5 text-xs">
+                {[...previewIssues.errors, ...previewIssues.warnings].map(
+                  (issue, i) => (
+                    <li
+                      key={`${issue.code}:${issue.shotId ?? ""}:${i}`}
+                      className="flex items-start justify-between gap-2"
+                    >
+                      <span
+                        className={cn(
+                          issue.level === "error"
+                            ? "text-destructive"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {typeof issue.shotIndex === "number"
+                          ? `镜${issue.shotIndex + 1}：`
+                          : ""}
+                        {issue.message}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => fixIssue(issue)}
+                        disabled={
+                          hardCutBusy ||
+                          recompileBusy ||
+                          (issue.fixAction === "regenerate-video" &&
+                            (videoGen || !isH3 || cloudRunning))
+                        }
+                        className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] transition-colors hover:border-foreground/25 disabled:opacity-50"
+                      >
+                        {fixActionLabel(issue.fixAction)}
+                      </button>
+                    </li>
+                  ),
+                )}
+              </ul>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => preview && repairSegment(preview.id)}
+                  disabled={repairBusy}
+                  className="rounded-full border border-border px-2 py-0.5 text-[11px] transition-colors hover:border-foreground/25 disabled:opacity-50"
+                >
+                  {repairBusy ? "修复并编译中…" : "AI 修复并重编译"}
+                </button>
+                <button
+                  type="button"
+                  onClick={editIssueShot}
+                  className="rounded-full border border-border px-2 py-0.5 text-[11px] transition-colors hover:border-foreground/25"
+                >
+                  逐镜修正
+                </button>
+                {[...previewIssues.errors, ...previewIssues.warnings].some(
+                  (issue) => issue.fixAction === "recompile-prompt",
+                ) && (
+                  <button
+                    type="button"
+                    onClick={recompilePrompt}
+                    disabled={recompileBusy}
+                    className="rounded-full border border-border px-2 py-0.5 text-[11px] transition-colors hover:border-foreground/25 disabled:opacity-50"
+                  >
+                    {recompileBusy ? "编译中…" : "重新编译"}
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              本段暂无需要处理的问题。
+            </p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreflightOpen(false)}>
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <VendorSwitchDialog
         key={`${vendorDialogOpen}:${vendor}`}

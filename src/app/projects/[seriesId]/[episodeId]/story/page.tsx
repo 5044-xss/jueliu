@@ -8,12 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { LoadErrorState, LoadingState } from "@/components/load-state";
-import { NextStepLink } from "@/components/next-step";
 import { setUnsavedGuard } from "@/lib/unsaved-guard";
 import { readError } from "@/lib/http";
 
 export default function StoryPage() {
-  const { seriesId, episodeId: id } = useParams<{
+  const { episodeId: id } = useParams<{
     seriesId: string;
     episodeId: string;
   }>();
@@ -169,13 +168,6 @@ export default function StoryPage() {
           </Button>
         </div>
       </div>
-
-      {content.trim() && (
-        <NextStepLink
-          href={`/projects/${seriesId}/${id}/script`}
-          label="下一步：生成剧本"
-        />
-      )}
 
       <Card>
         <CardContent>

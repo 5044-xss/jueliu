@@ -25,6 +25,7 @@ import { DEFAULT_PLATFORM } from "@core/shared/templates-defaults";
 import { downloadImage } from "@core/client/download";
 import type { RenderedPrompt } from "@core/shared/render-types";
 import type { KeyframePrompt, StartFrameState } from "@core/shared/keyframe";
+import type { SegmentQcRecord } from "@core/shared/qc";
 import { cn } from "@core/client/utils";
 
 interface VendorInfo {
@@ -34,6 +35,15 @@ interface VendorInfo {
   supportMultiShot: boolean;
   maxShotsPerSegment: number;
   maxRefImages: number;
+}
+
+interface GenerationSnapshotView {
+  compiledPrompt: string;
+  humanPrompt: string;
+  promptSig: string | null;
+  mediaSig: string | null;
+  videoPath: string | null;
+  createdAt: string;
 }
 
 export function GenerationDialog({
@@ -64,7 +74,12 @@ export function GenerationDialog({
   const [vendors, setVendors] = useState<VendorInfo[]>([]);
   const [aiText, setAiText] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-  const [tab, setTab] = useState<"ai" | "body">("ai");
+  const [editingPrompt, setEditingPrompt] = useState(false);
+  const [promptDraft, setPromptDraft] = useState("");
+  const [promptSaving, setPromptSaving] = useState(false);
+  const [snapshot, setSnapshot] = useState<GenerationSnapshotView | null>(null);
+  const [qc, setQc] = useState<SegmentQcRecord | null>(null);
+  const [tab, setTab] = useState<"ai" | "body" | "last">("ai");
   const [autoGen, setAutoGen] = useState(true);
   const [showSingle, setShowSingle] = useState(false);
   const [singlePrompt, setSinglePrompt] = useState<KeyframePrompt | null>(null);
@@ -97,8 +112,15 @@ export function GenerationDialog({
         aiAutoTriedRef.current = false;
       }
       try {
-        const [renderRes, vendorRes, startRes, settingsRes, aiRes] =
-          await Promise.all([
+        const [
+          renderRes,
+          vendorRes,
+          startRes,
+          settingsRes,
+          aiRes,
+          snapshotRes,
+          qcRes,
+        ] = await Promise.all([
             fetch("/api/render/platform", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -114,6 +136,14 @@ export function GenerationDialog({
             fetch(
               `/api/projects/${projectId}/segments/${segmentId}/ai-prompt?platform=${encodeURIComponent(platform)}`,
             )
+              .then((r) => r.json())
+              .catch(() => null),
+            fetch(
+              `/api/projects/${projectId}/segments/${segmentId}/generation-snapshot`,
+            )
+              .then((r) => r.json())
+              .catch(() => null),
+            fetch(`/api/projects/${projectId}/segments/${segmentId}/qc`)
               .then((r) => r.json())
               .catch(() => null),
           ]);
@@ -132,6 +162,12 @@ export function GenerationDialog({
         setStartState(startRes.ok ? (start as StartFrameState) : null);
         setVendors((vendorRes.vendors ?? []) as VendorInfo[]);
         setAutoGen(settingsRes?.settings?.autoGenerateAiPrompt !== false);
+        if (snapshotRes?.snapshot) {
+          setSnapshot(snapshotRes.snapshot as GenerationSnapshotView);
+        } else {
+          setSnapshot(null);
+        }
+        setQc((qcRes?.qc ?? null) as SegmentQcRecord | null);
         // 正在重新生成时不应用 GET 的旧缓存，避免覆盖新结果。
         if (aiRes?.prompt && !generatingRef.current) {
           setAiText(String(aiRes.prompt));
@@ -295,6 +331,31 @@ export function GenerationDialog({
     }
   }
 
+  async function saveAiPrompt() {
+    if (promptSaving || !promptDraft.trim()) return;
+    setPromptSaving(true);
+    try {
+      const res = await fetch(
+        `/api/projects/${projectId}/segments/${segmentId}/ai-prompt`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: promptDraft, platform }),
+        },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "保存失败");
+      setAiText(String(data.prompt ?? promptDraft));
+      setEditingPrompt(false);
+      toast.success("提示词已保存");
+      onStale?.();
+    } catch (error) {
+      toast.error((error as Error).message || "保存失败");
+    } finally {
+      setPromptSaving(false);
+    }
+  }
+
   const adopted = startState?.adopted ?? null;
   const candidate = startState?.candidate ?? null;
 
@@ -312,6 +373,42 @@ export function GenerationDialog({
           <div className="flex flex-col gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-300">
             {warnings.map((w, i) => (
               <span key={i}>⚠ {w}</span>
+            ))}
+          </div>
+        )}
+
+        {qc && (
+          <div className="flex flex-col gap-1 rounded-lg border p-2.5 text-xs">
+            <span className="font-medium">
+              QC：
+              <span
+                className={cn(
+                  qc.status === "failed"
+                    ? "text-destructive"
+                    : qc.status === "passed"
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-amber-700 dark:text-amber-400",
+                )}
+              >
+                {qc.status === "failed"
+                  ? "未通过"
+                  : qc.status === "passed"
+                    ? "通过"
+                    : "待复核"}
+                （{qc.score ?? 0} 分，第 {qc.attempt} 次）
+              </span>
+            </span>
+            {qc.issues.map((issue, i) => (
+              <span
+                key={`${issue.code}:${i}`}
+                className={cn(
+                  issue.level === "hard"
+                    ? "text-destructive"
+                    : "text-muted-foreground",
+                )}
+              >
+                {issue.message}
+              </span>
             ))}
           </div>
         )}
@@ -561,6 +658,18 @@ export function GenerationDialog({
                     >
                       正文
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setTab("last")}
+                      className={cn(
+                        "rounded-md px-2.5 py-1 font-medium transition-colors",
+                        tab === "last"
+                          ? "bg-background shadow-sm"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      上次生成
+                    </button>
                   </div>
                   <div className="flex items-center gap-2">
                     {tab === "ai" ? (
@@ -579,14 +688,51 @@ export function GenerationDialog({
                           {aiText ? "重新生成" : "生成 AI 提示词"}
                         </Button>
                         {aiText && (
-                          <CopyButton text={aiText} label="复制" size="xs" />
+                          <>
+                            <CopyButton text={aiText} label="复制" size="xs" />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setPromptDraft(aiText);
+                                setEditingPrompt(true);
+                              }}
+                              disabled={editingPrompt}
+                            >
+                              编辑
+                            </Button>
+                          </>
+                        )}
+                        {editingPrompt && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={saveAiPrompt}
+                              disabled={promptSaving}
+                            >
+                              {promptSaving ? "保存中…" : "保存"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setEditingPrompt(false)}
+                              disabled={promptSaving}
+                            >
+                              取消
+                            </Button>
+                          </>
                         )}
                       </>
-                    ) : (
+                    ) : tab === "body" ? (
                       <CopyButton text={rendered.body} label="复制" size="xs" />
-                    )}
+                    ) : null}
                   </div>
                 </div>
+                {snapshot && aiText && snapshot.compiledPrompt !== aiText && (
+                  <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] text-amber-700 dark:text-amber-300">
+                    当前提示词与上次生成实际使用的不一致；已有视频可能是用旧提示词生成的。
+                  </p>
+                )}
                 {tab === "ai" ? (
                   aiLoading && !aiText ? (
                     <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
@@ -594,19 +740,42 @@ export function GenerationDialog({
                       正在生成 AI 视频生成提示词…
                     </div>
                   ) : aiText ? (
-                    <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-muted/30 p-3 text-xs leading-6">
-                      {aiText}
-                    </pre>
+                    editingPrompt ? (
+                      <textarea
+                        value={promptDraft}
+                        onChange={(event) => setPromptDraft(event.target.value)}
+                        className="min-h-64 w-full rounded-lg border bg-muted/30 p-3 font-mono text-xs leading-6 outline-none focus:border-foreground/25"
+                        spellCheck={false}
+                      />
+                    ) : (
+                      <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-muted/30 p-3 text-xs leading-6">
+                        {aiText}
+                      </pre>
+                    )
                   ) : (
                     <p className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
                       尚无 AI 提示词。点「生成 AI 提示词」按当前厂商的翻译提示词把正文编译成可执行版本
                       {autoGen ? "" : "（自动生成已关闭）"}。
                     </p>
                   )
-                ) : (
+                ) : tab === "body" ? (
                   <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-muted/30 p-3 text-xs leading-6">
                     {rendered.body}
                   </pre>
+                ) : snapshot ? (
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-[11px] text-muted-foreground">
+                      生成于 {new Date(snapshot.createdAt).toLocaleString()}
+                      {snapshot.videoPath ? " · 已回传视频" : " · 未回传视频"}
+                    </p>
+                    <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-muted/30 p-3 text-xs leading-6">
+                      {snapshot.compiledPrompt}
+                    </pre>
+                  </div>
+                ) : (
+                  <p className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+                    尚无生成记录。生成视频后，这里会显示实际发送给模型的提示词。
+                  </p>
                 )}
               </section>
 

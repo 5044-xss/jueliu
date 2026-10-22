@@ -89,6 +89,19 @@ export function OpenProjectFolderButton({
   );
 }
 
+export function OpenExportsFolderButton({
+  projectId,
+  ...props
+}: { projectId: string } & ButtonProps) {
+  return (
+    <WorkspaceButton
+      target={`${projectId}/media/exports`}
+      label="打开成片文件夹"
+      {...props}
+    />
+  );
+}
+
 export function RevealExportButton({
   projectId,
   compositionId,

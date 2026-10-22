@@ -21,7 +21,7 @@ export default function RootLayout({
         <ConfirmProvider>
           <header className="sticky top-0 z-50 border-b bg-background">
             <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4">
-              <Link href="/" className="flex items-center gap-2 font-semibold">
+              <Link href="/projects" className="flex items-center gap-2 font-semibold">
                 <Clapperboard className="size-5" />
                 <span>掘漫</span>
               </Link>

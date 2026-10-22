@@ -1,0 +1,23 @@
+{
+  "id": "PIPE-016",
+  "title": "金元必须明确抛入大红喜轿，而不是只写抛起",
+  "stage": "prompt-audit",
+  "tags": [
+    "prompt",
+    "prop",
+    "regression",
+    "video-issue"
+  ],
+  "input": {
+    "segmentIdx": 8,
+    "shotIdx": 3,
+    "action": "陈平生指尖发力，将金元高高抛起，精准落入左侧大红喜轿内。",
+    "promptShot": "Chen Ping Sheng tosses a golden coin high into the air. The coin traces a bright arc through the air.",
+    "expectedTarget": "大红喜轿"
+  },
+  "expect": {
+    "codes": [
+      "prop-target-missing"
+    ]
+  }
+}

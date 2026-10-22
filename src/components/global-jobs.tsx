@@ -63,10 +63,16 @@ function formatFinishedAt(value: string | null): string {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString("zh-CN", {
+  const now = new Date();
+  const monthDay = `${date.getMonth() + 1}月${date.getDate()}日`;
+  const time = date.toLocaleTimeString("zh-CN", {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   });
+  return date.getFullYear() === now.getFullYear()
+    ? `${monthDay} ${time}`
+    : `${date.getFullYear()}年${monthDay} ${time}`;
 }
 
 function JobSection({

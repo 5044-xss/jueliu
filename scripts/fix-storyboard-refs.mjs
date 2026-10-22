@@ -2,9 +2,11 @@
  * 修复历史分镜数据（幂等，可重复执行）：
  *  1) 动作/台词点名、且本场有站位的角色，补上 character 参考图；
  *  2) 场景引用与本场 location 不一致的，改成“本场场景”的参考图；
- *  3) segment.hard_cut 与首镜 continues_prev 不一致的，按编排口径归一。
+ *  3) segment.hard_cut 与首镜 continues_prev / 主体连续性 / 景别焦段不一致的，按编排口径归一。
  *
- * 用法：node scripts/fix-storyboard-refs.mjs [workspaceDir]
+ *  4) 已挂角色引用但漏在 subjectNodeIds 里的，补进 subjectNodeIds。
+ *
+ * 用法：node scripts/fix-storyboard-refs.mjs [workspaceDir] [projectId]
  * 默认读取 ./workspace（可用 WORKSPACE_DIR 覆盖）。
  */
 import fs from "node:fs";
@@ -16,6 +18,7 @@ const workspace =
   process.argv[2] ||
   process.env.WORKSPACE_DIR ||
   path.join(process.cwd(), "workspace");
+const onlyProject = process.argv[3] || null;
 
 const OFFSCREEN = /电话|画外|旁白|广播|声音|播报|新闻/;
 
@@ -36,13 +39,102 @@ function norm(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
+const SHOT_SIZE_ORDER = [
+  "大远景",
+  "远景",
+  "全景",
+  "中全景",
+  "中景",
+  "中近景",
+  "近景",
+  "特写",
+  "大特写",
+];
+
+function parseCamera(row) {
+  try {
+    return JSON.parse(row?.camera_json || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function focalNumber(focal) {
+  const match = String(focal || "").match(/(\d+(?:\.\d+)?)/);
+  return match ? Number(match[1]) : 0;
+}
+
+function shotSizeRank(shotSize) {
+  const value = String(shotSize || "").trim();
+  if (!value) return -1;
+  const exact = SHOT_SIZE_ORDER.indexOf(value);
+  if (exact >= 0) return exact;
+  const hit = [...SHOT_SIZE_ORDER]
+    .sort((a, b) => b.length - a.length)
+    .find((size) => value.includes(size));
+  return hit ? SHOT_SIZE_ORDER.indexOf(hit) : -1;
+}
+
+function sharedSubjects(prevShot, nextShot) {
+  const parseIds = (shot) => {
+    try {
+      const ids = JSON.parse(shot?.subject_node_ids_json || "[]");
+      return Array.isArray(ids) ? ids.filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  };
+  const prev = parseIds(prevShot);
+  const next = parseIds(nextShot);
+  if (prev.length === 0 && next.length === 0) return true;
+  return prev.some((id) => next.includes(id));
+}
+
+function cameraContinuous(prevShot, nextShot) {
+  const prev = parseCamera(prevShot);
+  const next = parseCamera(nextShot);
+  const prevRank = shotSizeRank(prev.shotSize);
+  const nextRank = shotSizeRank(next.shotSize);
+  const rankDiff =
+    prevRank >= 0 && nextRank >= 0 ? Math.abs(nextRank - prevRank) : 0;
+  if (rankDiff >= 2) return false;
+  const prevFocal = focalNumber(prev.focal);
+  const nextFocal = focalNumber(next.focal);
+  const focalRatio =
+    prevFocal && nextFocal
+      ? Math.max(prevFocal, nextFocal) / Math.min(prevFocal, nextFocal)
+      : 1;
+  return focalRatio <= 3;
+}
+
 function isOffscreen(name) {
   return OFFSCREEN.test(name);
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isOffscreenMention(action, name) {
+  if (!String(name ?? "").trim()) return false;
+  return new RegExp(`画外的?\\s*${escapeRegExp(String(name).trim())}`).test(
+    String(action ?? ""),
+  );
+}
+
+function normalizeActionForCast(action, subjectLabels) {
+  let out = String(action ?? "");
+  for (const label of subjectLabels) {
+    const name = String(label ?? "").trim();
+    if (!name) continue;
+    out = out.replaceAll(`画外的${name}`, name).replaceAll(`画外${name}`, name);
+  }
+  return out;
+}
+
 function fixProject(dbPath) {
   const db = new Database(dbPath);
-  const stats = { characters: 0, scenes: 0, hardCuts: 0 };
+  const stats = { characters: 0, scenes: 0, hardCuts: 0, subjects: 0, actions: 0 };
 
   const assets = db.prepare("SELECT id, type, name FROM asset").all();
   const variants = db.prepare("SELECT id, asset_id, label FROM variant").all();
@@ -87,6 +179,18 @@ function fixProject(dbPath) {
     "UPDATE shot_ref SET asset_id = ?, variant_id = ?, view_id = ? WHERE id = ?",
   );
   const updateHardCut = db.prepare("UPDATE segment SET hard_cut = ? WHERE id = ?");
+  const updateShotSubjects = db.prepare(
+    "UPDATE shot SET subject_node_ids_json = ? WHERE id = ?",
+  );
+  const updateShotAction = db.prepare(
+    "UPDATE shot SET action = ? WHERE id = ?",
+  );
+  const readCharacterRefNames = db.prepare(
+    `SELECT a.name AS asset_name
+     FROM shot_ref r
+     JOIN asset a ON r.asset_id = a.id
+     WHERE r.shot_id = ? AND r.role = 'character'`,
+  );
 
   const touchedShots = new Set();
   const scenes = db.prepare("SELECT * FROM scene ORDER BY sort_order").all();
@@ -164,19 +268,11 @@ function fixProject(dbPath) {
         }
       }
 
+      let prevSegLastShot = null;
       for (const seg of sceneSegs) {
         const shots = db
           .prepare("SELECT * FROM shot WHERE segment_id = ? ORDER BY idx")
           .all(seg.id);
-
-        // 硬切归一：场首恒为硬切，其余由首镜 continues_prev 决定。
-        if (shots[0]) {
-          const hardCut = seg.idx === 1 ? 1 : shots[0].continues_prev ? 0 : 1;
-          if (seg.hard_cut !== hardCut) {
-            updateHardCut.run(hardCut, seg.id);
-            stats.hardCuts += 1;
-          }
-        }
 
         for (const shot of shots) {
           const refs = db
@@ -207,6 +303,19 @@ function fixProject(dbPath) {
           const subjectIds = shot.subject_node_ids_json
             ? JSON.parse(shot.subject_node_ids_json)
             : [];
+          const subjectLabels = subjectIds
+            .map((id) =>
+              (blocking?.nodes ?? []).find((n) => n.id === id)?.label,
+            )
+            .filter(Boolean);
+          let action = shot.action;
+          const normalizedAction = normalizeActionForCast(action, subjectLabels);
+          if (normalizedAction !== action) {
+            action = normalizedAction;
+            updateShotAction.run(action, shot.id);
+            stats.actions += 1;
+            touchedShots.add(shot.id);
+          }
 
           const candidates = new Set();
           for (const line of dialogue) {
@@ -221,7 +330,12 @@ function fixProject(dbPath) {
             if (node) candidates.add(node.label);
           }
           for (const asset of charAssets) {
-            if (shot.action.includes(asset.name)) candidates.add(asset.name);
+            if (
+              action.includes(asset.name) &&
+              !isOffscreenMention(action, asset.name)
+            ) {
+              candidates.add(asset.name);
+            }
           }
 
           let sort = refs.reduce((m, r) => Math.max(m, r.sort_order), -1) + 1;
@@ -253,7 +367,46 @@ function fixProject(dbPath) {
             touchedShots.add(shot.id);
             stats.characters += 1;
           }
+
+          const nodeIdByLabel = new Map(
+            (blocking?.nodes ?? [])
+              .filter((n) => n.type === "character")
+              .map((n) => [norm(n.label), n.id]),
+          );
+          let subjectChanged = false;
+          for (const ref of readCharacterRefNames.all(shot.id)) {
+            const nodeId = nodeIdByLabel.get(norm(ref.asset_name));
+            if (nodeId && !subjectIds.includes(nodeId)) {
+              subjectIds.push(nodeId);
+              subjectChanged = true;
+            }
+          }
+          if (subjectChanged) {
+            updateShotSubjects.run(JSON.stringify(subjectIds), shot.id);
+            touchedShots.add(shot.id);
+            stats.subjects += 1;
+          }
         }
+
+        const firstShot = db
+          .prepare("SELECT * FROM shot WHERE segment_id = ? ORDER BY idx LIMIT 1")
+          .get(seg.id);
+        const lastShot = db
+          .prepare("SELECT * FROM shot WHERE segment_id = ? ORDER BY idx DESC LIMIT 1")
+          .get(seg.id);
+        const hardCut =
+          seg.idx === 1 ||
+          !firstShot ||
+          !firstShot.continues_prev ||
+          !sharedSubjects(prevSegLastShot, firstShot) ||
+          !cameraContinuous(prevSegLastShot, firstShot)
+            ? 1
+            : 0;
+        if (seg.hard_cut !== hardCut) {
+          updateHardCut.run(hardCut, seg.id);
+          stats.hardCuts += 1;
+        }
+        prevSegLastShot = lastShot ?? null;
       }
     }
   });
@@ -269,7 +422,10 @@ function fixProject(dbPath) {
      WHERE r.shot_id = ?
      ORDER BY r.sort_order`,
   );
-  const allShots = db.prepare("SELECT id, original_json FROM shot").all();
+  const readSubjects = db.prepare(
+    "SELECT subject_node_ids_json FROM shot WHERE id = ?",
+  );
+  const allShots = db.prepare("SELECT id, original_json, action FROM shot").all();
   const saveOriginal = db.prepare("UPDATE shot SET original_json = ? WHERE id = ?");
   for (const row of allShots) {
     if (!row.original_json) continue;
@@ -281,8 +437,20 @@ function fixProject(dbPath) {
         variantLabel: r.variant_label ?? "",
         viewLabel: r.view_label ?? "",
       }));
-      if (JSON.stringify(original.refs ?? []) === JSON.stringify(refs)) continue;
+      const subjectRow = readSubjects.get(row.id);
+      const subjectNodeIds = subjectRow?.subject_node_ids_json
+        ? JSON.parse(subjectRow.subject_node_ids_json)
+        : [];
+      const refsChanged =
+        JSON.stringify(original.refs ?? []) !== JSON.stringify(refs);
+      const subjectsChanged =
+        JSON.stringify(original.subjectNodeIds ?? []) !==
+        JSON.stringify(subjectNodeIds);
+      const actionChanged = String(original.action ?? "") !== row.action;
+      if (!refsChanged && !subjectsChanged && !actionChanged) continue;
       original.refs = refs;
+      original.subjectNodeIds = subjectNodeIds;
+      original.action = row.action;
       saveOriginal.run(JSON.stringify(original), row.id);
     } catch {
       // 快照损坏就跳过，不影响主数据。
@@ -299,15 +467,22 @@ if (!fs.existsSync(workspace)) {
   process.exit(1);
 }
 
-let total = { characters: 0, scenes: 0, hardCuts: 0 };
+let total = { characters: 0, scenes: 0, hardCuts: 0, subjects: 0, actions: 0 };
 for (const id of fs.readdirSync(workspace)) {
+  if (onlyProject && id !== onlyProject) continue;
   const dbPath = path.join(workspace, id, "project.db");
   if (!fs.existsSync(dbPath)) continue;
   try {
     const stats = fixProject(dbPath);
-    if (stats.characters || stats.scenes || stats.hardCuts) {
+    if (
+      stats.characters ||
+      stats.scenes ||
+      stats.hardCuts ||
+      stats.subjects ||
+      stats.actions
+    ) {
       console.log(
-        `${id}: 补角色引用 ${stats.characters}，修场景引用 ${stats.scenes}，修硬切 ${stats.hardCuts}`,
+        `${id}: 补角色引用 ${stats.characters}，补主体节点 ${stats.subjects}，修动作画外 ${stats.actions}，修场景引用 ${stats.scenes}，修硬切 ${stats.hardCuts}`,
       );
     }
     for (const key of Object.keys(total)) total[key] += stats[key];
@@ -316,5 +491,5 @@ for (const id of fs.readdirSync(workspace)) {
   }
 }
 console.log(
-  `完成：补角色引用 ${total.characters}，修场景引用 ${total.scenes}，修硬切 ${total.hardCuts}`,
+  `完成：补角色引用 ${total.characters}，补主体节点 ${total.subjects}，修动作画外 ${total.actions}，修场景引用 ${total.scenes}，修硬切 ${total.hardCuts}`,
 );

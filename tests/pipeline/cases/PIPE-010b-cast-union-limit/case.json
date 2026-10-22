@@ -1,0 +1,32 @@
+{
+  "id": "PIPE-010b",
+  "title": "段内人物并集超过上限时必须拆段",
+  "stage": "pack-v2",
+  "tags": ["packing", "cast", "regression", "video-issue"],
+  "input": {
+    "defaultSegmentMs": 10000,
+    "options": { "maxCastPerSegment": 3 },
+    "vendor": {
+      "id": "h3",
+      "name": "H3",
+      "platform": "h3",
+      "supportMultiShot": true,
+      "supportFirstFrame": true,
+      "supportLastFrame": true,
+      "maxShotsPerSegment": 6,
+      "maxRefImages": 9,
+      "minSegmentMs": 4000,
+      "maxSegmentMs": 12000,
+      "durationStepMs": 1000
+    },
+    "shots": [
+      { "minMs": 2000, "idealMs": 2000, "maxMs": 3000, "continuesPrev": false, "subjectKey": "a", "castIds": ["n_a", "n_b"], "refLabels": [] },
+      { "minMs": 2000, "idealMs": 2000, "maxMs": 3000, "continuesPrev": true, "subjectKey": "b", "castIds": ["n_b", "n_c"], "refLabels": [] },
+      { "minMs": 2000, "idealMs": 2000, "maxMs": 3000, "continuesPrev": true, "subjectKey": "c", "castIds": ["n_c", "n_d"], "refLabels": [] },
+      { "minMs": 2000, "idealMs": 2000, "maxMs": 3000, "continuesPrev": true, "subjectKey": "d", "castIds": ["n_d", "n_e"], "refLabels": [] }
+    ]
+  },
+  "expect": {
+    "segments": [[0, 1], [2, 3]]
+  }
+}

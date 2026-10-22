@@ -1,0 +1,50 @@
+{
+  "id": "PIPE-009",
+  "title": "H3 切镜时间码必须递增且落在本段时长内",
+  "stage": "h3-render",
+  "tags": ["h3", "timecode", "regression", "R2"],
+  "input": {
+    "mode": "reference",
+    "aspectRatio": "16:9",
+    "subjects": [
+      { "id": "n_chen", "name": "陈平生", "kind": "character", "sourcePictures": [2] }
+    ],
+    "shots": [
+      {
+        "index": 1,
+        "durationMs": 2000,
+        "visual": "Chen stands still.",
+        "sound": "wind",
+        "subjectIds": ["n_chen"],
+        "dialogue": []
+      },
+      {
+        "index": 2,
+        "durationMs": 3000,
+        "visual": "Chen raises his head.",
+        "sound": "cloth rustle",
+        "subjectIds": ["n_chen"],
+        "dialogue": []
+      },
+      {
+        "index": 3,
+        "durationMs": 4000,
+        "visual": "Chen walks away.",
+        "sound": "footsteps",
+        "subjectIds": ["n_chen"],
+        "dialogue": []
+      }
+    ],
+    "soundscape": "mountain wind",
+    "music": "N/A"
+  },
+  "expect": {
+    "shotCount": 3,
+    "shotSubjectIds": { "1": [1], "2": [1], "3": [1] },
+    "retention": { "1": [1, 2, 3] },
+    "dialogueByShot": { "1": [], "2": [], "3": [] },
+    "timecodes": [null, 2000, 5000],
+    "contains": ["At 00:05.000, the camera cuts to"],
+    "notContains": ["[Shot 1] At "]
+  }
+}

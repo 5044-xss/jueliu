@@ -1,0 +1,20 @@
+{
+  "id": "PIPE-005",
+  "title": "源台词必须逐字进入 <d>，缺一句就失败",
+  "stage": "dialogue-coverage",
+  "tags": ["dialogue", "compile", "regression", "R2"],
+  "input": {
+    "prompt": "detailed_description:\n[Shot 1] 陈平生开口。 <Subject 1> (S1) says: <d>[Chinese]第一句台词。</d>\n[Shot 2] 陈婉儿回应。 <Subject 2> (S2) says: <d>[Chinese]第二句台词。</d>\noverall_soundscape: N/A\nnon_diegetic_music: N/A",
+    "sources": [
+      { "character": "陈平生", "text": "第一句台词。" },
+      { "character": "陈婉儿", "text": "第二句台词。" },
+      { "character": "陈平生", "text": "第三句台词。" }
+    ]
+  },
+  "expect": {
+    "sourceCount": 3,
+    "compiledCount": 2,
+    "placeholderOnly": false,
+    "missingTexts": ["第三句台词。"]
+  }
+}

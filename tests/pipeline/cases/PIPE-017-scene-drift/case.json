@@ -1,0 +1,17 @@
+{
+  "id": "PIPE-017",
+  "title": "场景漂移必须能判 scene-drift",
+  "stage": "video-qc",
+  "pending": true,
+  "pendingReason": "等待阶段 5 内容 QC 实现（场景参考图比对）",
+  "tags": ["qc", "scene", "regression", "video-issue"],
+  "input": {
+    "segmentIdx": 3,
+    "shotIdx": 2,
+    "expectedScene": "望天峰前殿广场",
+    "detectedScene": "陌生室内"
+  },
+  "expect": {
+    "codes": ["scene-drift"]
+  }
+}

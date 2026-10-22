@@ -16,6 +16,8 @@ import { segmentRepairSchema } from "@core/shared/schemas/storyboard";
 import { STORYBOARD_REGENERATE_PROMPT } from "@core/server/skills/prompts";
 import { getActiveSkillTemperature } from "@core/server/library/skills";
 import { startJob, finishJob } from "@core/server/jobs";
+import { validateSegmentBeatIds } from "@core/shared/storyboard-coverage";
+import { shotBudget } from "@core/shared/shot-budget";
 import type { StoredSceneStoryboard } from "@core/shared/schemas/storyboard";
 
 type Ctx = { params: Promise<{ id: string; segmentId: string }> };
@@ -128,6 +130,7 @@ export async function POST(_request: Request, { params }: Ctx) {
     : "";
 
   const currentShots = segment.shots.map((shot) => ({
+    beatIds: shot.beatIds,
     durationMs: shot.durationMs,
     continuesPrev: shot.continuesPrev,
     camera: shot.camera,
@@ -161,7 +164,7 @@ export async function POST(_request: Request, { params }: Ctx) {
       `【画面比例】${project.aspectRatio}`,
       `【本场】${scene.sceneIndex} ${scene.location}｜${scene.timeOfDay}｜${scene.interiorExterior}`,
       `【本场 blocking】${scene.blocking ? JSON.stringify(scene.blocking) : "（缺失，请依据分镜内容保持合理站位与轴线）"}`,
-      `【本段】第${segment.index}段，目标时长 ${segment.targetMs}ms，最多 3 个分镜；${continuityNote}`,
+      `【本段】第${segment.index}段，必须保持 ${segment.shots.length} 个镜位与 beatIds 不变；时长由编排层计算；${continuityNote}`,
       "",
       "【资产清单】",
       assetsText || "（暂无资产）",
@@ -186,10 +189,28 @@ export async function POST(_request: Request, { params }: Ctx) {
       user,
     });
 
-    const durations = fitDurations(
-      output.shots.map((shot) => shot.durationMs),
-      segment.targetMs,
+    const beatErrors = validateSegmentBeatIds(
+      segment.shots.map((shot) => shot.beatIds),
+      output.shots,
     );
+    if (beatErrors.length > 0) {
+      finishJob(id, jobId, "failed", beatErrors.join("；"));
+      return NextResponse.json(
+        { error: `重新生成本段失败：${beatErrors.join("；")}` },
+        { status: 422 },
+      );
+    }
+
+    const budgets = output.shots.map((shot) =>
+      shotBudget({ dialogue: toDialogue(shot.dialogue), action: shot.action }),
+    );
+    const minSum = budgets.reduce((sum, budget) => sum + budget.minMs, 0);
+    const targetMs = Math.max(segment.targetMs, minSum);
+    const durations = fitDurations(
+      budgets.map((budget) => budget.idealMs),
+      targetMs,
+    ).map((duration, index) => Math.max(duration, budgets[index].minMs));
+    const actualTargetMs = durations.reduce((sum, value) => sum + value, 0);
 
     const tx = db.transaction(() => {
       const exists = db
@@ -226,7 +247,7 @@ export async function POST(_request: Request, { params }: Ctx) {
           segmentId,
           index,
           durationMs,
-          durationMs,
+          budgets[index]?.idealMs ?? durationMs,
           continuesPrev ? 1 : 0,
           JSON.stringify(shot.camera),
           shot.lighting,
@@ -235,8 +256,9 @@ export async function POST(_request: Request, { params }: Ctx) {
           shot.expression,
           JSON.stringify(shot.subjectNodeIds ?? []),
           JSON.stringify({
+            beatIds: shot.beatIds ?? [],
             durationMs,
-            idealMs: durationMs,
+            idealMs: budgets[index]?.idealMs ?? durationMs,
             continuesPrev,
             camera: shot.camera,
             lighting: shot.lighting,
@@ -267,6 +289,7 @@ export async function POST(_request: Request, { params }: Ctx) {
       db.prepare(
         `UPDATE segment SET
            generation_mode = ?,
+           target_ms = ?,
            media_sig = CASE
              WHEN video_path IS NOT NULL AND video_path <> '' THEN '__regenerated__'
              ELSE media_sig
@@ -275,6 +298,7 @@ export async function POST(_request: Request, { params }: Ctx) {
          WHERE id = ?`,
       ).run(
         output.shots.length > 1 ? "multi-shot" : "per-shot",
+        actualTargetMs,
         nowIso(),
         segmentId,
       );

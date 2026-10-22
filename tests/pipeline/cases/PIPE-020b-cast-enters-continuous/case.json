@@ -1,0 +1,13 @@
+{
+  "id": "PIPE-020b",
+  "title": "下一镜保留上一镜全部人物、并新增人物时允许续接",
+  "stage": "cast-continuity",
+  "tags": ["packing", "continuity", "regression"],
+  "input": {
+    "prev": ["n_chen"],
+    "next": ["n_chen", "n_he"]
+  },
+  "expect": {
+    "compatible": true
+  }
+}

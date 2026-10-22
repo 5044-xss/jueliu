@@ -10,7 +10,6 @@ import {
   assertImageGenerationConfigured,
   type GenerationSettings,
 } from "./settings";
-import { assertH3Project } from "./providers/comfyui";
 import {
   ToApiClient,
   extFromUrl,
@@ -236,7 +235,6 @@ async function submitSegmentImageOnce(
   projectId: string,
   segmentId: string,
 ): Promise<SubmitImageResult> {
-  assertH3Project(projectId);
   assertImageGenerationConfigured();
   const settings = getGenerationSettings();
   const client = makeClient(settings);

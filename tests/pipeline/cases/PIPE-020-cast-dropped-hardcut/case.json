@@ -1,0 +1,13 @@
+{
+  "id": "PIPE-020",
+  "title": "上一镜人物在下一镜消失时不能续接尾帧（必须硬切）",
+  "stage": "cast-continuity",
+  "tags": ["packing", "continuity", "regression", "video-issue"],
+  "input": {
+    "prev": ["n_chen", "n_he"],
+    "next": ["n_jia", "n_chen"]
+  },
+  "expect": {
+    "compatible": false
+  }
+}

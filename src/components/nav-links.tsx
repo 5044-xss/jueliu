@@ -1,12 +1,11 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Clapperboard, Home, Library, Settings } from "lucide-react";
+import { Clapperboard, Library, Settings } from "lucide-react";
 import { GuardedLink } from "@/components/guarded-link";
 import { cn } from "@core/client/utils";
 
 const ITEMS = [
-  { href: "/", label: "首页", icon: Home, match: (p: string) => p === "/" },
   {
     href: "/projects",
     label: "项目",

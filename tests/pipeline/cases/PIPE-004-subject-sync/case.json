@@ -1,0 +1,54 @@
+{
+  "id": "PIPE-004",
+  "title": "补角色引用时必须同步补 subjectNodeIds，且不拉入无站位角色",
+  "stage": "augment-cast",
+  "tags": ["cast", "regression", "R1"],
+  "input": {
+    "blocking": {
+      "nodes": [
+        { "id": "n_chen", "label": "陈平生", "type": "character", "pos": { "x": 0.2, "y": 0.6 }, "facing": 90 },
+        { "id": "n_wan", "label": "陈婉儿", "type": "character", "pos": { "x": 0.8, "y": 0.6 }, "facing": 270 }
+      ],
+      "axis": { "from": "n_chen", "to": "n_wan" },
+      "cameraSide": "left"
+    },
+    "shot": {
+      "subjectNodeIds": ["n_wan"],
+      "action": "陈婉儿看向陈平生，外人路过",
+      "dialogue": [{ "character": "陈婉儿", "text": "你来了。" }],
+      "refs": []
+    },
+    "assets": [
+      {
+        "id": "a_chen",
+        "type": "character",
+        "name": "陈平生",
+        "variants": [
+          { "id": "v_chen", "label": "默认", "views": [{ "id": "w_chen", "label": "正面" }] }
+        ]
+      },
+      {
+        "id": "a_wan",
+        "type": "character",
+        "name": "陈婉儿",
+        "variants": [
+          { "id": "v_wan", "label": "默认", "views": [{ "id": "w_wan", "label": "正面" }] }
+        ]
+      },
+      {
+        "id": "a_stranger",
+        "type": "character",
+        "name": "外人",
+        "variants": [
+          { "id": "v_stranger", "label": "默认", "views": [{ "id": "w_stranger", "label": "正面" }] }
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "refsInclude": ["陈婉儿", "陈平生"],
+    "refsExclude": ["外人"],
+    "subjectIdsInclude": ["n_wan", "n_chen"],
+    "subjectIdsExclude": []
+  }
+}

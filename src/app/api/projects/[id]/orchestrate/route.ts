@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getProject, updateProject } from "@core/server/projects";
 import { getProjectDb } from "@core/server/db";
-import { applyOrchestration } from "@core/server/orchestration/apply";
+import {
+  applyOrchestration,
+  planOrchestration,
+  type OrchestrationPlan,
+} from "@core/server/orchestration/apply";
 import {
   captureOrchestrationState,
   restoreOrchestrationState,
@@ -10,13 +14,46 @@ import {
 import { isVendorId } from "@core/server/library/vendors";
 import { withLock } from "@core/server/lock";
 
-const bodySchema = z.object({ vendor: z.string() });
+const bodySchema = z.object({
+  vendor: z.string(),
+  dryRun: z.boolean().optional(),
+  maxSegmentMs: z.number().int().min(4000).max(30000).optional(),
+  maxShotsPerSegment: z.number().int().min(1).max(20).optional(),
+  qualityMaxShots: z.number().int().min(1).max(20).optional(),
+  maxCastPerSegment: z.number().int().min(1).max(20).optional(),
+});
 
 type Ctx = { params: Promise<{ id: string }> };
 
-// 按所选厂商重新编排：拉平镜序列 → 按厂商重打包成段 → 写回。
-// 切换厂商会清空受影响段（含其视频/帧图），因此先把原厂商的编排结果缓存下来，
-// 再还原目标厂商此前缓存的结果，避免来回切换丢工作量。
+function planResponse(plan: OrchestrationPlan) {
+  return {
+    ok: true,
+    dryRun: true,
+    vendor: plan.vendor,
+    usesV2: plan.usesV2,
+    scenes: plan.scenes.length,
+    segments: plan.totalSegments,
+    shots: plan.totalShots,
+    totalTargetMs: plan.totalTargetMs,
+    scenesPlan: plan.scenes.map((scene) => ({
+      sceneIndex: scene.sceneIndex,
+      sceneSlug: scene.sceneSlug,
+      shotCount: scene.flatShots.length,
+      usesV2: scene.usesV2,
+      segments: scene.segments.map((segment, index) => ({
+        index: index + 1,
+        shotIndexes: segment.shotIndexes.map((value) => value + 1),
+        shotCount: segment.shotIndexes.length,
+        targetMs: segment.targetMs,
+        shotDurations: segment.shotDurations,
+        hardCut: segment.hardCut,
+        hardCutReason: segment.hardCutReason,
+        warnings: segment.warnings,
+      })),
+    })),
+  };
+}
+
 export async function POST(request: Request, { params }: Ctx) {
   const { id } = await params;
   const json = await request.json().catch(() => null);
@@ -24,16 +61,32 @@ export async function POST(request: Request, { params }: Ctx) {
   if (!parsed.success || !isVendorId(parsed.data.vendor)) {
     return NextResponse.json({ error: "厂商参数不合法" }, { status: 400 });
   }
-  // 同一项目的编排串行执行：capture→apply→restore 三次写入不能交错。
+
+  const options = {
+    maxSegmentMs: parsed.data.maxSegmentMs,
+    maxShotsPerSegment: parsed.data.maxShotsPerSegment,
+    qualityMaxShots: parsed.data.qualityMaxShots,
+    maxCastPerSegment: parsed.data.maxCastPerSegment,
+  };
+
+  if (parsed.data.dryRun) {
+    try {
+      const plan = planOrchestration(id, parsed.data.vendor, options);
+      return NextResponse.json(planResponse(plan));
+    } catch (error) {
+      return NextResponse.json(
+        { error: (error as Error).message || "dry-run 失败" },
+        { status: 500 },
+      );
+    }
+  }
+
   return withLock(`orchestrate:${id}`, async () => {
     try {
-      // 锁内读取当前厂商，保证 capture 用的是真正生效的厂商。
       const project = getProject(id);
       if (!project) {
         return NextResponse.json({ error: "子集不存在" }, { status: 404 });
       }
-      // 重新编排会删除/重建段落并清空受影响段的媒体；生成任务在跑时
-      // 继续操作会让后台回写落到已变动的段上，直接拒绝并提示先取消。
       const runningGeneration = getProjectDb(id)
         .prepare(
           `SELECT 1 FROM job
@@ -48,10 +101,8 @@ export async function POST(request: Request, { params }: Ctx) {
           { status: 409 },
         );
       }
-      // 先保存当前厂商的分段/视频/帧图，再按目标厂商重打包。
       captureOrchestrationState(id, project.vendor);
-      const result = applyOrchestration(id, parsed.data.vendor);
-      // 还原目标厂商此前缓存的分段/视频/帧图。
+      const result = applyOrchestration(id, parsed.data.vendor, options);
       const restored = restoreOrchestrationState(id, parsed.data.vendor);
       updateProject(id, { vendor: parsed.data.vendor });
       return NextResponse.json({ ok: true, ...result, restored });

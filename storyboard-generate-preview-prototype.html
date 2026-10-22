@@ -1,0 +1,1315 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>掘漫 · 分镜「生成 / 预览」原型</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#18181b; --card:#ffffff; --muted:#f4f4f5; --muted-fg:#71717a;
+    --border:#e4e4e7; --input:#e4e4e7; --primary:#18181b; --primary-fg:#fafafa;
+    --accent:#f4f4f5; --ring:#a1a1aa; --destructive:#dc2626;
+    --radius:12px; --radius-sm:8px; --radius-lg:16px;
+    --mint:#c8e6cd; --cream:#f4ecd6;
+    --amber:#b45309; --amber-bg:rgba(245,158,11,.12); --amber-bd:rgba(245,158,11,.4);
+    --green:#059669; --green-bg:rgba(16,185,129,.12); --green-bd:rgba(16,185,129,.35);
+    --blue:#2563eb; --blue-bg:rgba(37,99,235,.08);
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  }
+  *{box-sizing:border-box; border-color:var(--border);}
+  [hidden]{display:none !important;}
+  html,body{height:100%;}
+  body{margin:0; background:var(--bg); color:var(--fg); font-family:var(--font);
+       -webkit-font-smoothing:antialiased; font-size:14px; line-height:1.45;}
+  button{font-family:inherit;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:#d4d4d8;border:3px solid #fff;border-radius:8px;}
+  svg.ic{width:15px;height:15px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:2;
+         stroke-linecap:round;stroke-linejoin:round;}
+  svg.ic.sm{width:13px;height:13px;}
+
+  /* shell */
+  .topbar{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);}
+  .topbar-inner{max-width:1240px;margin:0 auto;height:56px;display:flex;align-items:center;
+                justify-content:space-between;gap:16px;padding:0 16px;}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;}
+  .brand .logo{width:26px;height:26px;border-radius:7px;background:var(--fg);color:#fff;
+               display:flex;align-items:center;justify-content:center;font-size:13px;}
+  .nav{display:flex;align-items:center;gap:4px;}
+  .nav a{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;
+         font-size:13px;font-weight:500;color:var(--muted-fg);text-decoration:none;}
+  .nav a:hover{background:var(--accent);color:var(--fg);}
+  .nav a.active{background:var(--primary);color:var(--primary-fg);}
+  .main{max-width:1240px;margin:0 auto;padding:20px 16px 72px;}
+  .crumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted-fg);margin-bottom:12px;}
+  .crumb a{color:inherit;text-decoration:none;} .crumb a:hover{color:var(--fg);}
+  .crumb .proto{margin-left:auto;border:1px dashed var(--border);border-radius:999px;padding:2px 9px;
+                font-size:11px;color:var(--muted-fg);background:#fafafa;}
+  .tabs{display:inline-flex;gap:4px;background:var(--muted);padding:4px;border-radius:999px;margin-bottom:16px;}
+  .tabs button{border:0;background:transparent;padding:6px 16px;border-radius:999px;font-size:13px;
+               font-weight:500;color:var(--muted-fg);cursor:pointer;}
+  .tabs button.active{background:var(--primary);color:var(--primary-fg);}
+
+  /* primitives */
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;
+       padding:0 14px;border-radius:10px;border:1px solid transparent;background:var(--primary);
+       color:var(--primary-fg);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;}
+  .btn:hover{opacity:.9;} .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .btn.outline{background:transparent;color:var(--fg);border-color:var(--border);}
+  .btn.outline:hover{background:var(--accent);}
+  .btn.ghost{background:transparent;color:var(--fg);}
+  .btn.ghost:hover{background:var(--accent);}
+  .btn.sm{height:30px;padding:0 10px;font-size:12px;border-radius:8px;}
+  .btn.xs{height:26px;padding:0 8px;font-size:12px;border-radius:7px;gap:4px;}
+  .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
+            border-radius:9px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--fg);}
+  .icon-btn:hover{background:var(--accent);}
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;
+         font-size:11px;font-weight:500;background:var(--muted);color:var(--fg);border:1px solid transparent;}
+  .badge.outline{background:transparent;border-color:var(--border);color:var(--muted-fg);}
+  .badge.ok{background:var(--green-bg);color:var(--green);}
+  .badge.warn{background:var(--amber-bg);color:var(--amber);}
+  .badge.live{background:var(--blue-bg);color:var(--blue);}
+  .badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+  .muted{color:var(--muted-fg);}
+  .mono{font-family:var(--mono);}
+  .row{display:flex;align-items:center;gap:8px;}
+  .col{display:flex;flex-direction:column;gap:8px;}
+  .grow{flex:1;}
+  .hint-text{font-size:11.5px;color:var(--muted-fg);}
+
+  /* banner */
+  .banner{border-radius:var(--radius-lg);padding:18px 20px;display:flex;flex-wrap:wrap;
+          align-items:flex-start;justify-content:space-between;gap:14px;background:var(--mint);}
+  .banner h2{margin:0;font-size:16px;font-weight:600;}
+  .banner p{margin:4px 0 0;font-size:13px;color:#3f4a41;}
+  .banner .qc{margin-top:6px;font-size:11.5px;color:#4b5a4f;}
+  .actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
+  .vendor-chip{display:flex;align-items:center;gap:8px;padding:5px 6px 5px 12px;border:1px solid rgba(0,0,0,.12);
+               border-radius:999px;background:rgba(255,255,255,.75);font-size:13px;cursor:pointer;}
+  .vendor-chip:hover{background:#fff;}
+  .vendor-chip .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px var(--green-bg);}
+
+  /* sub tabs */
+  .subtabs-wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .subtabs{display:inline-flex;gap:4px;background:var(--muted);padding:4px;border-radius:999px;}
+  .subtabs button{display:flex;align-items:center;gap:6px;border:0;background:transparent;
+                  padding:7px 16px;border-radius:999px;font-size:13px;font-weight:500;color:var(--muted-fg);cursor:pointer;}
+  .subtabs button.active{background:#fff;color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08);}
+  .subtabs .count{font-size:11px;font-weight:400;color:var(--muted-fg);}
+  .subtabs button.active .count{color:var(--fg);}
+  .subtabs-help{font-size:11.5px;color:var(--muted-fg);}
+
+  /* generate composer */
+  .gen-wrap{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:10px;width:100%;}
+  .editor-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 4px;}
+  .seg-chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;
+            border:1px solid var(--border);border-radius:999px;background:#fff;font-size:12.5px;
+            font-weight:500;cursor:pointer;color:var(--fg);}
+  .seg-chip:hover{border-color:#c9c9cf;background:#fafafa;}
+  .editor-meta{font-size:12px;color:var(--muted-fg);}
+  .editor-top .spacer{flex:1;}
+  .final-tag{background:var(--blue-bg);color:var(--blue);border-color:rgba(37,99,235,.15);}
+
+  .composer{background:#fafafa;border:1px solid #ececef;border-radius:20px;padding:14px 16px 12px;
+            box-shadow:0 1px 2px rgba(0,0,0,.02);}
+  .refs{display:flex;flex-wrap:wrap;align-items:center;gap:10px;}
+  .ref{position:relative;width:62px;height:62px;border-radius:12px;overflow:hidden;border:1px solid rgba(0,0,0,.08);
+       flex:0 0 auto;cursor:zoom-in;transition:transform .15s;}
+  .ref:hover{transform:translateY(-1px);}
+  .ref .ph{position:absolute;inset:0;}
+  .ref .num{position:absolute;left:5px;bottom:5px;min-width:16px;height:16px;padding:0 4px;border-radius:5px;
+            background:rgba(0,0,0,.66);color:#fff;font-size:10px;line-height:16px;text-align:center;font-family:var(--mono);}
+  .ref .del{position:absolute;right:4px;top:4px;width:19px;height:19px;border-radius:50%;border:0;
+            background:rgba(0,0,0,.52);color:#fff;font-size:12px;line-height:19px;text-align:center;
+            cursor:pointer;padding:0;opacity:0;transition:opacity .15s,background .15s;}
+  .ref:hover .del{opacity:1;}
+  .ref .del:hover{background:var(--destructive);}
+  .addref{width:62px;height:62px;flex:0 0 auto;border-radius:12px;border:1px dashed #d4d4d8;background:#fff;
+          color:#71717a;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+          transition:background .15s,border-color .15s,color .15s;}
+  .addref:hover{border-color:#a1a1aa;color:var(--fg);background:#f4f4f5;}
+  .refs-note{margin-left:2px;display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted-fg);}
+  .refs-note b{font-size:11px;font-weight:500;color:#52525b;}
+
+  .clip-line{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:14px 2px 4px;
+             font-size:13px;color:#3f3f46;}
+  .clip-line .time{font-family:var(--mono);font-size:12.5px;color:#52525b;}
+  .clip-line .divider{color:#d4d4d8;}
+  .clip-line strong{font-weight:600;color:var(--fg);}
+
+  #promptInput{display:block;width:100%;min-height:168px;max-height:420px;border:0;outline:none;resize:vertical;
+               background:transparent;color:#27272a;font-family:var(--font);font-size:14px;line-height:1.95;
+               padding:8px 2px 10px;}
+  #promptInput::placeholder{color:#a1a1aa;}
+
+  .composer-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+                 border-top:1px solid #ededf0;padding-top:11px;margin-top:2px;}
+  .params{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .param{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 10px;border-radius:999px;
+         border:1px solid #e4e4e7;background:#fff;color:#3f3f46;font-size:12.5px;cursor:pointer;
+         transition:border-color .15s,background .15s;}
+  .param:hover{border-color:#c9c9cf;background:#fff;}
+  .param .caret{color:#a1a1aa;}
+  .param .dot-ok{width:5px;height:5px;border-radius:50%;background:var(--green);}
+  .send-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;}
+  .restore{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 10px;border-radius:999px;
+           border:1px solid transparent;background:transparent;color:#52525b;font-size:12px;cursor:pointer;}
+  .restore:hover{background:#fff;border-color:#e4e4e7;color:var(--fg);}
+  .restore:disabled{opacity:.38;cursor:not-allowed;background:transparent;border-color:transparent;}
+  .restore.dirty{color:var(--amber);background:var(--amber-bg);border-color:var(--amber-bd);}
+  .send{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:40px;min-width:96px;
+        padding:0 16px;border-radius:999px;border:0;background:var(--primary);color:#fff;
+        font-size:13px;font-weight:500;cursor:pointer;transition:background .15s,transform .1s;}
+  .send:hover{background:#27272a;}
+  .send:active{transform:scale(.985);}
+  .send:disabled{opacity:.6;cursor:default;}
+  .send .spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;
+                 border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .composer-hint{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+                 padding:0 6px;font-size:11.5px;color:var(--muted-fg);}
+  .kbd{display:inline-block;border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;
+       padding:0 4px;font-size:10.5px;line-height:16px;font-family:var(--mono);background:#fff;color:#52525b;}
+  .submit-line{display:none;align-items:center;gap:8px;border:1px solid var(--border);border-radius:10px;
+               background:#fff;padding:9px 12px;font-size:12px;color:#52525b;}
+  .submit-line.show{display:flex;}
+  .submit-line .status-dot{width:7px;height:7px;border-radius:50%;background:var(--muted-fg);flex:0 0 auto;}
+  .submit-line.running .status-dot{background:var(--blue);animation:pulse 1.2s infinite;}
+  .submit-line.done .status-dot{background:var(--green);}
+  .submit-line.warn{border-color:var(--amber-bd);background:var(--amber-bg);color:var(--amber);}
+  .submit-line.warn .status-dot{background:var(--amber);}
+  @keyframes pulse{50%{opacity:.35;}}
+  .submit-line .spacer{flex:1;}
+
+  /* popover */
+  .popover{position:fixed;z-index:200;min-width:210px;max-width:290px;background:#fff;border:1px solid var(--border);
+           border-radius:12px;box-shadow:0 14px 36px rgba(0,0,0,.14);padding:6px;animation:fade .12s ease-out;}
+  @keyframes fade{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:none;}}
+  .pop-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px 7px;
+          font-size:11.5px;color:var(--muted-fg);}
+  .pop-hd b{font-size:12px;color:var(--fg);font-weight:600;}
+  .pop-item{display:flex;align-items:center;gap:9px;width:100%;padding:8px 9px;border:0;border-radius:8px;
+            background:transparent;font-size:12.5px;color:var(--fg);cursor:pointer;text-align:left;}
+  .pop-item:hover{background:var(--muted);}
+  .pop-item .sub{display:block;font-size:11px;color:var(--muted-fg);margin-top:1px;}
+  .pop-item .check{margin-left:auto;color:var(--fg);}
+  .pop-item .mini-thumb{width:28px;height:28px;border-radius:6px;flex:0 0 auto;border:1px solid rgba(0,0,0,.08);}
+  .pop-sep{height:1px;background:var(--border);margin:5px 4px;}
+  .pop-note{padding:5px 9px 7px;font-size:11px;line-height:1.5;color:var(--muted-fg);}
+  .pop-foot{padding:5px 4px 3px;border-top:1px solid var(--border);margin-top:4px;}
+
+  /* preview */
+  .pv-panel{display:flex;flex-direction:column;gap:12px;}
+  .strip-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 2px;}
+  .strip-head b{font-size:13px;font-weight:600;}
+  .strip-head .hint-text{margin-left:auto;}
+  .seg-strip{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 8px;}
+  .seg-card{width:184px;flex:0 0 auto;border:1px solid var(--border);border-radius:10px;padding:7px;
+            cursor:pointer;display:flex;flex-direction:column;gap:6px;background:#fff;
+            transition:background .15s,border-color .15s;}
+  .seg-card:hover{background:#fafafa;}
+  .seg-card.active{border-color:rgba(24,24,27,.4);background:#fafafa;box-shadow:0 0 0 1px rgba(24,24,27,.12) inset;}
+  .seg-thumb{position:relative;aspect-ratio:16/9;border-radius:7px;overflow:hidden;background:#0b0b0c;
+             display:flex;align-items:center;justify-content:center;color:#a1a1aa;}
+  .seg-thumb .grad{position:absolute;inset:0;}
+  .seg-thumb .veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.06),rgba(0,0,0,.4));}
+  .seg-thumb .state{position:absolute;left:5px;top:5px;border-radius:4px;padding:0 5px;font-size:10px;
+                    line-height:16px;color:#fff;background:rgba(0,0,0,.62);display:flex;align-items:center;gap:4px;}
+  .seg-thumb .state.ok{background:rgba(5,150,105,.9);}
+  .seg-thumb .state.warn{background:rgba(180,83,9,.92);}
+  .seg-thumb .state.run{background:rgba(37,99,235,.92);}
+  .seg-thumb .state .mini-spin{width:9px;height:9px;border:1.5px solid rgba(255,255,255,.4);border-top-color:#fff;
+                               border-radius:50%;animation:spin .8s linear infinite;}
+  .seg-thumb .cut{position:absolute;right:5px;top:5px;border-radius:4px;padding:0 5px;font-size:10px;
+                  line-height:16px;background:rgba(0,0,0,.72);color:#fff;}
+  .seg-thumb .playico{position:absolute;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.9);
+                      color:#18181b;display:flex;align-items:center;justify-content:center;font-size:10px;}
+  .seg-name{font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .seg-sub{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:11px;color:var(--muted-fg);}
+  .seg-sub .st-dot{width:5px;height:5px;border-radius:50%;background:#d4d4d8;display:inline-block;margin-right:4px;}
+  .seg-sub .st-dot.ok{background:var(--green);}
+  .seg-sub .st-dot.run{background:var(--blue);}
+
+  /* generate result */
+  .result-card{overflow:hidden;}
+  .result-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;
+               padding:13px 16px;border-bottom:1px solid var(--border);}
+  .result-body{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,1fr);gap:14px;padding:14px;}
+  .result-video{position:relative;aspect-ratio:16/9;max-height:360px;border-radius:12px;overflow:hidden;
+                background:#0b0b0c;display:flex;align-items:center;justify-content:center;color:#a1a1aa;}
+  .result-video .grad{position:absolute;inset:0;}
+  .result-video .veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.02),rgba(0,0,0,.45));}
+  .result-video.is-empty{aspect-ratio:auto;min-height:220px;height:100%;}
+  .result-video.is-empty .grad{opacity:.18;filter:saturate(.5);}
+  .result-video.is-empty .veil{background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.72));}
+  .result-video .play{position:relative;z-index:1;width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.92);
+                      color:#18181b;display:flex;align-items:center;justify-content:center;cursor:pointer;
+                      box-shadow:0 6px 20px rgba(0,0,0,.25);}
+  .result-video .empty{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:6px;
+                       padding:0 20px;text-align:center;font-size:12px;line-height:1.7;color:#e4e4e7;}
+  .result-video .tl{position:absolute;left:10px;bottom:9px;z-index:1;color:#fff;font-size:11px;font-family:var(--mono);
+                    background:rgba(0,0,0,.45);border-radius:5px;padding:1px 6px;}
+  .result-video .dur{position:absolute;right:10px;bottom:9px;z-index:1;color:#fff;font-size:11px;font-family:var(--mono);
+                     background:rgba(0,0,0,.45);border-radius:5px;padding:1px 6px;}
+  .result-video .stale{position:absolute;left:10px;top:10px;z-index:1;border-radius:5px;padding:1px 7px;
+                       background:rgba(180,83,9,.94);color:#fff;font-size:10.5px;}
+  .result-side{display:flex;flex-direction:column;gap:10px;min-width:0;}
+  .side-block{border:1px solid var(--border);border-radius:10px;padding:10px 11px;}
+  .side-label{display:flex;align-items:center;justify-content:space-between;gap:8px;
+              font-size:11.5px;font-weight:600;color:#3f3f46;margin-bottom:8px;}
+  .video-tools{display:flex;flex-wrap:wrap;gap:6px;}
+  .frame-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;}
+  .frame-item{border:1px solid var(--border);border-radius:8px;padding:5px;background:#fafafa;}
+  .frame-thumb{position:relative;aspect-ratio:16/9;border-radius:5px;overflow:hidden;background:#0b0b0c;}
+  .frame-thumb .grad{position:absolute;inset:0;}
+  .frame-kind{position:absolute;left:4px;top:4px;border-radius:4px;padding:0 4px;background:rgba(0,0,0,.62);
+              color:#fff;font-size:9.5px;line-height:15px;}
+  .frame-time{position:absolute;right:4px;bottom:3px;color:#fff;font-size:9px;font-family:var(--mono);
+              text-shadow:0 1px 2px #000;}
+  .frame-meta{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:4px 2px 3px;
+              font-size:10.5px;color:var(--muted-fg);}
+  .frame-actions{display:flex;flex-wrap:wrap;gap:4px;padding:0 2px 2px;}
+  .frame-actions .chip-btn{font-size:10px;padding:1px 5px;}
+  .qc-line{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:11.5px;}
+  .qc-line b{font-weight:500;color:var(--green);}
+  .param-summary{display:grid;grid-template-columns:1fr 1fr;gap:5px 12px;font-size:11px;color:var(--muted-fg);}
+  .param-summary div{display:flex;align-items:center;justify-content:space-between;gap:6px;}
+  .param-summary b{font-weight:500;color:#3f3f46;}
+  .prompt-state{margin-top:8px;border-top:1px dashed var(--border);padding-top:7px;font-size:10.5px;
+                color:var(--muted-fg);display:flex;align-items:center;gap:5px;}
+  .prompt-state .dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex:0 0 auto;}
+  .prompt-state.edited{color:var(--amber);}
+  .prompt-state.edited .dot{background:var(--amber);}
+
+  /* simple shots preview */
+  .shots-wrap{max-width:1100px;margin:0 auto;width:100%;}
+  .shots-card{overflow:hidden;}
+  .shots-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;
+              padding:14px 16px;border-bottom:1px solid var(--border);}
+  .shots-body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px;}
+  .blocking-fold{border:1px solid var(--border);border-radius:9px;padding:8px 11px;font-size:11.5px;
+                 color:var(--muted-fg);background:#fafafa;}
+  .blocking-fold summary{cursor:pointer;font-weight:500;color:#52525b;}
+  .blocking-fold p{margin:6px 0 0;line-height:1.7;}
+  .shots-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+  .shots-grid .shot:last-child:nth-child(odd){grid-column:1 / -1;}
+  .shot-big{padding:13px 14px;}
+  .shot-big .hd b{font-size:13px;}
+  .shot-big p{font-size:13px;}
+
+  /* persistent segment strip */
+  .seg-wrap{position:sticky;bottom:0;z-index:30;margin-top:4px;border-top:1px solid var(--border);
+            background:var(--bg);padding:10px 0 12px;}
+  .seg-wrap .strip-head{padding:0 2px 8px;}
+
+  .pv-card{overflow:hidden;}
+  .pv-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;
+           padding:14px 16px;border-bottom:1px solid var(--border);}
+  .pv-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .pv-title .name{font-size:14px;font-weight:600;}
+  .pv-title .sep{color:#d4d4d8;}
+  .pv-body{display:grid;grid-template-columns:minmax(0,1.03fr) minmax(0,1fr);gap:16px;padding:16px;}
+  .pv-col{display:flex;flex-direction:column;gap:10px;min-width:0;}
+  .qc-box{border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.7;}
+  .qc-box .hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:500;}
+  .qc-box .tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto;}
+  .chip-btn{border:1px solid var(--border);border-radius:999px;background:#fff;padding:2px 8px;
+            font-size:11px;color:#52525b;cursor:pointer;}
+  .chip-btn:hover{border-color:#c9c9cf;color:var(--fg);}
+  .blocking-note{border:1px solid var(--border);background:#fafafa;border-radius:10px;padding:10px 12px;
+                 font-size:11.5px;line-height:1.7;color:var(--muted-fg);}
+  .blocking-note b{color:var(--fg);font-weight:500;}
+  .shot{border:1px solid var(--border);border-radius:10px;padding:11px 12px;font-size:13px;
+        display:flex;flex-direction:column;gap:5px;}
+  .shot .hd{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .shot .hd b{font-weight:600;font-size:12.5px;}
+  .shot .cam{font-size:11px;color:var(--muted-fg);}
+  .shot p{margin:0;line-height:1.75;color:#3f3f46;}
+  .shot .refs-line{display:flex;flex-wrap:wrap;gap:5px;padding-top:1px;}
+  .refchip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);background:#f4f4f5;
+           border-radius:6px;padding:1px 6px;font-size:10.5px;color:#52525b;}
+  .refchip .sw{width:14px;height:14px;border-radius:4px;flex:0 0 auto;}
+  .video-box{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#0b0b0c;
+             display:flex;align-items:center;justify-content:center;color:#a1a1aa;}
+  .video-box .grad{position:absolute;inset:0;}
+  .video-box .veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.02),rgba(0,0,0,.45));}
+  .video-box .empty{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:6px;
+                    font-size:12px;color:#a1a1aa;text-align:center;padding:0 20px;line-height:1.6;}
+  .video-box.is-empty .grad{opacity:.22;filter:saturate(.55);}
+  .video-box.is-empty .veil{background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.72));}
+  .video-box.is-empty .empty{color:#e4e4e7;}
+  .video-box .play{position:relative;z-index:1;width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,.92);
+                   color:#18181b;display:flex;align-items:center;justify-content:center;cursor:pointer;
+                   box-shadow:0 6px 20px rgba(0,0,0,.25);transition:transform .15s;}
+  .video-box .play:hover{transform:scale(1.05);}
+  .video-box .tl{position:absolute;left:10px;bottom:9px;z-index:1;color:#fff;font-size:11px;font-family:var(--mono);
+                 background:rgba(0,0,0,.45);border-radius:5px;padding:1px 6px;}
+  .video-box .dur{position:absolute;right:10px;bottom:9px;z-index:1;color:#fff;font-size:11px;font-family:var(--mono);
+                  background:rgba(0,0,0,.45);border-radius:5px;padding:1px 6px;}
+  .filmstrip{display:flex;gap:6px;overflow-x:auto;}
+  .frame{position:relative;width:76px;flex:0 0 auto;aspect-ratio:16/9;border-radius:6px;overflow:hidden;
+         border:1px solid var(--border);cursor:pointer;}
+  .frame .grad{position:absolute;inset:0;}
+  .frame.active{outline:2px solid var(--primary);outline-offset:1px;}
+  .frame .t{position:absolute;left:3px;bottom:2px;font-size:9px;font-family:var(--mono);color:#fff;text-shadow:0 1px 2px #000;}
+  .video-tools{display:flex;flex-wrap:wrap;gap:6px;}
+  .pv-foot{border-top:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:8px;
+           flex-wrap:wrap;font-size:11.5px;color:var(--muted-fg);background:#fcfcfc;}
+  .pv-foot .spacer{flex:1;}
+  .empty-shot{border:1px dashed var(--border);border-radius:10px;padding:28px 16px;text-align:center;
+              font-size:12.5px;color:var(--muted-fg);line-height:1.7;}
+
+  /* toast */
+  .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,12px);z-index:300;background:#18181b;color:#fafafa;
+         border-radius:12px;padding:10px 15px;font-size:12.5px;box-shadow:0 12px 32px rgba(0,0,0,.24);
+         opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;max-width:min(90vw,520px);}
+  .toast.show{opacity:1;transform:translate(-50%,0);}
+
+  @media (max-width:900px){
+    .pv-body{grid-template-columns:1fr;}
+    .result-body{grid-template-columns:1fr;}
+    .send-wrap{margin-left:0;width:100%;justify-content:flex-end;}
+  }
+  @media (max-width:640px){
+    .main{padding:14px 10px 56px;}
+    .banner{padding:14px;}
+    .composer{padding:12px;}
+    .editor-meta{display:none;}
+    .refs-note{display:none;}
+    .send{min-width:84px;}
+    .shots-grid{grid-template-columns:1fr;}
+    .frame-grid{grid-template-columns:1fr 1fr;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand"><span class="logo">掘</span> 掘漫</div>
+    <nav class="nav">
+      <a href="#">首页</a>
+      <a href="#">项目</a>
+      <a href="#">素材</a>
+      <a href="#">设置</a>
+    </nav>
+  </div>
+</div>
+
+<div class="main">
+  <div class="crumb">
+    <a href="#">我的项目</a> / <a href="#">替身千金</a> / <span class="mono">EP01</span>
+    <span class="proto">布局原型 · 仅用于确认交互</span>
+  </div>
+
+  <div class="tabs">
+    <button>故事</button><button>剧本</button><button>资产</button>
+    <button class="active">分镜</button><button>合成</button>
+  </div>
+
+  <div class="col" style="gap:14px">
+    <!-- banner -->
+    <div class="banner">
+      <div style="max-width:560px;">
+        <h2>分镜</h2>
+        <p>生成页编辑提示词、查看生成结果并截帧；预览页只读查看本段分镜。</p>
+        <div class="qc">QC 已检 2 / 5 · 首次硬失败 0（0%）· 重试成功 1 / 1</div>
+      </div>
+      <div class="actions">
+        <button class="vendor-chip" data-act="mock" data-msg="打开厂商切换弹窗">
+          <span class="dot"></span>
+          <span>厂商：MiniMax H3</span>
+          <span class="badge" style="background:#fff">支持云端</span>
+          <span class="btn xs outline" style="pointer-events:none">切换</span>
+        </button>
+        <button class="btn outline" data-act="mock" data-msg="开始顺序生成未回传的段落（原型模拟）">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M4 16.5A2.5 2.5 0 0 1 6.5 14H7V7a3 3 0 0 1 6 0v3"/><path d="M17 14a3 3 0 0 1 3 3v1a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-1"/><path d="m13 10 3-3 3 3"/></svg>
+          顺序生成视频
+        </button>
+        <button class="btn outline" data-act="mock" data-msg="更多：重新编排 / 清空分镜">
+          <svg class="ic" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+          更多
+        </button>
+        <button class="btn" data-act="mock" data-msg="重新生成分镜（会覆盖现有分镜）">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>
+          重新生成分镜
+        </button>
+      </div>
+    </div>
+
+    <!-- sub tabs -->
+    <div class="subtabs-wrap">
+      <div class="subtabs" role="tablist" aria-label="分镜视图">
+        <button class="active" data-tab="generate" role="tab">
+          <svg class="ic sm" viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9Z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9Z"/></svg>
+          生成
+        </button>
+        <button data-tab="preview" role="tab">
+          <svg class="ic sm" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3Z"/></svg>
+          预览
+          <span class="count" id="previewCount">3/5</span>
+        </button>
+      </div>
+      <div class="subtabs-help" id="tabHelp">提交内容以输入框内的提示词为准 · 不经过第三方平台</div>
+    </div>
+
+    <!-- generate tab -->
+    <section id="generatePanel">
+      <div class="gen-wrap">
+        <div class="card result-card" id="resultCard"></div>
+
+        <div class="editor-top">
+          <button class="seg-chip" data-act="seg-menu">
+            <svg class="ic sm" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>
+            <span id="segChipLabel">第2场 · 第1段</span>
+            <svg class="ic sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <span class="editor-meta" id="segMeta"></span>
+          <span class="spacer"></span>
+          <span class="badge outline final-tag" id="finalTag">最终提交内容</span>
+        </div>
+
+        <div class="composer">
+          <div class="refs" id="refsRow"></div>
+          <div class="clip-line">
+            <span class="time" id="clipTime">00:18–00:28</span>
+            <span class="divider">|</span>
+            <strong id="clipTitle">铁道旁赤脚追晚霞</strong>
+          </div>
+          <textarea id="promptInput" spellcheck="false" placeholder="输入要提交的图片生成提示词…"></textarea>
+          <div class="composer-foot">
+            <div class="params" id="paramsRow"></div>
+            <div class="send-wrap">
+              <button class="restore" id="restoreBtn" data-act="restore" title="还原为分镜编译出的原始提示词">
+                <svg class="ic sm" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+                一键还原
+              </button>
+              <button class="send" id="sendBtn" data-act="send">
+                <svg class="ic" viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+                <span id="sendLabel">发送</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="composer-hint">
+          <span>提示词可直接编辑，发送时以此为准；参考图按图号顺序上传。</span>
+          <span><span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> 提交</span>
+        </div>
+
+        <div class="submit-line" id="submitLine">
+          <span class="status-dot"></span>
+          <span id="submitText"></span>
+          <span class="spacer"></span>
+          <button class="chip-btn" data-act="go-preview" style="display:none" id="viewResultBtn">查看分镜</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- preview tab: read-only shots -->
+    <section id="previewPanel" hidden>
+      <div class="shots-wrap">
+        <div class="card shots-card" id="shotsCard"></div>
+      </div>
+    </section>
+
+    <!-- persistent bottom segment list -->
+    <div class="seg-wrap">
+      <div class="strip-head">
+        <b>段落列表</b>
+        <span class="badge outline" id="returnedBadge">已回传 3 / 5</span>
+        <span class="hint-text">点击切换段落，底部列表始终保留</span>
+      </div>
+      <div class="seg-strip" id="segStrip"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  /* ---------- data ---------- */
+  const PALETTES = [
+    ['#c7d2fe', '#818cf8'], ['#fecdd3', '#fb7185'], ['#fde68a', '#f59e0b'],
+    ['#bbf7d0', '#34d399'], ['#bae6fd', '#38bdf8'], ['#ddd6fe', '#a78bfa'],
+    ['#fed7aa', '#fb923c'], ['#e5e7eb', '#9ca3af']
+  ];
+  const grad = (i) => {
+    const [a, b] = PALETTES[i % PALETTES.length];
+    return `linear-gradient(135deg, ${a}, ${b})`;
+  };
+
+  const segments = [
+    {
+      id: 's1', scene: '第1场 · 客厅', index: 1, title: '雨夜归家',
+      shots: 3, dur: 8, hard: false, video: true, stale: false,
+      ratio: '16:9', count: 1,
+      refs: [
+        { label: '沈知夏 · 基础造型', g: 5 },
+        { label: '客厅 · 夜 · 全景', g: 4 }
+      ],
+      shotsData: [
+        { text: '沈知夏推门进屋，雨伞靠在门边，在暖黄的灯下站定。', cam: '全景 · 24mm · 固定' },
+        { text: '特写：手指收紧杯壁，指节微微泛白。', cam: '特写 · 50mm · 微推' },
+        { text: '窗外雨幕，玻璃上倒映她沉默的侧脸。', cam: '中近景 · 35mm · 缓慢横移' }
+      ],
+      prompt: '1990年代中国南方小城，雨夜的客厅，暖黄吊灯。沈知夏<Picture 1>站在窗边，米白色针织开衫，手指摩挲着茶杯，神情疲惫而克制<Picture 2>。镜头从门口缓慢推近，前景是虚化的雨痕，灯光在侧脸形成柔和轮廓。整体氛围安静、压抑，画面里充满未说出口的情绪。',
+      frames: [
+        { kind: 'first', adopted: false },
+        { kind: 'last', adopted: true }
+      ],
+      snapshot: null
+    },
+    {
+      id: 's2', scene: '第1场 · 客厅', index: 2, title: '灯下对峙',
+      shots: 4, dur: 10, hard: false, video: true, stale: false,
+      ratio: '16:9', count: 1,
+      refs: [
+        { label: '沈知夏 · 基础造型', g: 5 },
+        { label: '顾言 · 基础造型', g: 0 },
+        { label: '客厅 · 夜 · 反打', g: 1 }
+      ],
+      shotsData: [
+        { text: '顾言站在门口，没有换鞋，雨水顺着衣角滴落。', cam: '中景 · 35mm · 固定' },
+        { text: '两人隔着茶几对视，谁都没有先开口。', cam: '双人中景 · 40mm · 缓慢推进' },
+        { text: '沈知夏别过脸，把茶杯放回桌面。', cam: '中近景 · 50mm · 跟随' },
+        { text: '顾言伸手，停在半空。', cam: '手部特写 · 85mm · 固定' }
+      ],
+      prompt: '1990年代中国南方小城，雨夜的老式客厅，暖黄吊灯下两人隔着一张木茶几对峙。顾言<Picture 1>站在门口，深色外套被雨水打湿，衣角仍在滴水；沈知夏<Picture 2>别过脸，手指按住茶杯<Picture 3>。镜头保持双人中景，前景有餐桌边缘遮挡，背景墙面挂着旧挂历，气氛克制而紧绷。',
+      frames: [
+        { kind: 'first', adopted: false },
+        { kind: 'last', adopted: false }
+      ],
+      snapshot: null
+    },
+    {
+      id: 's3', scene: '第2场 · 铁道', index: 1, title: '铁道旁赤脚追晚霞',
+      shots: 3, dur: 10, hard: true, video: false, stale: false,
+      ratio: '16:9', count: 1,
+      refs: [
+        { label: '男孩 · 基础造型', g: 2 },
+        { label: '铁道旁 · 黄昏全景', g: 6 },
+        { label: '狗尾巴草 · 道具', g: 3 }
+      ],
+      shotsData: [
+        { text: '男孩沿着老铁路旁的土路行走，低机位跟拍，脚步扬起尘土。', cam: '低机位跟拍 · 28mm · 平稳移动' },
+        { text: '侧面特写：晚霞映在眼睛里，笑容明亮。', cam: '近景 · 50mm · 侧跟' },
+        { text: '远景：铁轨延伸至地平线，小小身影渐渐走远。', cam: '大远景 · 24mm · 固定' }
+      ],
+      prompt: '1990年代中国乡村傍晚，8岁男孩<Picture 1>，黑色短发，圆润清秀的东方男孩面容，穿洗得发白的浅蓝色短袖、宽松深色短裤，小孩沿着老铁路旁的土路<Picture 2>行走。男孩手里拿着一根狗尾巴草<Picture 3>脸上带着纯真的笑容，时不时抬头看向远处绚丽的晚霞，眼神兴奋明亮。镜头从男孩前方低机位跟拍，前景清晰拍摄男孩赤脚踩过松软泥土和细小碎石，脚步带起少量尘土，镜头随着行走保持平稳移动。两侧是野草、田埂和低矮乡村房屋，夕阳位于远处地平线，橙红色霞光从男孩身后形成轮廓光，衣角和头发被晚风轻轻吹动，整个画面充满自由奔跑的童年感。',
+      snapshot: null
+    },
+    {
+      id: 's4', scene: '第2场 · 铁道', index: 2, title: '暮色里的回望',
+      shots: 2, dur: 6, hard: false, video: false, stale: false,
+      ratio: '16:9', count: 1,
+      refs: [
+        { label: '男孩 · 基础造型', g: 2 },
+        { label: '铁道旁 · 黄昏远景', g: 6 }
+      ],
+      shotsData: [
+        { text: '男孩停下脚步，回望来时的土路。', cam: '中景 · 40mm · 固定' },
+        { text: '暮色里抬起手，向远处挥了挥。', cam: '近景 · 50mm · 缓慢推近' }
+      ],
+      prompt: '1990年代中国乡村，暮色渐深的铁道旁。8岁男孩<Picture 1>停下脚步，回头望向身后长长的土路<Picture 2>，晚霞把他的侧脸和发梢染成橙红色。他抬起手朝远处挥了挥，脚下是细碎石子与野草。镜头从背后缓慢绕到侧面，保持中景，远处升起薄薄的炊烟，情绪安静而留恋。',
+      snapshot: null
+    },
+    {
+      id: 's5', scene: '第3场 · 田野', index: 1, title: '收工回家',
+      shots: 4, dur: 12, hard: true, video: true, stale: true,
+      ratio: '16:9', count: 1,
+      refs: [
+        { label: '男孩 · 基础造型', g: 2 },
+        { label: '村口 · 黄昏全景', g: 7 }
+      ],
+      shotsData: [
+        { text: '田埂上的人群收工，远处炊烟升起。', cam: '大全景 · 24mm · 固定' },
+        { text: '母亲牵着男孩的手，背影走进村口。', cam: '中景 · 35mm · 背后跟拍' },
+        { text: '家里昏黄的灯泡被拉亮。', cam: '近景 · 50mm · 固定' },
+        { text: '桌上摆着热气腾腾的晚饭。', cam: '俯拍特写 · 35mm · 缓慢下降' }
+      ],
+      prompt: '1990年代中国乡村黄昏，田野与村口的交界。收工的人群扛着农具走在田埂上，远处炊烟升起<Picture 1>。母亲牵着8岁男孩<Picture 2>的手，两人背影慢慢走进村口。镜头先是大全景，再跟到中景，最后切到屋内昏黄的灯泡被拉亮。整体色调温暖、质朴，带一点旧照片的颗粒感。',
+      frames: [
+        { kind: 'first', adopted: false },
+        { kind: 'last', adopted: true }
+      ],
+      snapshot: null
+    }
+  ];
+  // 编译原文用于「一键还原」；已生成段落的提示词记为「上次提交」，用于显示是否被改过
+  segments.forEach((s) => {
+    s.originalPrompt = s.prompt;
+    if (s.video) s.snapshot = s.prompt;
+  });
+
+  let activeTab = location.hash === '#preview' ? 'preview' : 'generate';
+  let currentId = 's3';
+  let openPopover = null;
+  let toastTimer = null;
+
+  const byId = (id) => segments.find((s) => s.id === id);
+  const current = () => byId(currentId);
+  const fmt = (sec) => `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+  const clipRange = (seg) => {
+    const i = segments.findIndex((s) => s.id === seg.id);
+    const start = segments.slice(0, i).reduce((a, s) => a + s.dur, 0);
+    return `${fmt(start)}–${fmt(start + seg.dur)}`;
+  };
+  const esc = (str) => String(str).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  /* ---------- toast ---------- */
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+  }
+
+  /* ---------- popover ---------- */
+  function closePopover() {
+    if (openPopover) { openPopover.el.remove(); openPopover = null; }
+  }
+  function showPopover(anchor, html, align = 'left') {
+    closePopover();
+    const el = document.createElement('div');
+    el.className = 'popover';
+    el.innerHTML = html;
+    document.body.appendChild(el);
+    const r = anchor.getBoundingClientRect();
+    const pw = el.offsetWidth, ph = el.offsetHeight;
+    let left = align === 'right' ? r.right - pw : r.left;
+    left = Math.max(8, Math.min(left, window.innerWidth - pw - 8));
+    let top = r.top - ph - 8;
+    if (top < 8) top = Math.min(r.bottom + 8, window.innerHeight - ph - 8);
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+    openPopover = { el, anchor };
+  }
+  document.addEventListener('click', (e) => {
+    if (openPopover && !openPopover.el.contains(e.target) && !e.target.closest('[data-act="seg-menu"], [data-act^="menu-"]')) {
+      closePopover();
+    }
+  }, true);
+  window.addEventListener('resize', closePopover);
+
+  /* ---------- composer ---------- */
+  const promptsEdited = new Set();
+
+  function renderComposer() {
+    const seg = current();
+    const dirty = seg.prompt !== seg.snapshot && seg.prompt !== seg.originalPrompt;
+    document.getElementById('segChipLabel').textContent = `${seg.scene} · 第${seg.index}段`;
+    document.getElementById('segMeta').textContent = `${seg.shots} 镜 · ${seg.dur.toFixed(1)}s · ${seg.title}`;
+    document.getElementById('clipTime').textContent = clipRange(seg);
+    document.getElementById('clipTitle').textContent = seg.title;
+
+    document.getElementById('refsRow').innerHTML = seg.refs.map((r, i) => `
+      <div class="ref" title="${esc(r.label)}（图${i + 1}）" data-act="preview-ref" data-index="${i}">
+        <span class="ph" style="background:${grad(r.g)}"></span>
+        <span class="num">${i + 1}</span>
+        <button class="del" data-act="remove-ref" data-index="${i}" title="移除这张参考图">×</button>
+      </div>
+    `).join('') + `
+      <button class="addref" data-act="add-ref" title="添加参考图">+</button>
+      <div class="refs-note">
+        <b>参考图 · 图1 起按顺序上传</b>
+        <span>${seg.refs.length} / 14 张 · 点右上角 × 移除</span>
+      </div>
+    `;
+
+    const params = document.getElementById('paramsRow');
+    params.innerHTML = `
+      <button class="param" data-act="menu-refs">
+        <svg class="ic sm" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="1.6"/><path d="m21 15-5-5L5 21"/></svg>
+        参考图 ${seg.refs.length}
+      </button>
+      <button class="param" data-act="menu-ratio">
+        <svg class="ic sm" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/></svg>
+        ${seg.ratio}
+        <svg class="ic sm caret" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <button class="param" data-act="menu-duration">
+        <svg class="ic sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        ${seg.dur}s
+        <svg class="ic sm caret" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <button class="param" data-act="menu-count">
+        <svg class="ic sm" viewBox="0 0 24 24"><path d="M12 3v18M5 8l7-5 7 5"/></svg>
+        ${seg.count} 条
+        <svg class="ic sm caret" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <button class="param" data-act="menu-more">
+        <svg class="ic sm" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+        更多
+      </button>
+    `;
+
+    const ta = document.getElementById('promptInput');
+    if (document.activeElement !== ta || ta.dataset.seg !== seg.id) {
+      ta.value = seg.prompt;
+      ta.dataset.seg = seg.id;
+    }
+    updateComposerChrome();
+  }
+
+  function updateComposerChrome() {
+    const seg = current();
+    const ta = document.getElementById('promptInput');
+    const dirty = ta.value !== seg.originalPrompt;
+    const restore = document.getElementById('restoreBtn');
+    restore.disabled = !dirty;
+    restore.classList.toggle('dirty', dirty);
+
+    document.getElementById('sendLabel').textContent =
+      seg.status === 'running' ? '生成中' : (seg.video ? '重新生成' : '发送');
+    const send = document.getElementById('sendBtn');
+    send.disabled = seg.status === 'running';
+
+    const changedSince = seg.snapshot && ta.value !== seg.snapshot;
+    const line = document.getElementById('submitLine');
+    line.className = 'submit-line show' + (seg.status === 'running' ? ' running' : changedSince ? ' warn' : (seg.video ? ' done' : ''));
+    let text = '';
+    if (seg.status === 'running') {
+      text = `正在提交第${seg.index}段 · ${seg.dur}s · ${seg.ratio} · 参考图 ${seg.refs.length} 张`;
+    } else if (changedSince) {
+      text = '提示词已修改，当前视频仍对应上次提交的版本；需要时点「重新生成」。';
+    } else if (seg.video) {
+      text = seg.stale
+        ? '已回传视频，但分镜内容改过，视频已过期；建议重新生成。'
+        : `已生成 · 上次提交 ${seg.ratio} · ${seg.dur}s · 参考图 ${seg.refs.length} 张`;
+    } else {
+      text = '尚未生成。发送后按当前提示词与参数提交，进度见上方结果与底部列表。';
+    }
+    if (document.getElementById('submitText')) document.getElementById('submitText').textContent = text;
+    const viewBtn = document.getElementById('viewResultBtn');
+    if (viewBtn) viewBtn.style.display = seg.video ? '' : 'none';
+    document.getElementById('finalTag').textContent = dirty ? '已编辑 · 提交以此为准' : '最终提交内容';
+    const promptState = document.getElementById('promptState');
+    if (promptState) {
+      promptState.classList.toggle('edited', dirty);
+      promptState.innerHTML = `<span class="dot"></span>${dirty ? '提示词已编辑 · 提交以输入框为准' : '提示词与编译原文一致'}`;
+    }
+    document.getElementById('previewCount').textContent = `${segments.filter((s) => s.video).length}/${segments.length}`;
+    if (line.classList.contains('warn')) line.classList.add('warn');
+  }
+
+  /* ---------- segment picker ---------- */
+  function openSegMenu(anchor) {
+    const rows = segments.map((s) => `
+      <button class="pop-item" data-act="pick-seg" data-id="${s.id}">
+        <span class="mini-thumb" style="background:${grad(s.refs[0]?.g ?? 0)}"></span>
+        <span>
+          ${esc(s.scene)} · 第${s.index}段
+          <span class="sub">${esc(s.title)} · ${s.shots} 镜 · ${s.dur}s${s.video ? ' · 已回传' : ''}</span>
+        </span>
+        ${s.id === currentId ? `<svg class="ic sm check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>` : ''}
+      </button>
+    `).join('');
+    showPopover(anchor, `<div class="pop-hd"><b>切换段落</b><span>${segments.length} 段</span></div>${rows}`);
+  }
+
+  /* ---------- menus ---------- */
+  function openRefsMenu(anchor) {
+    const seg = current();
+    const rows = seg.refs.map((r, i) => `
+      <div class="pop-item" style="cursor:default">
+        <span class="mini-thumb" style="background:${grad(r.g)}"></span>
+        <span>图${i + 1} · ${esc(r.label)}</span>
+        <button class="chip-btn" style="margin-left:auto" data-act="remove-ref" data-index="${i}" title="移除">移除</button>
+      </div>
+    `).join('');
+    showPopover(anchor, `
+      <div class="pop-hd"><b>参考图</b><span>${seg.refs.length} / 14</span></div>
+      ${rows || '<div class="pop-note">本段没有参考图。</div>'}
+      <div class="pop-sep"></div>
+      <div class="pop-note">按图号顺序上传。删除后会重新编号。</div>
+      <div class="pop-foot"><button class="pop-item" data-act="add-ref">＋ 添加参考图</button></div>
+    `);
+  }
+
+  function openRatioMenu(anchor) {
+    const seg = current();
+    const opts = [['16:9', '横版 · 推荐'], ['9:16', '竖版 · 短剧'], ['1:1', '方形'], ['4:3', '复古画幅']];
+    showPopover(anchor, `<div class="pop-hd"><b>画面比例</b></div>` + opts.map(([v, sub]) => `
+      <button class="pop-item" data-act="set-ratio" data-value="${v}">
+        <span>${v}<span class="sub">${sub}</span></span>
+        ${seg.ratio === v ? `<svg class="ic sm check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>` : ''}
+      </button>`).join(''));
+  }
+
+  function openDurationMenu(anchor) {
+    const seg = current();
+    const opts = [[5, '适合快切'], [8, '常规短镜'], [10, '本段编译建议'], [15, '长镜头']];
+    showPopover(anchor, `<div class="pop-hd"><b>生成时长</b><span>参考 ${seg.shots} 镜</span></div>` + opts.map(([v, sub]) => `
+      <button class="pop-item" data-act="set-duration" data-value="${v}">
+        <span>${v}s<span class="sub">${sub}</span></span>
+        ${seg.dur === v ? `<svg class="ic sm check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>` : ''}
+      </button>`).join('') + `<div class="pop-note">时长会写入提交参数，不改变分镜本身的镜头时长。</div>`);
+  }
+
+  function openCountMenu(anchor) {
+    const seg = current();
+    popoverCount(seg, anchor);
+  }
+  function popoverCount(seg, anchor) {
+    const opts = [[1, '先出 1 条'], [2, '对比 2 条'], [4, '多抽 4 条']];
+    showPopover(anchor, `<div class="pop-hd"><b>生成条数</b></div>` + opts.map(([v, sub]) => `
+      <button class="pop-item" data-act="set-count" data-value="${v}">
+        <span>${v} 条<span class="sub">${sub}</span></span>
+        ${seg.count === v ? `<svg class="ic sm check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>` : ''}
+      </button>`).join(''));
+  }
+
+  function openMoreMenu(anchor) {
+    showPopover(anchor, `
+      <div class="pop-hd"><b>更多操作</b><span>本段</span></div>
+      <button class="pop-item" data-act="more-cloud-start">
+        <span>云端生成起始画面<span class="sub">用 Toapi 生成并回填图1</span></span>
+      </button>
+      <button class="pop-item" data-act="more-regenerate">
+        <span>重新生成本段分镜<span class="sub">只重写本段，前后段保留</span></span>
+      </button>
+      <button class="pop-item" data-act="more-restore-seg">
+        <span>复原本段分镜<span class="sub">回到生成时的分镜内容</span></span>
+      </button>
+      <div class="pop-sep"></div>
+      <button class="pop-item" data-act="more-blocking">
+        <span>编辑站位（高级）<span class="sub">轴线与人物站位，会进入提示词</span></span>
+      </button>
+      <button class="pop-item" data-act="more-recompile">
+        <span>重新编译提示词<span class="sub">按当前分镜与参考图重新生成</span></span>
+      </button>
+      <button class="pop-item" data-act="more-body">
+        <span>查看分镜编译正文<span class="sub">只读，用于核对提示词来源</span></span>
+      </button>
+      <div class="pop-note">高级操作收在这里，避免占满提交区；重新编译会覆盖输入框为新的编译原文。</div>
+    `, 'right');
+  }
+
+  /* ---------- send / restore ---------- */
+  function send() {
+    const seg = current();
+    if (seg.status === 'running') return;
+    const ta = document.getElementById('promptInput');
+    if (!ta.value.trim()) { toast('提示词为空，无法提交'); return; }
+    seg.prompt = ta.value;
+    seg.status = 'running';
+    renderAll();
+    toast(`已提交：${seg.scene} 第${seg.index}段 · ${seg.dur}s · ${seg.ratio} · 参考图 ${seg.refs.length} 张`);
+    setTimeout(() => {
+      seg.status = 'idle';
+      seg.video = true;
+      seg.stale = false;
+      seg.snapshot = seg.prompt;
+      renderAll();
+      toast(`第${seg.index}段生成完成（原型模拟，已回填生成结果）`);
+    }, 2200);
+  }
+
+  function restore() {
+    const seg = current();
+    const ta = document.getElementById('promptInput');
+    ta.value = seg.originalPrompt ?? seg.compileSource ?? seg.prompt;
+    seg.prompt = ta.value;
+    updateComposerChrome();
+    closePopover();
+    toast('已还原为分镜编译出的原始提示词');
+  }
+
+  /* ---------- generate result ---------- */
+  function renderResult() {
+    const seg = current();
+    const frames = seg.frames ?? [];
+    const running = seg.status === 'running';
+    const frameHtml = frames.map((f) => {
+      const isLast = f.kind === 'last';
+      return `
+        <div class="frame-item">
+          <div class="frame-thumb">
+            <span class="grad" style="background:${grad((seg.refs[0]?.g ?? 0) + (isLast ? 3 : 0))}"></span>
+            <span class="frame-kind">${isLast ? '尾帧' : '首帧'}</span>
+            <span class="frame-time">${isLast ? `${seg.dur}.0s` : '00:00.0'}</span>
+          </div>
+          <div class="frame-meta">
+            <span>${isLast ? '尾帧' : '首帧'}</span>
+            <span>${isLast ? (f.adopted ? '已接下一段' : '候选尾帧') : '本段图1'}</span>
+          </div>
+          <div class="frame-actions">
+            <button class="chip-btn" data-act="frame-download">下载</button>
+            ${isLast ? '<button class="chip-btn" data-act="frame-anchor">用作下一段起始画面</button>' : ''}
+          </div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('resultCard').innerHTML = `
+      <div class="result-head">
+        <div class="pv-title">
+          <span class="name">${esc(seg.scene)} · 第${seg.index}段</span>
+          <span class="sep">|</span>
+          <span class="muted" style="font-size:12px">${esc(seg.title)}</span>
+          <span class="badge outline">${seg.shots} 镜 · ${seg.dur.toFixed(1)}s</span>
+          ${running
+            ? `<span class="badge live"><span class="dot"></span>生成中</span>`
+            : seg.video
+              ? `<span class="badge ok"><span class="dot"></span>已回传</span>`
+              : `<span class="badge outline">未回传</span>`}
+          ${seg.stale ? `<span class="badge warn">视频已过期</span>` : ''}
+        </div>
+        <span class="hint-text">生成结果与截帧 · 提交后自动回填</span>
+      </div>
+      <div class="result-body">
+        <div class="result-video ${seg.video ? '' : 'is-empty'}">
+          <span class="grad" style="background:${grad(seg.refs[0]?.g ?? 0)}"></span>
+          <span class="veil"></span>
+          ${seg.video
+            ? `<span class="play" data-act="mock" data-msg="播放第${seg.index}段视频（原型占位）">▶</span>
+               <span class="tl">${esc(seg.title)}</span>
+               <span class="dur">${seg.dur}.0s</span>
+               ${seg.stale ? '<span class="stale">分镜已改，视频过期</span>' : ''}`
+            : `<span class="empty">
+                 <svg class="ic" style="width:22px;height:22px" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3Z"/></svg>
+                 ${running
+                   ? `正在生成第${seg.index}段…<br/>完成后自动回填到这里`
+                   : `该段尚未生成视频<br/>发送下方提示词，或回传已有视频`}
+               </span>`}
+        </div>
+        <div class="result-side">
+          <div class="side-block">
+            <div class="side-label">
+              视频与截帧
+              <span class="muted mono" style="font-size:10.5px">v3 · ${seg.ratio}</span>
+            </div>
+            <div class="video-tools">
+              <button class="btn outline sm" data-act="upload-video" ${running ? 'disabled' : ''}>
+                <svg class="ic sm" viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 20h16"/></svg>
+                回传视频
+              </button>
+              <button class="btn outline sm" data-act="extract-first" ${seg.video && !running ? '' : 'disabled'}>
+                <svg class="ic sm" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16"/></svg>
+                截首帧
+              </button>
+              <button class="btn outline sm" data-act="extract-last" ${seg.video && !running ? '' : 'disabled'}>
+                <svg class="ic sm" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 15h16"/></svg>
+                截尾帧
+              </button>
+              ${seg.video ? `<button class="btn ghost sm" data-act="remove-video" ${running ? 'disabled' : ''}>移除</button>` : ''}
+            </div>
+            ${frames.length ? `<div class="frame-grid">${frameHtml}</div>` : ''}
+            <p class="hint-text" style="margin:8px 0 0">尾帧可直接设为下一段起始画面；已有视频时先截帧再下载。</p>
+          </div>
+          <div class="side-block">
+            <div class="side-label">本次提交参数</div>
+            <div class="param-summary">
+              <div><span>参考图</span><b>${seg.refs.length} 张</b></div>
+              <div><span>比例</span><b>${seg.ratio}</b></div>
+              <div><span>时长</span><b>${seg.dur}s</b></div>
+              <div><span>条数</span><b>${seg.count} 条</b></div>
+            </div>
+            <div class="prompt-state ${seg.prompt !== seg.originalPrompt ? 'edited' : ''}" id="promptState">
+              <span class="dot"></span>
+              ${seg.prompt !== seg.originalPrompt ? '提示词已编辑 · 提交以输入框为准' : '提示词与编译原文一致'}
+            </div>
+          </div>
+          <div class="side-block">
+            <div class="side-label">质检</div>
+            <div class="qc-line">
+              ${seg.video
+                ? '<span>QC：<b>通过（92 分 · 第 1 次）</b></span>'
+                : '<span class="muted">尚未质检</span>'}
+              <span class="row" style="gap:5px">
+                <button class="chip-btn" data-act="recheck" ${seg.video && !running ? '' : 'disabled style="opacity:.45;cursor:not-allowed"'}>重新质检</button>
+                <button class="chip-btn" data-act="go-preview">查看分镜</button>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /* ---------- read-only shots ---------- */
+  function renderShots() {
+    const seg = current();
+    const blocking = seg.scene.includes('第1场')
+      ? '轴线 门 ↔ 窗 ｜ 镜头侧左；沈知夏(0.42,0.51) 朝 18°；顾言(0.68,0.47) 朝 196°。'
+      : seg.scene.includes('第2场')
+        ? '轴线 铁轨 ↔ 土路 ｜ 镜头侧右；男孩(0.50,0.58) 朝 342°。'
+        : '轴线 田埂 ↔ 村口 ｜ 镜头侧左；母亲(0.38,0.55) 朝 24°；男孩(0.47,0.60) 朝 24°。';
+    const shotsHtml = seg.shotsData.map((shot, i) => `
+      <div class="shot shot-big">
+        <div class="hd">
+          <b>镜${i + 1}</b>
+          <span class="cam">${esc(shot.cam)} · ${(seg.dur / seg.shots).toFixed(1)}s</span>
+        </div>
+        <p>${esc(shot.text)}</p>
+        ${i === 0 && seg.refs.length ? `<div class="refs-line">
+          ${seg.refs.map((r) => `<span class="refchip"><span class="sw" style="background:${grad(r.g)}"></span>${esc(r.label)}</span>`).join('')}
+        </div>` : ''}
+      </div>`).join('');
+
+    document.getElementById('shotsCard').innerHTML = `
+      <div class="shots-head">
+        <div class="pv-title">
+          <span class="name">${esc(seg.scene)} · 第${seg.index}段</span>
+          <span class="sep">|</span>
+          <span class="muted" style="font-size:12px">${esc(seg.title)}</span>
+          <span class="badge outline">${seg.shots} 镜 · ${seg.dur.toFixed(1)}s</span>
+          <span class="badge outline">${seg.hard ? '与上一段：硬切' : '与上一段：连续'}</span>
+        </div>
+        <span class="hint-text">只读预览 · 编辑请到「生成」</span>
+      </div>
+      <div class="shots-body">
+        <details class="blocking-fold">
+          <summary>本场站位与轴线</summary>
+          <p>${esc(blocking)}</p>
+        </details>
+        <div class="shots-grid">${shotsHtml}</div>
+      </div>
+    `;
+  }
+
+  /* ---------- persistent segment strip ---------- */
+  function renderStrip() {
+    document.getElementById('returnedBadge').textContent =
+      `已回传 ${segments.filter((s) => s.video).length} / ${segments.length}`;
+
+    document.getElementById('segStrip').innerHTML = segments.map((s) => {
+      const active = s.id === currentId;
+      const running = s.status === 'running';
+      const state = running
+        ? `<span class="state run"><span class="mini-spin"></span>生成中</span>`
+        : s.video
+          ? `<span class="state ok">已回传</span>`
+          : `<span class="state">未回传</span>`;
+      return `
+        <div class="seg-card ${active ? 'active' : ''}" data-act="pick-seg" data-id="${s.id}">
+          <div class="seg-thumb">
+            <span class="grad" style="background:${grad(s.refs[0]?.g ?? 0)}"></span>
+            <span class="veil"></span>
+            ${s.video && !running ? '<span class="playico">▶</span>' : ''}
+            ${state}
+            ${s.hard && s.index > 1 ? '<span class="cut">硬切</span>' : ''}
+          </div>
+          <div class="seg-name">${esc(s.scene)} · 第${s.index}段</div>
+          <div class="seg-sub">
+            <span><span class="st-dot ${s.video ? 'ok' : running ? 'run' : ''}"></span>${s.shots} 镜 · ${s.dur}s</span>
+            <span>${s.stale ? '<span style="color:var(--amber)">已过期</span>' : s.video ? 'QC 通过' : '待生成'}</span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderTabs() {
+    document.querySelectorAll('[data-tab]').forEach((b) => {
+      b.classList.toggle('active', b.dataset.tab === activeTab);
+    });
+    document.getElementById('generatePanel').hidden = activeTab !== 'generate';
+    document.getElementById('previewPanel').hidden = activeTab !== 'preview';
+    document.getElementById('tabHelp').textContent = activeTab === 'generate'
+      ? '提交内容以输入框内的提示词为准 · 高级操作收在「更多」里'
+      : '只读查看本段分镜 · 底部段落列表始终保留';
+    document.getElementById('previewCount').textContent =
+      `${segments.filter((s) => s.video).length}/${segments.length}`;
+  }
+
+  function renderAll() {
+    renderTabs();
+    renderComposer();
+    renderResult();
+    renderShots();
+    renderStrip();
+  }
+
+  function selectSegment(id) {
+    currentId = id;
+    closePopover();
+    renderAll();
+  }
+
+  /* ---------- events ---------- */
+  document.addEventListener('click', (e) => {
+    const tabBtn = e.target.closest('[data-tab]');
+    if (tabBtn) {
+      activeTab = tabBtn.dataset.tab;
+      closePopover();
+      renderAll();
+      return;
+    }
+    const el = e.target.closest('[data-act]');
+    if (!el) return;
+    const act = el.dataset.act;
+
+    switch (act) {
+      case 'seg-menu':
+        openSegMenu(el); break;
+      case 'pick-seg':
+        selectSegment(el.dataset.id); break;
+      case 'menu-refs':
+        openRefsMenu(el); break;
+      case 'menu-ratio':
+        openRatioMenu(el); break;
+      case 'menu-duration':
+        openDurationMenu(el); break;
+      case 'menu-count':
+        openCountMenu(el); break;
+      case 'menu-more':
+        openMoreMenu(el); break;
+      case 'remove-ref': {
+        e.stopPropagation();
+        const seg = current();
+        const idx = Number(el.dataset.index);
+        seg.refs.splice(idx, 1);
+        closePopover();
+        renderAll();
+        toast(`已移除参考图，剩余 ${seg.refs.length} 张`);
+        break;
+      }
+      case 'add-ref': {
+        e.stopPropagation();
+        const seg = current();
+        if (seg.refs.length >= 14) { toast('参考图最多 14 张'); break; }
+        seg.refs.push({ label: `新参考图 ${seg.refs.length + 1}`, g: seg.refs.length + 1 });
+        closePopover();
+        renderAll();
+        toast('已添加参考图，请按图号顺序上传');
+        break;
+      }
+      case 'set-ratio': {
+        current().ratio = el.dataset.value;
+        closePopover();
+        renderAll();
+        toast(`画面比例已设为 ${el.dataset.value}`);
+        break;
+      }
+      case 'set-duration': {
+        current().dur = Number(el.dataset.value);
+        closePopover();
+        renderAll();
+        break;
+      }
+      case 'set-count': {
+        current().count = Number(el.dataset.value);
+        closePopover();
+        renderComposer();
+        break;
+      }
+      case 'more-cloud-start':
+        closePopover();
+        toast('云端生成起始画面（高级操作，原型占位）');
+        break;
+      case 'more-regenerate':
+        closePopover();
+        toast('重新生成本段分镜：只重写本段，前后段保留');
+        break;
+      case 'more-restore-seg':
+        closePopover();
+        toast('已复原本段分镜（原型模拟）');
+        break;
+      case 'more-blocking':
+        closePopover();
+        toast('打开站位编辑弹窗（原型占位）');
+        break;
+      case 'more-recompile': {
+        closePopover();
+        const seg = current();
+        seg.prompt = seg.originalPrompt;
+        const ta = document.getElementById('promptInput');
+        ta.value = seg.prompt;
+        ta.dataset.seg = seg.id;
+        updateComposerChrome();
+        toast('已按当前分镜与参考图重新编译提示词');
+        break;
+      }
+      case 'more-body':
+        closePopover();
+        toast('查看分镜编译正文（原型未接入弹层）');
+        break;
+      case 'restore':
+        restore(); break;
+      case 'send':
+        send(); break;
+      case 'go-preview':
+        activeTab = 'preview';
+        renderAll();
+        break;
+      case 'go-generate':
+        activeTab = 'generate';
+        renderAll();
+        break;
+      case 'upload-video': {
+        const seg = current();
+        seg.video = true;
+        seg.stale = false;
+        seg.snapshot = seg.prompt;
+        seg.frames = [{ kind: 'first', adopted: false }, { kind: 'last', adopted: false }];
+        renderAll();
+        toast('视频已回传（原型模拟）');
+        break;
+      }
+      case 'remove-video': {
+        const seg = current();
+        seg.video = false;
+        seg.stale = false;
+        seg.frames = [];
+        renderAll();
+        toast('已移除本段视频');
+        break;
+      }
+      case 'extract-first':
+      case 'extract-last': {
+        const seg = current();
+        if (!seg.video) { toast('请先回传视频再截帧'); break; }
+        const kind = act === 'extract-first' ? 'first' : 'last';
+        const rest = (seg.frames ?? []).filter((f) => f.kind !== kind);
+        seg.frames = kind === 'first'
+          ? [{ kind: 'first', adopted: false }, ...rest]
+          : [...rest.filter((f) => f.kind === 'first'), { kind: 'last', adopted: false }];
+        renderAll();
+        toast(kind === 'first' ? '首帧已提取' : '尾帧已提取');
+        break;
+      }
+      case 'frame-anchor': {
+        const seg = current();
+        const last = (seg.frames ?? []).find((f) => f.kind === 'last');
+        if (last) last.adopted = true;
+        renderResult();
+        toast('已设为下一段起始画面（原型模拟）');
+        break;
+      }
+      case 'frame-download':
+        toast('下载截帧（原型占位）');
+        break;
+      case 'recheck':
+        toast('正在重新质检本段（原型占位）');
+        break;
+      case 'preview-ref':
+        toast(`打开参考图预览：图${Number(el.dataset.index) + 1}`);
+        break;
+      case 'mock':
+        toast(el.dataset.msg || '原型占位');
+        break;
+    }
+  });
+
+  const ta = document.getElementById('promptInput');
+  ta.addEventListener('input', () => {
+    const seg = current();
+    seg.prompt = ta.value;
+    updateComposerChrome();
+  });
+  ta.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      send();
+    }
+  });
+
+  renderAll();
+</script>
+</body>
+</html>

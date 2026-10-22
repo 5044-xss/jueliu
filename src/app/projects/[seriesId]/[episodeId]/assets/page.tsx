@@ -25,12 +25,7 @@ import {
 } from "@/components/asset-library";
 import { PreviewImage } from "@/components/preview-image";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -57,7 +52,6 @@ import { useProjectJobs, isJobRunning } from "@core/client/use-jobs";
 import { Elapsed } from "@/components/elapsed";
 import { LoadErrorState, LoadingState } from "@/components/load-state";
 import { LlmKeyNotice, useLlmConfigured } from "@/components/llm-notice";
-import { NextStepLink } from "@/components/next-step";
 import { useConfirm } from "@/components/confirm-dialog";
 import { describeCascade, fetchCascadeImpact } from "@/lib/impact";
 import { readError } from "@/lib/http";
@@ -1389,13 +1383,6 @@ export default function AssetsPage() {
 
       {llmMissing && <LlmKeyNotice />}
 
-      {assets.length > 0 && (
-        <NextStepLink
-          href={`/projects/${seriesId}/${id}/storyboard`}
-          label="下一步：生成分镜"
-        />
-      )}
-
       {!hasScript && (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
@@ -1405,19 +1392,27 @@ export default function AssetsPage() {
       )}
 
       {hasScript && !busy && (
-        <Card>
-          <CardHeader>
-            <CardTitle>额外要求（可选，下次生成时生效）</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
+        <details className="group rounded-lg border border-border bg-muted/20 px-3 py-2">
+          <summary className="flex cursor-pointer list-none select-none items-center justify-between text-sm font-medium [&::-webkit-details-marker]:hidden">
+            额外要求（可选，下次生成时生效）
+            <span className="flex items-center gap-2">
+              {extra.trim() && (
+                <span className="text-xs font-normal text-muted-foreground">
+                  已填写
+                </span>
+              )}
+              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            </span>
+          </summary>
+          <div className="mt-3">
             <Textarea
               value={extra}
               onChange={(e) => setExtra(e.target.value)}
               placeholder="例如：主角固定穿深蓝连帽卫衣；场景统一写实电影质感。"
               className="min-h-[80px]"
             />
-          </CardContent>
-        </Card>
+          </div>
+        </details>
       )}
 
       {busy && (
