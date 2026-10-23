@@ -11,10 +11,12 @@ import {
   ImagePlus,
   Loader2,
   Pencil,
+  RefreshCw,
   Sparkles,
   Stethoscope,
   Trash2,
   Wand2,
+  X,
 } from "lucide-react";
 import { SegmentVideo } from "@/components/segment-video";
 import { SegmentComposer } from "@/components/segment-composer";
@@ -48,7 +50,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@core/client/utils";
 import type {
   StoredSceneStoryboard,
@@ -285,6 +287,7 @@ export default function StoryboardPage() {
   const [repairBusy, setRepairBusy] = useState(false);
   const [preflightOpen, setPreflightOpen] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
+  const [extraOpen, setExtraOpen] = useState(false);
   const [hardCutBusy, setHardCutBusy] = useState(false);
   const [hasScript, setHasScript] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -315,6 +318,7 @@ export default function StoryboardPage() {
   const [autoStartFrames, setAutoStartFrames] = useState(false);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState(id);
+  const filmstripRef = useRef<HTMLDivElement>(null);
 
   if (sessionId !== id) {
     setSessionId(id);
@@ -751,6 +755,17 @@ export default function StoryboardPage() {
     }, 4000);
     return () => clearInterval(timer);
   }, [cloudRunning, refreshStoryboard]);
+
+  // 底部胶片条：切换段落时把当前段自动滚进可视区。
+  const activeSegmentId = previewId ?? allSegments[0]?.segment.id ?? null;
+  useEffect(() => {
+    if (!activeSegmentId) return;
+    filmstripRef.current
+      ?.querySelector<HTMLElement>(
+        `[data-segment-id="${CSS.escape(activeSegmentId)}"]`,
+      )
+      ?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  }, [activeSegmentId]);
   const previewEntry =
     allSegments.find((e) => e.segment.id === previewId) ??
     allSegments[0] ??
@@ -968,6 +983,20 @@ export default function StoryboardPage() {
     }
   }
 
+  async function reorchestrate() {
+    if (
+      !(await confirm({
+        title: "重新编排分镜",
+        description:
+          "将按当前厂商重新切分段落；已回传的视频会按段缓存，切回原厂商后可恢复。",
+        confirmText: "重新编排",
+      }))
+    ) {
+      return;
+    }
+    await runOrchestrate(vendor);
+  }
+
   async function changeVendor(next: string) {
     if (next === vendor) return;
     if (hasStoryboard) {
@@ -1079,28 +1108,17 @@ export default function StoryboardPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 rounded-2xl bg-block-mint p-5">
-        <div>
-          <h2 className="text-base font-medium">分镜</h2>
-          <p className="text-sm text-muted-foreground">
-            场次拆分为段落与分镜；选择厂商后按该厂商的镜数/时长/参考图规则重新编排。
-          </p>
-          {!isH3 && (
-            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-              云端生成仅适配 MiniMax H3；当前厂商「
-              {currentVendor?.name ?? vendor}
-              」请用「第三方生成」手动回传。
-            </p>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="flex h-full min-h-0 flex-col gap-4 pb-4">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border bg-background px-3 py-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h2 className="text-sm font-medium">分镜</h2>
+          <span className="hidden h-4 w-px bg-border sm:block" />
           <button
             type="button"
             onClick={() => setVendorDialogOpen(true)}
             disabled={busyGenerate || orchestrating}
             title="查看各厂商能力并切换（会按新厂商重新编排分镜）"
-            className="flex items-center gap-2 rounded-full border border-border bg-background py-0.5 pl-2.5 pr-0.5 text-sm transition-colors hover:border-foreground/25 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-full border border-border bg-background py-0.5 pl-2 pr-0.5 text-xs transition-colors hover:border-foreground/25 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span
               className={cn(
@@ -1112,15 +1130,22 @@ export default function StoryboardPage() {
               厂商：{currentVendor?.name ?? vendor}
             </span>
             <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
-              {isH3 ? "支持云端" : "仅第三方"}
+              {isH3 ? "云端" : "第三方"}
             </span>
-            <span className="rounded-full bg-muted px-2.5 py-1 text-xs">
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px]">
               切换
             </span>
           </button>
-
+          {!isH3 && (
+            <span className="text-[11px] text-amber-700 dark:text-amber-400">
+              云端生成仅适配 MiniMax H3
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
           {hasStoryboard && (
             <Button
+              size="sm"
               variant="outline"
               onClick={() => setVideoBatchOpen(true)}
               disabled={busyGenerate || orchestrating || cloudRunning || !isH3}
@@ -1135,84 +1160,85 @@ export default function StoryboardPage() {
               ) : (
                 <CloudUpload className="size-4" />
               )}
-              顺序生成视频
+              顺序生成
             </Button>
           )}
 
-          {hasStoryboard && (
-            <Button
-              variant="outline"
-              onClick={genAllStartFrames}
-              disabled={
-                busyGenerate ||
-                orchestrating ||
-                cloudRunning ||
-                !isH3
-              }
-              title={
-                isH3
-                  ? "为硬切/场首段落批量生成 AI 起始画面；连续段仍接上一段尾帧"
-                  : "云端出图仅适配 H3 项目"
-              }
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button variant="outline" size="sm" />}
+              disabled={busyGenerate || orchestrating}
             >
-              {batchBusy === "start-frames" ||
-              isJobRunning(jobs, "gen-start-frames") ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <ImagePlus className="size-4" />
-              )}
-              批量补首帧
-            </Button>
-          )}
-
-          {hasStoryboard && (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={<Button variant="outline" />}
-                disabled={busyGenerate || orchestrating}
+              更多
+              <ChevronDown className="size-3.5" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="max-h-80 overflow-y-auto">
+              <DropdownMenuItem onClick={() => setExtraOpen(true)}>
+                <FileText className="size-4" />
+                额外要求{extra.trim() ? "（已填写）" : ""}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={genAllStartFrames}
+                disabled={
+                  !hasStoryboard ||
+                  busyGenerate ||
+                  orchestrating ||
+                  cloudRunning ||
+                  !isH3
+                }
+                title="为硬切/场首段落批量生成 AI 起始画面；连续段仍接上一段尾帧"
               >
-                更多
-                <ChevronDown className="size-3.5" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="max-h-72 overflow-y-auto">
-                <DropdownMenuItem
-                  onClick={() => runOrchestrate(vendor)}
-                  title="按当前厂商重新打包分镜为段落"
-                >
-                  {orchestrating ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Wand2 className="size-4" />
-                  )}
-                  重新编排（按当前厂商）
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setPreflightOpen(true)}
-                  title="查看本段的体检问题并手动修复"
-                >
-                  <Stethoscope className="size-4" />
-                  本段体检与修复
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setSourceOpen(true)}
-                  title="只读查看当前分镜内容的原文"
-                >
-                  <FileText className="size-4" />
-                  查看分镜原文
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={clear}
-                  className="text-destructive data-highlighted:bg-destructive/10"
-                >
-                  <Trash2 className="size-4" />
-                  清空分镜
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+                {batchBusy === "start-frames" ||
+                isJobRunning(jobs, "gen-start-frames") ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <ImagePlus className="size-4" />
+                )}
+                批量补首帧
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={reorchestrate}
+                disabled={!hasStoryboard || busyGenerate || orchestrating}
+                title="按当前厂商重新打包分镜为段落"
+              >
+                {orchestrating ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Wand2 className="size-4" />
+                )}
+                重新编排（按当前厂商）
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setPreflightOpen(true)}
+                disabled={!preview}
+                title="查看本段的体检问题并手动修复"
+              >
+                <Stethoscope className="size-4" />
+                本段体检与修复
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setSourceOpen(true)}
+                disabled={!hasStoryboard}
+                title="只读查看当前分镜内容的原文"
+              >
+                <FileText className="size-4" />
+                查看分镜原文
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={clear}
+                disabled={!hasStoryboard}
+                className="text-destructive data-highlighted:bg-destructive/10"
+              >
+                <Trash2 className="size-4" />
+                清空分镜
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <Button
+            size="sm"
             onClick={generate}
             disabled={busyGenerate || orchestrating || !hasScript || llmMissing}
           >
@@ -1236,30 +1262,6 @@ export default function StoryboardPage() {
         </Card>
       )}
 
-      {hasScript && !busyGenerate && (
-        <details className="group rounded-lg border border-border bg-muted/20 px-3 py-2">
-          <summary className="flex cursor-pointer list-none select-none items-center justify-between text-sm font-medium [&::-webkit-details-marker]:hidden">
-            额外要求（可选，下次生成时生效）
-            <span className="flex items-center gap-2">
-              {extra.trim() && (
-                <span className="text-xs font-normal text-muted-foreground">
-                  已填写
-                </span>
-              )}
-              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
-            </span>
-          </summary>
-          <div className="mt-3">
-            <textarea
-              value={extra}
-              onChange={(e) => setExtra(e.target.value)}
-              placeholder="例如：多用户外自然光；避免快速推拉运镜。"
-              className="min-h-[80px] w-full rounded-lg border border-input bg-transparent p-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-            />
-          </div>
-        </details>
-      )}
-
       {busyGenerate && (
         <Card>
           <CardContent className="flex flex-wrap items-center gap-2 py-8 text-muted-foreground">
@@ -1270,255 +1272,106 @@ export default function StoryboardPage() {
         </Card>
       )}
 
+      {!busyGenerate && hasScript && !hasStoryboard && (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-1.5 py-16 text-center">
+            <p className="font-medium">还没有分镜</p>
+            <p className="text-sm text-muted-foreground">
+              点击右上角「生成分镜」开始；也可以先在「更多 → 额外要求」里补充要求。
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {!busyGenerate && hasStoryboard && preview && previewScene && (
         <>
-          <div className="flex min-h-0 flex-1 flex-col gap-4 pb-4">
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background">
-            <div className="flex flex-wrap items-start justify-between gap-2 border-b bg-muted/20 px-3 py-2">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="text-sm font-medium">
-                  {previewScene.sceneSlug || `第${previewScene.sceneIndex}场`} ·
-                  第{preview.index}段
-                </span>
-                <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
-                  {preview.shots.length} 镜 · {(previewTotal / 1000).toFixed(1)}s
-                </span>
-                {!previewEntry?.isFirstOfScene && (
-                  <span
-                    className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
-                    title="由本段首镜的「延续上一镜」自动决定；如需修改请编辑该镜。"
-                  >
-                    {preview.hardCut ? "与上一段：硬切" : "与上一段：连续"}
-                  </span>
-                )}
-                {preview.stale && (
-                  <span
-                    className="rounded-full border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-300"
-                    title="本段视频生成后分镜、参考图或参数又改过，视频与当前内容不再对应。"
-                  >
-                    视频已过期
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {cloudRunning && (
-                  <span className="flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
-                    <Loader2 className="size-3 animate-spin" />
-                    云端生成中…
-                  </span>
-                )}
-                {imageRunning && (
-                  <button
-                    type="button"
-                    onClick={cancelImages}
-                    className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive"
-                  >
-                    取消起始画面出图
-                  </button>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setPreflightOpen(true)}
-                >
-                  <Stethoscope className="size-3.5" />
-                  本段体检
-                </Button>
-              </div>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-[248px_minmax(0,1.15fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
-            <aside className="flex h-[420px] min-h-0 flex-col overflow-hidden border-b lg:h-full lg:border-b-0 lg:border-r">
-              <div className="flex items-center justify-between gap-2 border-b px-3 py-2.5">
-                <span className="text-sm font-medium">段落列表</span>
-                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span
-                    className={cn(
-                      "size-1.5 rounded-full",
-                      returnedCount === allSegments.length && allSegments.length > 0
-                        ? "bg-emerald-500"
-                        : "bg-muted-foreground/40",
+          <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-0.5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
+            <Card size="sm" className="flex h-[360px] min-h-0 flex-col border border-border lg:h-full">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium">生成结果</span>
+                  <span className="flex items-center gap-1">
+                    {cloudRunning && (
+                      <span
+                        className="flex items-center text-muted-foreground"
+                        title="云端生成中"
+                      >
+                        <Loader2 className="size-3 animate-spin" />
+                      </span>
                     )}
-                  />
-                  已回传 {returnedCount}/{allSegments.length}
-                </span>
-              </div>
-              <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-1.5">
-                {scenes.map((scene) => (
-                  <div
-                    key={`${scene.sceneIndex}:${scene.sceneSlug}`}
-                    className="flex flex-col gap-0.5"
-                  >
-                    <div className="flex items-center justify-between px-2 pb-1 pt-2 text-[11px] text-muted-foreground">
-                      <span className="truncate">
-                        {scene.sceneSlug || `第${scene.sceneIndex}场`}
-                      </span>
-                      <span className="shrink-0">{scene.segments.length} 段</span>
-                    </div>
-                    {scene.segments.map((segment) => {
-                      const active = segment.id === preview.id;
-                      const generating =
-                        cloudRunning && isSegmentGenerating(segment.genStatus);
-                      const qc = qcBySegment.get(segment.id);
-                      const total = segment.shots.reduce(
-                        (sum, shot) => sum + shot.durationMs,
-                        0,
-                      );
-                      return (
-                        <div
-                          key={segment.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => setPreviewId(segment.id)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              setPreviewId(segment.id);
-                            }
-                          }}
+                    {preview.videoPath &&
+                      (previewQc ? (
+                        <span
                           className={cn(
-                            "flex cursor-pointer items-start gap-2 rounded-lg border border-transparent p-1.5 transition-colors",
-                            active
-                              ? "border-border bg-muted/60"
-                              : "hover:bg-muted/40",
+                            "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                            previewQc.status === "failed"
+                              ? "bg-destructive/10 text-destructive"
+                              : previewQc.status === "passed"
+                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                                : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
                           )}
+                          title={`QC ${
+                            previewQc.status === "failed"
+                              ? "未通过"
+                              : previewQc.status === "passed"
+                                ? "通过"
+                                : "待复核"
+                          } · ${previewQc.score ?? 0} 分`}
                         >
-                          <div className="relative mt-0.5 w-[68px] shrink-0 overflow-hidden rounded-md bg-black">
-                            <SegmentThumb
-                              projectId={id}
-                              segment={segment}
-                            />
-                            {segment.hardCut && segment.index > 1 && (
-                              <span className="absolute left-1 top-1 rounded bg-amber-500/90 px-1 py-0.5 text-[9px] font-medium leading-none text-black">
-                                硬切
-                              </span>
-                            )}
-                            {generating && (
-                              <span className="absolute left-1 top-1 flex items-center gap-1 rounded bg-blue-600/90 px-1 py-0.5 text-[9px] leading-none text-white">
-                                <Loader2 className="size-2 animate-spin" />
-                                生成中
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <span className="truncate text-xs font-medium">
-                              第{segment.index}段
-                            </span>
-                            <span className="truncate text-[11px] text-muted-foreground">
-                              {segment.shots.length} 镜 ·{" "}
-                              {(total / 1000).toFixed(1)}s
-                            </span>
-                            <span
-                              className={cn(
-                                "flex flex-wrap items-center gap-1 text-[11px]",
-                                generating
-                                  ? "text-blue-600 dark:text-blue-400"
-                                  : segment.stale
-                                    ? "text-amber-700 dark:text-amber-400"
-                                    : segment.videoPath
-                                      ? "text-emerald-600 dark:text-emerald-400"
-                                      : "text-muted-foreground",
-                              )}
-                            >
-                              <span
-                                className={cn(
-                                  "size-1.5 rounded-full",
-                                  generating
-                                    ? "bg-blue-500"
-                                    : segment.stale
-                                      ? "bg-amber-500"
-                                      : segment.videoPath
-                                        ? "bg-emerald-500"
-                                        : "bg-muted-foreground/40",
-                                )}
-                              />
-                              {generating
-                                ? "生成中"
-                                : segment.stale
-                                  ? "视频已过期"
-                                  : segment.videoPath
-                                    ? "已回传"
-                                    : "未回传"}
-                              {qc && (
-                                <span className="ml-1 rounded bg-background px-1 text-[10px]">
-                                  {qc.status === "passed"
-                                    ? "QC 过"
-                                    : qc.status === "failed"
-                                      ? "QC 未过"
-                                      : "QC 复核"}
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-              <div className="border-t px-3 py-2 text-[10.5px] text-muted-foreground">
-                悬停缩略图可预览 · 点击切换段落
-              </div>
-            </aside>
-
-                <section className="flex h-[420px] min-h-0 min-w-0 flex-col overflow-hidden border-b lg:h-full lg:border-b-0 lg:border-r">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-3 py-2">
-                    <span className="flex items-center gap-2 text-sm font-medium">
-                      生成结果
-                      <span className="text-xs font-normal text-muted-foreground">
-                        {preview.shots.length} 镜 ·{" "}
-                        {(previewTotal / 1000).toFixed(1)}s
-                      </span>
+                          QC {previewQc.score ?? 0}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">
+                          待质检
+                        </span>
+                      ))}
+                    {imageRunning && (
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        onClick={cancelImages}
+                        title="取消起始画面出图"
+                      >
+                        <X className="size-3" />
+                      </Button>
+                    )}
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      onClick={runQc}
+                      disabled={!preview.videoPath || qcBusy}
+                      title="重新质检本段视频"
+                    >
+                      <RefreshCw
+                        className={cn("size-3", qcBusy && "animate-spin")}
+                      />
+                    </Button>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      onClick={() => setPreflightOpen(true)}
+                      title="本段体检与修复"
+                    >
+                      <Stethoscope className="size-3.5" />
+                    </Button>
+                  </span>
+                </CardTitle>
+                <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+                  <span className="truncate">
+                    {previewScene.sceneSlug || `第${previewScene.sceneIndex}场`} ·
+                    第{preview.index}段
+                  </span>
+                  {preview.stale && (
+                    <span
+                      className="text-amber-700 dark:text-amber-400"
+                      title="本段视频生成后分镜、参考图或参数又改过，视频与当前内容不再对应。"
+                    >
+                      · 视频已过期
                     </span>
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      {preview.videoPath ? (
-                        <>
-                          {previewQc ? (
-                            <span
-                              className={cn(
-                                "rounded-full px-2 py-0.5 text-xs font-normal",
-                                previewQc.status === "failed"
-                                  ? "bg-destructive/10 text-destructive"
-                                  : previewQc.status === "passed"
-                                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                                    : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-                              )}
-                            >
-                              QC{" "}
-                              {previewQc.status === "failed"
-                                ? "未通过"
-                                : previewQc.status === "passed"
-                                  ? "通过"
-                                  : "待复核"}{" "}
-                              · {previewQc.score ?? 0} 分
-                            </span>
-                          ) : (
-                            <span className="text-xs font-normal text-muted-foreground">
-                              待质检
-                            </span>
-                          )}
-                          <span
-                            className="flex size-3.5 cursor-help items-center justify-center rounded-full border border-border text-[9px] leading-none text-muted-foreground"
-                            title="质检（QC）：对已生成视频做技术自检——能否解码、时长是否达标、画幅比例、黑帧、冻结帧、切镜数是否与分镜一致。不检查人物身份与场景是否画对。"
-                          >
-                            ?
-                          </span>
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            onClick={runQc}
-                            disabled={qcBusy}
-                            title="重新质检本段视频"
-                          >
-                            {qcBusy ? (
-                              <Loader2 className="size-3 animate-spin" />
-                            ) : null}
-                            重新质检
-                          </Button>
-                        </>
-                      ) : null}
-                    </span>
-                  </div>
-                  <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="min-h-0 flex-1 overflow-y-auto pb-2">
                   <SegmentVideo
                     projectId={id}
                     segmentId={preview.id}
@@ -1557,18 +1410,20 @@ export default function StoryboardPage() {
                     </div>
                   )}
 
-                  </div>
-                </section>
+              </CardContent>
+            </Card>
 
-                <section className="flex h-[420px] min-h-0 min-w-0 flex-col overflow-hidden lg:h-full">
-                  <div className="flex items-center justify-between gap-2 border-b bg-muted/20 px-3 py-2">
-                    <span className="text-sm font-medium">分镜</span>
-                    <span className="text-xs text-muted-foreground">
-                      {preview.shots.length} 镜 ·{" "}
-                      {(previewTotal / 1000).toFixed(1)}s
-                    </span>
-                  </div>
-                  <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
+            <Card size="sm" className="flex h-[360px] min-h-0 flex-col border border-border lg:h-full">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium">分镜</span>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {preview.shots.length} 镜 ·{" "}
+                    {(previewTotal / 1000).toFixed(1)}s
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="min-h-0 flex-1 overflow-y-auto pb-2">
                 {previewScene.blocking && (
                   <div className="rounded-lg border bg-muted/30 p-2.5 text-xs leading-5 text-muted-foreground">
                     <span className="font-medium text-foreground">本场站位：</span>
@@ -1598,51 +1453,204 @@ export default function StoryboardPage() {
                     onEdit={() => setEditShot({ shot, nodes: previewNodes })}
                   />
                 ))}
-                  </div>
-                </section>
+              </CardContent>
+            </Card>
+
+            <Card size="sm" className="flex h-[420px] min-h-0 flex-col border border-border lg:h-full">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium">提示词</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="min-h-0 flex-1 overflow-hidden p-0">
+                    <SegmentComposer
+                      key={`${preview.id}:${currentVendor?.platform ?? "h3"}:${composerReloadKey}`}
+                      projectId={id}
+                      segment={preview}
+                      scene={previewScene}
+                      assets={assets}
+                      platform={currentVendor?.platform ?? "h3"}
+                      aspectRatio={projectAspectRatio}
+                      vendorName={currentVendor?.name ?? vendor}
+                      isH3={isH3}
+                      maxRefs={currentVendor?.maxRefImages ?? 14}
+                      minDurationSec={Math.max(
+                        1,
+                        Math.round(
+                          (currentVendor?.minSegmentMs ?? 4000) / 1000,
+                        ),
+                      )}
+                      maxDurationSec={Math.max(
+                        1,
+                        Math.round(
+                          (currentVendor?.maxSegmentMs ?? 15000) / 1000,
+                        ),
+                      )}
+                      durationStepSec={Math.max(
+                        1,
+                        Math.round(
+                          (currentVendor?.durationStepMs ?? 1000) / 1000,
+                        ),
+                      )}
+                      timeRange={previewTimeRange}
+                      reloadToken={composerReloadKey}
+                      cloudRunning={cloudRunning}
+                      onRefresh={refresh}
+                      onCloudStart={() => void cloudGenerate()}
+                      onRegenerateSegment={(segmentId) =>
+                        void regenerateSegment(segmentId)
+                      }
+                      onRestoreSegment={(segmentId) =>
+                        void restoreSegment(segmentId)
+                      }
+                      onEditBlocking={(scene) => setEditBlocking(scene)}
+                      onOpenPreflight={() => setPreflightOpen(true)}
+                    />
+              </CardContent>
+            </Card>
+          </div>
+
+            <div className="shrink-0 border-t bg-background pt-3">
+              <div className="flex flex-wrap items-center gap-2 pb-2">
+                <span className="text-sm font-medium">
+                  段落列表（{allSegments.length}）
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  点击切换预览
+                </span>
+                <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span
+                    className={cn(
+                      "size-1.5 rounded-full",
+                      returnedCount === allSegments.length &&
+                        allSegments.length > 0
+                        ? "bg-emerald-500"
+                        : "bg-muted-foreground/40",
+                    )}
+                  />
+                  已回传 {returnedCount}/{allSegments.length}
+                </span>
+              </div>
+              <div
+                ref={filmstripRef}
+                className="flex gap-3 overflow-x-auto pb-1"
+              >
+                {allSegments.map(({ scene, segment }) => {
+                  const active = segment.id === preview.id;
+                  const generating =
+                    cloudRunning && isSegmentGenerating(segment.genStatus);
+                  const qc = qcBySegment.get(segment.id);
+                  const total = segment.shots.reduce(
+                    (sum, shot) => sum + shot.durationMs,
+                    0,
+                  );
+                  const title = `${
+                    scene.sceneSlug || `第${scene.sceneIndex}场`
+                  } · 第${segment.index}段`;
+                  const qcLabel = qc
+                    ? qc.status === "passed"
+                      ? "过"
+                      : qc.status === "failed"
+                        ? "未过"
+                        : "复核"
+                    : null;
+                  return (
+                    <div
+                      key={segment.id}
+                      data-segment-id={segment.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setPreviewId(segment.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setPreviewId(segment.id);
+                        }
+                      }}
+                      className={cn(
+                        "flex w-44 shrink-0 cursor-pointer flex-col gap-1.5 rounded-lg border p-2 transition-colors",
+                        active
+                          ? "border-foreground/40 bg-muted/50"
+                          : "hover:bg-muted/30",
+                      )}
+                    >
+                      <div className="relative aspect-video w-full overflow-hidden rounded bg-black">
+                        <SegmentThumb projectId={id} segment={segment} />
+                        {segment.hardCut && segment.index > 1 && (
+                          <span className="absolute left-1 top-1 rounded bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-medium leading-none text-black">
+                            硬切
+                          </span>
+                        )}
+                        {generating && (
+                          <span className="absolute inset-0 flex items-center justify-center gap-1 bg-black/40 text-[10px] text-white">
+                            <Loader2 className="size-3 animate-spin" />
+                            生成中
+                          </span>
+                        )}
+                        {segment.stale && (
+                          <span
+                            className="absolute bottom-1 left-1 rounded bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-medium text-black"
+                            title="分镜改过，已回传的视频已过期"
+                          >
+                            已过期
+                          </span>
+                        )}
+                      </div>
+                      <span className="truncate text-sm font-medium">
+                        {title}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {segment.shots.length} 镜 ·{" "}
+                        {(total / 1000).toFixed(1)}s
+                        {segment.hardCut && segment.index > 1 ? " · 硬切" : ""}
+                      </span>
+                      <div className="flex items-center justify-between gap-1.5">
+                        <span
+                          className={cn(
+                            "flex items-center gap-1 text-xs",
+                            generating
+                              ? "text-blue-600 dark:text-blue-400"
+                              : segment.stale
+                                ? "text-amber-700 dark:text-amber-400"
+                                : segment.videoPath
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : "text-muted-foreground",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "size-1.5 rounded-full",
+                              generating
+                                ? "bg-blue-500"
+                                : segment.stale
+                                  ? "bg-amber-500"
+                                  : segment.videoPath
+                                    ? "bg-emerald-500"
+                                    : "bg-muted-foreground/40",
+                            )}
+                          />
+                          {generating
+                            ? "生成中"
+                            : segment.stale
+                              ? "视频已过期"
+                              : segment.videoPath
+                                ? "已回传"
+                                : "未回传"}
+                        </span>
+                        {qcLabel && (
+                          <span
+                            className="text-[10px] text-muted-foreground"
+                            title={`QC ${qcLabel}${qc?.score != null ? ` · ${qc.score} 分` : ""}`}
+                          >
+                            QC {qcLabel}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-
-            <div className="h-44 shrink-0 overflow-hidden rounded-2xl border bg-background p-3 shadow-sm">
-                <SegmentComposer
-                  key={`${preview.id}:${currentVendor?.platform ?? "h3"}:${composerReloadKey}`}
-                  projectId={id}
-                  segment={preview}
-                  scene={previewScene}
-                  assets={assets}
-                  platform={currentVendor?.platform ?? "h3"}
-                  aspectRatio={projectAspectRatio}
-                  vendorName={currentVendor?.name ?? vendor}
-                  isH3={isH3}
-                  maxRefs={currentVendor?.maxRefImages ?? 14}
-                  minDurationSec={Math.max(
-                    1,
-                    Math.round((currentVendor?.minSegmentMs ?? 4000) / 1000),
-                  )}
-                  maxDurationSec={Math.max(
-                    1,
-                    Math.round((currentVendor?.maxSegmentMs ?? 15000) / 1000),
-                  )}
-                  durationStepSec={Math.max(
-                    1,
-                    Math.round((currentVendor?.durationStepMs ?? 1000) / 1000),
-                  )}
-                  timeRange={previewTimeRange}
-                  reloadToken={composerReloadKey}
-                  cloudRunning={cloudRunning}
-                  onRefresh={refresh}
-                  onCloudStart={() => void cloudGenerate()}
-                  onRegenerateSegment={(segmentId) =>
-                    void regenerateSegment(segmentId)
-                  }
-                  onRestoreSegment={(segmentId) =>
-                    void restoreSegment(segmentId)
-                  }
-                  onEditBlocking={(scene) => setEditBlocking(scene)}
-                  onOpenPreflight={() => setPreflightOpen(true)}
-                />
-            </div>
-          </div>
         </>
       )}
 
@@ -1792,6 +1800,33 @@ export default function StoryboardPage() {
             <Button variant="outline" onClick={() => setPreflightOpen(false)}>
               关闭
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={extraOpen} onOpenChange={setExtraOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>额外要求</DialogTitle>
+            <DialogDescription>
+              可选，下一次生成分镜时生效；不影响已有分镜。
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            value={extra}
+            onChange={(e) => setExtra(e.target.value)}
+            placeholder="例如：多用户外自然光；避免快速推拉运镜。"
+            className="min-h-[120px] w-full rounded-lg border border-input bg-transparent p-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setExtra("")}
+              disabled={!extra}
+            >
+              清空
+            </Button>
+            <Button onClick={() => setExtraOpen(false)}>完成</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

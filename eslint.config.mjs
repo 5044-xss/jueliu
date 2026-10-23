@@ -18,6 +18,8 @@ const eslintConfig = defineConfig([
     "build-resources/**",
     "resources/**",
     "keys/**",
+    // 工作区产物与一次性脚本不入版本库，也不参与 lint
+    "workspace/**",
   ]),
 ]);
 

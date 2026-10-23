@@ -177,7 +177,15 @@ function JobRow({
   );
 }
 
-export function GlobalJobsButton() {
+export function GlobalJobsButton({
+  align = "right",
+  side = "bottom",
+  block = false,
+}: {
+  align?: "left" | "right";
+  side?: "top" | "bottom";
+  block?: boolean;
+} = {}) {
   const router = useRouter();
   const [jobs, setJobs] = useState<GlobalJob[]>([]);
   const [open, setOpen] = useState(false);
@@ -293,7 +301,11 @@ export function GlobalJobsButton() {
       <Button
         variant="ghost"
         size="sm"
-        className={cn("relative gap-1.5", open && "bg-muted")}
+        className={cn(
+          "relative gap-1.5",
+          block && "w-full justify-start",
+          open && "bg-muted",
+        )}
         onClick={() => setOpen((value) => !value)}
         title="任务中心"
       >
@@ -314,7 +326,13 @@ export function GlobalJobsButton() {
       </Button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 flex max-h-[min(70vh,34rem)] w-[min(420px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-[0_24px_56px_-30px_rgba(0,0,0,0.45)]">
+        <div
+          className={cn(
+            "absolute z-50 flex max-h-[min(70vh,34rem)] w-[min(420px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-[0_24px_56px_-30px_rgba(0,0,0,0.45)]",
+            side === "top" ? "bottom-full mb-2" : "top-full mt-2",
+            align === "left" ? "left-0" : "right-0",
+          )}
+        >
           <div className="flex shrink-0 items-center justify-between border-b px-4 py-2.5">
             <span className="text-sm font-medium">任务中心</span>
             <span className="flex items-center gap-2 text-xs text-muted-foreground">

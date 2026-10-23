@@ -36,7 +36,7 @@ export default async function EpisodeLayout({
   const videoCount = countSegmentVideos(episodeId);
 
   return (
-    <div className="flex h-[calc(100dvh-5rem)] flex-col gap-4 overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
           <GuardedLink
@@ -78,7 +78,7 @@ export default async function EpisodeLayout({
         </div>
       </div>
       {/* 顶部导航已固定，这里让标签与任务条一起吸顶，滚动时不跟着走。 */}
-      <div className="shrink-0 sticky top-14 z-40 -mx-4 bg-background px-4 pt-2">
+      <div className="shrink-0 sticky top-0 z-40 -mx-4 bg-background px-4 pt-2 lg:-mx-6 lg:px-6 2xl:-mx-8 2xl:px-8">
         <ProjectTabs seriesId={seriesId} episodeId={episodeId} />
         <div className="pt-2">
           <ProjectJobsBar projectId={episodeId} />

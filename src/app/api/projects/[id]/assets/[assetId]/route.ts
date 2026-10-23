@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { updateAsset, deleteAsset } from "@core/server/assets";
 import { projectExists } from "@core/server/projects";
-import { assetSpaceSchema } from "@core/shared/schemas/assets";
+import {
+  assetSpaceSchema,
+  characterViewModeSchema,
+} from "@core/shared/schemas/assets";
 
 type Ctx = { params: Promise<{ id: string; assetId: string }> };
 
@@ -10,6 +13,7 @@ const patchSchema = z.object({
   name: z.string().min(1).optional(),
   basePrompt: z.string().optional(),
   interiorExterior: assetSpaceSchema.optional(),
+  characterViewMode: characterViewModeSchema.optional(),
 });
 
 export async function PATCH(request: Request, { params }: Ctx) {

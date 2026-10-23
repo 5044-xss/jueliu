@@ -347,7 +347,7 @@ export default function ComposePage() {
         </>
       )}
 
-      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-0.5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-visible">
+      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-0.5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-visible xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <Card
           size="sm"
           className="flex h-[360px] min-h-0 flex-col border border-border lg:h-full"

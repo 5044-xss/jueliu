@@ -224,8 +224,8 @@ export default function HomePage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="max-h-[calc(100vh-260px)] overflow-y-auto pr-3 pb-3">
-          <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="pr-3 pb-3">
+          <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {series.map((s) => (
               <Card key={s.id} className="border border-border">
                 <CardHeader>

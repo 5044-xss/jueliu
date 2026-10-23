@@ -203,8 +203,8 @@ export default function SeriesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="max-h-[calc(100vh-300px)] overflow-y-auto pr-3 pb-3">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="pr-3 pb-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {episodes.map((e) => (
               <Card key={e.id} className="border border-border gap-0 p-0">
                 {e.thumbnail ? (

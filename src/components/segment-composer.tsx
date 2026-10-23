@@ -9,7 +9,6 @@ import {
   RotateCcw,
   Sparkles,
   Stethoscope,
-  Trash2,
   Upload,
   Wand2,
 } from "lucide-react";
@@ -551,11 +550,14 @@ export function SegmentComposer({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto pr-1 [scrollbar-gutter:stable]">
-      <div className="flex min-h-0 flex-1 items-stretch gap-3">
-        <div className="flex max-h-[92px] w-[186px] shrink-0 flex-wrap content-start items-start gap-1.5 overflow-y-auto">
+    <div className="flex h-full min-h-0 flex-col gap-2.5 p-3">
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="shrink-0 text-[11px] text-muted-foreground">
+          参考图 {manifest.length} / {maxRefs}
+        </span>
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pb-0.5">
           {manifest.map((item, index) => (
-            <div key={`${item.slot}:${item.viewId ?? item.frameId ?? index}`} className="relative">
+            <div key={`${item.slot}:${item.viewId ?? item.frameId ?? index}`} className="relative shrink-0">
               {item.viewUrl ? (
                 <PreviewImage
                   src={item.viewUrl}
@@ -592,257 +594,217 @@ export function SegmentComposer({
           >
             {refBusy ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
           </button>
-          <span className="w-full text-[10px] leading-4 text-muted-foreground">
-            参考图 {manifest.length} / {maxRefs}
-          </span>
-        </div>
-
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-            <span className="font-mono text-foreground/75">{timeRange}</span>
-            <span>|</span>
-            <span className="truncate font-medium text-foreground">
-              {scene.sceneSlug || `第${scene.sceneIndex}场`} · 第{segment.index}段
-            </span>
-            <span className="ml-auto shrink-0">
-              {segment.shots.length} 镜 ·{" "}
-              {(segment.shots.reduce((sum, shot) => sum + shot.durationMs, 0) / 1000).toFixed(1)}s
-            </span>
-          </div>
-
-          {!prompt && (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed px-2.5 py-1.5 text-[11px] text-muted-foreground">
-              {promptBusy ? (
-                <>
-                  <Loader2 className="size-3.5 animate-spin" />
-                  正在按本段分镜生成提示词…
-                </>
-              ) : (
-                <>
-                  <span>尚无提示词。</span>
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={() =>
-                      void generatePrompt({
-                        keyframeOnly: isKeyframeOnly(manifest),
-                      })
-                    }
-                  >
-                    <Sparkles className="size-3" />
-                    生成提示词
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
-
-          <textarea
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            onKeyDown={(event) => {
-              if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-                event.preventDefault();
-                void send();
-              }
-            }}
-            spellCheck={false}
-            placeholder={
-              promptBusy
-                ? "正在按本段分镜生成提示词…"
-                : "输入要提交的视频提示词；可自由编辑，发送时以此为准。"
-            }
-            className="min-h-16 w-full flex-1 resize-none border-0 bg-transparent px-1 py-1 text-sm leading-6 outline-none placeholder:text-muted-foreground"
-          />
-
-          {promptStale && (
-            <p className="px-1 text-[10.5px] leading-4 text-amber-700 dark:text-amber-400">
-              提示词是上次编译的版本，分镜或参数已变化；可直接编辑或重新编译。
-            </p>
-          )}
-
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={<Button variant="outline" size="sm" />}
-                  disabled={refBusy}
-                >
-                  <ImagePlus className="size-3.5" />
-                  参考图 {manifest.length}
-                  <ChevronDown className="size-3" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="max-w-80">
-                  <div className="px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                    本段参考图
-                  </div>
-                  {manifest.length === 0 && (
-                    <DropdownMenuItem disabled>暂无参考图</DropdownMenuItem>
-                  )}
-                  {manifest.map((item) => (
-                    <DropdownMenuItem
-                      key={`${item.slot}:${item.viewId ?? item.frameId}`}
-                      onClick={() => void removeRef(item.slot - 1)}
-                      disabled={refBusy}
-                    >
-                      <span className="font-mono text-[10px] text-muted-foreground">
-                        图{item.slot}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                      <Trash2 className="size-3 text-muted-foreground" />
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setPickerOpen(true)}>
-                    <ImagePlus className="size-4" />
-                    添加参考图
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => void resetRefs()} disabled={refBusy}>
-                    <RotateCcw className="size-4" />
-                    恢复默认参考图
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              <span
-                title="画面比例由项目设置决定"
-                className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-background px-3 text-[0.8rem] text-muted-foreground"
-              >
-                {aspectRatio}
-              </span>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={<Button variant="outline" size="sm" />}
-                >
-                  {durationDraft}s
-                  <ChevronDown className="size-3" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="max-h-72 min-w-44 overflow-y-auto">
-                  <div className="px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                    生成时长（{Math.max(1, Math.round(minDurationSec))}–
-                    {Math.max(1, Math.round(maxDurationSec))}s）
-                  </div>
-                  {durationOptions.map((sec) => (
-                    <DropdownMenuItem
-                      key={sec}
-                      onClick={() => setDurationDraft(sec)}
-                    >
-                      {sec}s
-                      {sec === durationDraft && (
-                        <span className="ml-auto text-xs text-muted-foreground">
-                          已选
-                        </span>
-                      )}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
-                  <Wand2 className="size-3.5" />
-                  更多
-                  <ChevronDown className="size-3" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
-                  <DropdownMenuItem
-                    onClick={onCloudStart}
-                    title="用 Toapi 云端生成该段起始画面并回填"
-                  >
-                    <Sparkles className="size-4" />
-                    云端生成起始画面
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onRegenerateSegment(segment.id)}>
-                    <Sparkles className="size-4" />
-                    重新生成本段分镜
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onRestoreSegment(segment.id)}>
-                    <RotateCcw className="size-4" />
-                    复原本段分镜
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={onOpenPreflight}>
-                    <Stethoscope className="size-4" />
-                    本段体检与修复
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => onEditBlocking(scene)}>
-                    编辑站位（高级）
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      void generatePrompt({
-                        keyframeOnly: isKeyframeOnly(manifest),
-                      })
-                    }
-                    disabled={promptBusy}
-                  >
-                    {promptBusy ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Wand2 className="size-4" />
-                    )}
-                    重新编译提示词
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setBodyOpen(true)}>
-                    查看分镜编译正文
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => void saveOnly()} disabled={saving || !prompt.trim()}>
-                    {saving ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : null}
-                    只保存提示词
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={restorePrompt}
-                disabled={!dirty || promptBusy}
-                title="还原为打开本段时的提示词"
-                className={cn(dirty && "text-amber-700 hover:text-amber-800 dark:text-amber-400")}
-              >
-                <RotateCcw className="size-3.5" />
-                一键还原
-              </Button>
-              <Button
-                onClick={() => void send()}
-                disabled={busy || !prompt.trim()}
-                title={
-                  !isH3
-                    ? "当前厂商不支持云端生成；点击会先保存提示词"
-                    : undefined
-                }
-              >
-                {sending || promptBusy ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <ArrowUp className="size-4" />
-                )}
-                {sending
-                  ? "提交中"
-                  : promptBusy
-                    ? "编译中"
-                    : segment.videoPath
-                      ? "重新生成"
-                      : "发送"}
-              </Button>
-            </div>
-          </div>
         </div>
       </div>
 
-      {!isH3 && (
-        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-          当前厂商「{vendorName}」不支持云端生成；发送只会保存提示词。请切换到
-          H3，或在下方预览里回传视频。
-        </p>
-      )}
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-0.5 [scrollbar-gutter:stable]">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+          <span className="font-mono text-foreground/75">{timeRange}</span>
+          <span className="ml-auto shrink-0">
+            {segment.shots.length} 镜 ·{" "}
+            {(segment.shots.reduce((sum, shot) => sum + shot.durationMs, 0) / 1000).toFixed(1)}s
+          </span>
+        </div>
+
+        {!isH3 && (
+          <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-5 text-amber-700 dark:text-amber-300">
+            当前厂商「{vendorName}」不支持云端生成；发送只会保存提示词。请切换到 H3，
+            或在左侧预览里回传视频。
+          </p>
+        )}
+
+        {!prompt && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed px-2.5 py-1.5 text-[11px] text-muted-foreground">
+            {promptBusy ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" />
+                正在按本段分镜生成提示词…
+              </>
+            ) : (
+              <>
+                <span>尚无提示词。</span>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() =>
+                    void generatePrompt({
+                      keyframeOnly: isKeyframeOnly(manifest),
+                    })
+                  }
+                >
+                  <Sparkles className="size-3" />
+                  生成提示词
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+
+        <textarea
+          value={prompt}
+          onChange={(event) => setPrompt(event.target.value)}
+          onKeyDown={(event) => {
+            if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+              event.preventDefault();
+              void send();
+            }
+          }}
+          spellCheck={false}
+          placeholder={
+            promptBusy
+              ? "正在按本段分镜生成提示词…"
+              : "输入要提交的视频提示词；可自由编辑，发送时以此为准。"
+          }
+          className="min-h-32 w-full flex-1 resize-none rounded-lg border border-input bg-transparent p-2.5 text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+        />
+
+        {promptStale && (
+          <p className="px-1 text-[10.5px] leading-4 text-amber-700 dark:text-amber-400">
+            提示词是上次编译的版本，分镜或参数已变化；可直接编辑或重新编译。
+          </p>
+        )}
+      </div>
+
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-t pt-2">
+        <span
+          title="画面比例由项目设置决定"
+          className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-background px-3 text-[0.8rem] text-muted-foreground"
+        >
+          {aspectRatio}
+        </span>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button variant="outline" size="sm" />}
+          >
+            {durationDraft}s
+            <ChevronDown className="size-3" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="max-h-72 min-w-44 overflow-y-auto">
+            <div className="px-2.5 py-1 text-xs font-medium text-muted-foreground">
+              生成时长（{Math.max(1, Math.round(minDurationSec))}–
+              {Math.max(1, Math.round(maxDurationSec))}s）
+            </div>
+            {durationOptions.map((sec) => (
+              <DropdownMenuItem
+                key={sec}
+                onClick={() => setDurationDraft(sec)}
+              >
+                {sec}s
+                {sec === durationDraft && (
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    已选
+                  </span>
+                )}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
+            <Wand2 className="size-3.5" />
+            更多
+            <ChevronDown className="size-3" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+            <DropdownMenuItem
+              onClick={onCloudStart}
+              title="用 Toapi 云端生成该段起始画面并回填"
+            >
+              <Sparkles className="size-4" />
+              云端生成起始画面
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onRegenerateSegment(segment.id)}>
+              <Sparkles className="size-4" />
+              重新生成本段分镜
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onRestoreSegment(segment.id)}>
+              <RotateCcw className="size-4" />
+              复原本段分镜
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onOpenPreflight}>
+              <Stethoscope className="size-4" />
+              本段体检与修复
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => onEditBlocking(scene)}>
+              编辑站位（高级）
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => void resetRefs()}
+              disabled={refBusy}
+            >
+              <RotateCcw className="size-4" />
+              恢复默认参考图
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() =>
+                void generatePrompt({
+                  keyframeOnly: isKeyframeOnly(manifest),
+                })
+              }
+              disabled={promptBusy}
+            >
+              {promptBusy ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Wand2 className="size-4" />
+              )}
+              重新编译提示词
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setBodyOpen(true)}>
+              查看分镜编译正文
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => void saveOnly()}
+              disabled={saving || !prompt.trim()}
+            >
+              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+              只保存提示词
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="ml-auto flex items-center gap-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={restorePrompt}
+            disabled={!dirty || promptBusy}
+            title="还原为打开本段时的提示词"
+            className={cn(
+              dirty && "text-amber-700 hover:text-amber-800 dark:text-amber-400",
+            )}
+          >
+            <RotateCcw className="size-3.5" />
+            还原
+          </Button>
+          <Button
+            onClick={() => void send()}
+            disabled={busy || !prompt.trim()}
+            title={
+              !isH3
+                ? "当前厂商不支持云端生成；点击会先保存提示词"
+                : undefined
+            }
+          >
+            {sending || promptBusy ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <ArrowUp className="size-4" />
+            )}
+            {sending
+              ? "提交中"
+              : promptBusy
+                ? "编译中"
+                : segment.videoPath
+                  ? "重新生成"
+                  : "发送"}
+          </Button>
+        </div>
+      </div>
 
       <ReferencePicker
         projectId={projectId}

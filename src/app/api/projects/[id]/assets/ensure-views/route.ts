@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 const bodySchema = z.object({ type: assetTypeSchema.optional() });
 
-// 一键补全默认视角：场景补「全景」、道具「正面」→「三视图」、角色补「四视图」。
+// 一键补全默认视角：场景补「全景」、道具「正面」→「三视图」、角色按设置补单图/四视图。
 export async function POST(request: Request, { params }: Ctx) {
   const { id } = await params;
   if (!projectExists(id)) {

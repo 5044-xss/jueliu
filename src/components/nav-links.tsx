@@ -26,10 +26,20 @@ const ITEMS = [
   },
 ];
 
-export function NavLinks() {
+export function NavLinks({
+  orientation = "horizontal",
+}: {
+  orientation?: "horizontal" | "vertical";
+}) {
   const pathname = usePathname();
+  const vertical = orientation === "vertical";
   return (
-    <nav className="flex items-center gap-1 text-sm">
+    <nav
+      className={cn(
+        "text-sm",
+        vertical ? "flex flex-col gap-1" : "flex items-center gap-1",
+      )}
+    >
       {ITEMS.map((item) => {
         const active = item.match(pathname);
         return (
@@ -37,13 +47,16 @@ export function NavLinks() {
             key={item.href}
             href={item.href}
             className={cn(
-              "flex items-center gap-1.5 rounded-full px-3 py-1.5 font-medium transition-colors",
+              "flex items-center font-medium transition-colors",
+              vertical
+                ? "w-full gap-2.5 rounded-xl px-3 py-2"
+                : "gap-1.5 rounded-full px-3 py-1.5",
               active
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:bg-accent hover:text-foreground",
             )}
           >
-            <item.icon className="size-4" />
+            <item.icon className="size-4 shrink-0" />
             {item.label}
           </GuardedLink>
         );

@@ -174,9 +174,11 @@ function makeClient(settings: GenerationSettings): ImageClient {
   });
 }
 
-function viewSize(type: StoredAsset["type"]): string {
-  // 道具三视图 = 正方形；角色四视图 / 场景空镜 = 横版 16:9。
-  return type === "prop" ? "1:1" : "16:9";
+function viewSize(asset: StoredAsset, view: StoredView): string {
+  // 道具三视图 = 正方形；角色单图全身 = 竖版 3:4；角色四视图 / 场景空镜 = 横版 16:9。
+  if (asset.type === "prop") return "1:1";
+  if (asset.type === "character" && view.kind !== "sheet") return "3:4";
+  return "16:9";
 }
 
 function buildPrompt(projectId: string, resolved: Resolved): string {
@@ -239,7 +241,7 @@ function taskInput(settings: GenerationSettings, prepared: Prepared): CreateImag
   return {
     model: settings.imageModel,
     prompt: prepared.prompt,
-    size: viewSize(prepared.asset.type),
+    size: viewSize(prepared.asset, prepared.view),
     resolution: settings.imageResolution,
     reference_images: prepared.refUrls.length ? prepared.refUrls : undefined,
   };
@@ -328,7 +330,10 @@ export async function submitAssetViewImage(
   const settings = getGenerationSettings();
   syncGate(settings);
   const own = ctx ?? beginRun(projectId);
-  const jobId = startJob(projectId, JOB_KIND, { replaceRunning: false });
+  const jobId = startJob(projectId, JOB_KIND, {
+    replaceRunning: false,
+    targetId: viewId,
+  });
 
   if (inflightView.has(viewId)) {
     finishJob(projectId, jobId, "succeeded", "该视角已在生成中，已跳过");
@@ -360,7 +365,10 @@ export async function generateAssetViewImage(
     return (await running) as GenerateAssetResult;
   }
 
-  const jobId = startJob(projectId, JOB_KIND, { replaceRunning: false });
+  const jobId = startJob(projectId, JOB_KIND, {
+    replaceRunning: false,
+    targetId: viewId,
+  });
   const job = (async (): Promise<GenerateAssetResult> => {
     try {
       const prepared = await prepareView(projectId, viewId, settings, own);
