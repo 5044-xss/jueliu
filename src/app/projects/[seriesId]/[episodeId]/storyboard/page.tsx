@@ -33,7 +33,6 @@ import {
 } from "@/components/vendor-switch-dialog";
 import { describeCascade, fetchCascadeImpact } from "@/lib/impact";
 import { readError } from "@/lib/http";
-import { suggestQcRetry } from "@/lib/generation/retry";
 import { useProjectJobs, isJobRunning } from "@core/client/use-jobs";
 import { Button } from "@/components/ui/button";
 import {
@@ -88,7 +87,7 @@ function clock(ms: number): string {
 }
 
 function segmentLinkLabel(segment: StoredSegment): string {
-  if (segment.linkMode === "text-bridge") return "文锚";
+  if (segment.linkMode === "text-bridge") return "";
   if (segment.linkMode === "tail-frame") return "连续";
   return "硬切";
 }
@@ -130,9 +129,12 @@ function formatStoryboardText(scenes: StoredSceneStoryboard[]): string {
         (sum, shot) => sum + shot.durationMs,
         0,
       );
+      const linkLabel = segmentLinkLabel(segment);
       lines.push("");
       lines.push(
-        `— 第${segment.index}段（${segment.shots.length}镜 · ${(total / 1000).toFixed(1)}s · ${segmentLinkLabel(segment)}）`,
+        `— 第${segment.index}段（${segment.shots.length}镜 · ${(total / 1000).toFixed(1)}s${
+          linkLabel ? ` · ${linkLabel}` : ""
+        }）`,
       );
       for (const shot of segment.shots) {
         const cameraText = [
@@ -978,8 +980,6 @@ export default function StoryboardPage() {
     : { errors: [], warnings: [] };
   const qcBySegment = new Map(qcList.map((item) => [item.segmentId, item]));
   const previewQc = preview ? (qcBySegment.get(preview.id) ?? null) : null;
-  const retrySuggestions = previewQc ? suggestQcRetry(previewQc.issues) : [];
-  const needsSeedRetry = retrySuggestions.some((item) => item.seedChange);
 
   async function restoreSegment(segmentId: string) {
     try {
@@ -1489,32 +1489,23 @@ export default function StoryboardPage() {
                     onChanged={refresh}
                   />
 
-                  {((previewQc?.issues.length ?? 0) > 0 ||
-                    retrySuggestions.length > 0) && (
+                  {previewQc && previewQc.issues.length > 0 && (
                     <div className="rounded-lg border p-2.5 text-xs leading-5">
-                      <div className="font-medium">QC 建议</div>
-                      {retrySuggestions.length > 0 && (
-                        <p className="mt-1 text-muted-foreground">
-                          {retrySuggestions.map((item) => item.reason).join(" ")}
-                          {needsSeedRetry ? " 建议换种子后重新生成。" : ""}
-                        </p>
-                      )}
-                      {previewQc && previewQc.issues.length > 0 && (
-                        <ul className="mt-1 flex flex-col gap-1">
-                          {previewQc.issues.map((issue, i) => (
-                            <li
-                              key={`${issue.code}:${i}`}
-                              className={cn(
-                                issue.level === "hard"
-                                  ? "text-destructive"
-                                  : "text-muted-foreground",
-                              )}
-                            >
-                              {issue.message}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                      <div className="font-medium">QC 问题</div>
+                      <ul className="mt-1 flex flex-col gap-1">
+                        {previewQc.issues.map((issue, i) => (
+                          <li
+                            key={`${issue.code}:${i}`}
+                            className={cn(
+                              issue.level === "hard"
+                                ? "text-destructive"
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            {issue.message}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   )}
 
@@ -1655,6 +1646,7 @@ export default function StoryboardPage() {
                     (sum, shot) => sum + shot.durationMs,
                     0,
                   );
+                  const linkLabel = segmentLinkLabel(segment);
                   const title = `${
                     scene.sceneSlug || `第${scene.sceneIndex}场`
                   } · 第${segment.index}段`;
@@ -1687,7 +1679,7 @@ export default function StoryboardPage() {
                     >
                       <div className="relative aspect-video w-full overflow-hidden rounded bg-black">
                         <SegmentThumb projectId={id} segment={segment} />
-                        {segment.index > 1 && (
+                        {segment.index > 1 && linkLabel && (
                           <span
                             className={cn(
                               "absolute left-1 top-1 rounded px-1.5 py-0.5 text-[10px] font-medium leading-none text-black",
@@ -1695,7 +1687,7 @@ export default function StoryboardPage() {
                             )}
                             title={segment.seamReason ?? undefined}
                           >
-                            {segmentLinkLabel(segment)}
+                            {linkLabel}
                           </span>
                         )}
                         {generating && (
@@ -1719,8 +1711,8 @@ export default function StoryboardPage() {
                       <span className="text-xs text-muted-foreground">
                         {segment.shots.length} 镜 ·{" "}
                         {(total / 1000).toFixed(1)}s
-                        {segment.index > 1
-                          ? ` · ${segmentLinkLabel(segment)}`
+                        {segment.index > 1 && linkLabel
+                          ? ` · ${linkLabel}`
                           : ""}
                       </span>
                       <div className="flex items-center justify-between gap-1.5">

@@ -15,7 +15,6 @@ import {
 } from "@core/server/frames";
 import { getProjectDb, nowIso } from "@core/server/db";
 import { runSegmentQc } from "@core/server/qc";
-import { isAutoRetryableQc } from "./retry";
 import {
   attachGenerationSnapshotVideo,
   saveGenerationSnapshot,
@@ -288,8 +287,8 @@ async function runVideoJob(projectId: string, segmentId: string, jobId: string, 
       finishJob(
         projectId,
         jobId,
-        "failed",
-        `QC 未通过（${finalized.qc?.score ?? 0} 分）：${finalized.qc?.issues
+        "succeeded",
+        `已生成视频；QC 未通过（${finalized.qc?.score ?? 0} 分）：${finalized.qc?.issues
           .filter((issue) => issue.level === "hard")
           .map((issue) => issue.message)
           .join("；")}`,
@@ -380,7 +379,7 @@ async function waitForVideo(client: ComfyClient, promptId: string, opts: WaitOpt
 }
 
 interface FinalizeAttemptResult {
-  target: string | null;
+  target: string;
   qcFailed: boolean;
   qc: Awaited<ReturnType<typeof runSegmentQc>> | null;
 }
@@ -397,17 +396,13 @@ async function finalizeAttempt(
   } catch {
     qc = null;
   }
-  if (qc?.hardFail) {
-    updateSegmentGen(projectId, segmentId, { status: "qc_failed" });
-    return { target: null, qcFailed: true, qc };
-  }
   const vendor = getProject(projectId)?.vendor ?? "custom";
   const ext = path.extname(attempt).replace(".", "").toLowerCase() || "mp4";
   const target = getSegmentVideoPath(projectId, vendor, segmentId, ext);
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.copyFileSync(attempt, target);
   commitVideo(projectId, segmentId, target, mediaSig);
-  return { target, qcFailed: false, qc };
+  return { target, qcFailed: Boolean(qc?.hardFail), qc };
 }
 
 /** 同步版本：提交 → 轮询 → 落槽，供脚本 / 需要立即拿到结果的场景。 */
@@ -430,12 +425,23 @@ export async function generateSegmentVideo(projectId: string, segmentId: string)
     const attempt = await downloadToSegment(prep.client, projectId, segmentId, item);
     const finalized = await finalizeAttempt(projectId, segmentId, attempt, prep.mediaSig);
     if (finalized.qcFailed) {
-      throw new Error(
-        `QC 未通过：${finalized.qc?.issues
+      updateSegmentGen(projectId, segmentId, { taskId: promptId, status: "qc_failed" });
+      finishJob(
+        projectId,
+        jobId,
+        "succeeded",
+        `已生成视频；QC 未通过（${finalized.qc?.score ?? 0} 分）：${finalized.qc?.issues
           .filter((issue) => issue.level === "hard")
           .map((issue) => issue.message)
           .join("；")}`,
       );
+      return {
+        jobId,
+        promptId,
+        mode: prep.mode,
+        refCount: prep.refCount,
+        videoPath: finalized.target,
+      };
     }
     try {
       await captureAndAdoptTail(projectId, segmentId);
@@ -449,7 +455,7 @@ export async function generateSegmentVideo(projectId: string, segmentId: string)
       promptId,
       mode: prep.mode,
       refCount: prep.refCount,
-      videoPath: finalized.target ?? attempt,
+      videoPath: finalized.target,
     };
   } catch (error) {
     const cancelled =
@@ -575,6 +581,7 @@ async function runSequentialJob(
   let done = 0;
   let skipped = 0;
   let failed = 0;
+  let qcFailedCount = 0;
   let firstError: string | null = null;
 
   for (const entry of entries) {
@@ -627,16 +634,14 @@ async function runSequentialJob(
           prep.mediaSig,
         );
         if (finalized.qcFailed) {
-          const message = `QC 未通过：${finalized.qc?.issues
-            .filter((issue) => issue.level === "hard")
-            .map((issue) => issue.message)
-            .join("；")}`;
-          if (!isAutoRetryableQc(finalized.qc?.issues ?? [])) {
-            updateSegmentGen(projectId, segment.id, { status: "qc_failed" });
-            lastError = new Error(message);
-            break;
-          }
-          throw new Error(message);
+          updateSegmentGen(projectId, segment.id, {
+            taskId: promptId,
+            status: "qc_failed",
+          });
+          done += 1;
+          qcFailedCount += 1;
+          lastError = null;
+          break;
         }
         updateSegmentGen(projectId, segment.id, { taskId: promptId, status: "completed" });
         done += 1;
@@ -664,18 +669,17 @@ async function runSequentialJob(
       }
     }
     if (lastError) {
-      const qcFailed = segmentGenStatus(projectId, segment.id) === "qc_failed";
-      updateSegmentGen(projectId, segment.id, {
-        status: qcFailed ? "qc_failed" : "failed",
-      });
+      updateSegmentGen(projectId, segment.id, { status: "failed" });
       failed += 1;
       if (!firstError) firstError = lastError.message;
     }
   }
 
-  const summary = `顺序生成完成：成功 ${done} 段，跳过 ${skipped} 段${
-    failed ? `，失败 ${failed} 段` : ""
-  }${firstError ? `（首个错误：${firstError}）` : ""}`;
+  const summary = `顺序生成完成：成功 ${done} 段${
+    qcFailedCount ? `（QC 未通过 ${qcFailedCount} 段）` : ""
+  }，跳过 ${skipped} 段${failed ? `，失败 ${failed} 段` : ""}${
+    firstError ? `（首个错误：${firstError}）` : ""
+  }`;
   finishJob(projectId, jobId, done > 0 ? "succeeded" : "failed", summary);
 }
 

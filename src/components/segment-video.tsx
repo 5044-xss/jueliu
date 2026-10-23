@@ -103,8 +103,24 @@ export function SegmentVideo({
         `/api/projects/${projectId}/segments/${segmentId}/video`,
         { method: "POST", body: form },
       );
-      if (!res.ok) throw new Error(await readError(res, "上传失败"));
-      toast.success("视频已回传");
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+        qc?: {
+          hardFail?: boolean;
+          issues?: { level: string; message: string }[];
+        } | null;
+      } | null;
+      if (!res.ok) throw new Error(data?.error || "上传失败");
+      if (data?.qc?.hardFail) {
+        toast.error("QC 未通过，视频已保存并参与合成", {
+          description: (data.qc.issues ?? [])
+            .filter((issue) => issue.level === "hard")
+            .map((issue) => issue.message)
+            .join("；"),
+        });
+      } else {
+        toast.success("视频已回传");
+      }
       await refresh();
     } catch (error) {
       toast.error((error as Error).message || "上传失败");

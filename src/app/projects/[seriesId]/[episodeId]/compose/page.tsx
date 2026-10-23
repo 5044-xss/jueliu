@@ -58,7 +58,7 @@ function segmentTitle(segment: ComposableSegment): string {
 }
 
 function segmentLinkLabel(segment: ComposableSegment): string {
-  if (segment.linkMode === "text-bridge") return "文锚";
+  if (segment.linkMode === "text-bridge") return "";
   if (segment.linkMode === "tail-frame") return "连续";
   return "硬切";
 }
@@ -281,6 +281,7 @@ export default function ComposePage() {
 
   const preview = segments.find((s) => s.segmentId === previewId) ?? null;
   const previewShots = previewId ? shotsBySegment.get(previewId) ?? [] : [];
+  const previewLinkLabel = preview ? segmentLinkLabel(preview) : "";
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 pb-4">
@@ -381,13 +382,13 @@ export default function ComposePage() {
             {preview && (
               <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span>目标 {(preview.targetMs / 1000).toFixed(1)}s</span>
-                {preview.index > 1 && (
+                {preview.index > 1 && previewLinkLabel && (
                   <Badge
                     variant="secondary"
                     className="text-[10px]"
                     title={preview.seamReason ?? undefined}
                   >
-                    {segmentLinkLabel(preview)}
+                    {previewLinkLabel}
                   </Badge>
                 )}
                 {preview.stale && (
@@ -586,6 +587,7 @@ export default function ComposePage() {
               const order = selected.indexOf(segment.segmentId);
               const isSelected = order >= 0;
               const active = previewId === segment.segmentId;
+              const linkLabel = segmentLinkLabel(segment);
               return (
                 <div
                   key={segment.segmentId}
@@ -644,8 +646,8 @@ export default function ComposePage() {
                   </span>
                   <span className="text-xs text-muted-foreground">
                     目标 {(segment.targetMs / 1000).toFixed(1)}s
-                    {segment.index > 1
-                      ? ` · ${segmentLinkLabel(segment)}`
+                    {segment.index > 1 && linkLabel
+                      ? ` · ${linkLabel}`
                       : ""}
                   </span>
                   <div

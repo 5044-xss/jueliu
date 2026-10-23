@@ -84,6 +84,9 @@ export async function POST(request: Request) {
           ...(inputParsed.data as Record<string, unknown>),
           extraInstructions: [
             resolvedPreset.config.prompt.extraInstructions,
+            resolvedPreset.config.assembly.mode === "merge"
+              ? `合并上限：每组 beatGroups 最多 ${resolvedPreset.config.assembly.maxBeatsPerShot} 个 beat。`
+              : "",
             presetInput.extraInstructions ?? "",
           ]
             .map((item) => item.trim())

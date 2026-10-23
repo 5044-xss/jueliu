@@ -7,7 +7,7 @@ import {
   releaseSegmentFrameAdoptions,
   setSegmentVideo,
 } from "@core/server/frames";
-import { getProjectDb } from "@core/server/db";
+import { getProjectDb, nowIso } from "@core/server/db";
 import { buildManifest } from "@core/server/render";
 import { mediaSignature } from "@core/server/media-signature";
 import { getSegmentVideoPath as getPath } from "@core/server/paths";
@@ -124,17 +124,11 @@ export async function POST(request: Request, { params }: Ctx) {
   } catch {
     qc = null;
   }
-  if (qc?.hardFail) {
-    return NextResponse.json(
-      {
-        error: `QC 未通过，已保留旧视频：${qc.issues
-          .filter((issue) => issue.level === "hard")
-          .map((issue) => issue.message)
-          .join("；")}`,
-        qc,
-      },
-      { status: 422 },
-    );
+  if (qc) {
+    const db = getProjectDb(id);
+    db.prepare(
+      "UPDATE segment SET gen_status = ?, updated_at = ? WHERE id = ?",
+    ).run(qc.hardFail ? "qc_failed" : "completed", nowIso(), segmentId);
   }
   fs.copyFileSync(attempt, dest);
   setSegmentVideo(id, segmentId, dest, mediaSig);
