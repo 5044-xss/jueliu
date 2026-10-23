@@ -14,6 +14,11 @@ import {
   castContinuityCompatible,
 } from "../../packages/core/src/shared/cast-refs.ts";
 import { packSceneV2 } from "../../packages/core/src/server/orchestration/pack.ts";
+import { assembleStoryboard } from "../../packages/core/src/server/storyboard/assemble-shots.ts";
+import {
+  STANDARD_STORYBOARD_PRESET_CONFIG,
+  mergeStoryboardPresetConfig,
+} from "../../packages/core/src/shared/library/storyboard-presets.ts";
 import { checkDialogueCoverage } from "../../packages/core/src/shared/dialogue-coverage.ts";
 import { renderH3Prompt } from "../../packages/core/src/server/compile/h3-render.ts";
 import { buildShotBlockingTextEn } from "../../packages/core/src/shared/blocking-text.ts";
@@ -227,6 +232,20 @@ async function runPackV2Case(item) {
         "shot durations sum",
       );
     }
+  }
+  if (item.expect.targetMs) {
+    assert.deepEqual(
+      result.segments.map((segment) => segment.targetMs),
+      item.expect.targetMs,
+      "segment target ms",
+    );
+  }
+  if (item.expect.shotDurations) {
+    assert.deepEqual(
+      result.segments.map((segment) => segment.shotDurations),
+      item.expect.shotDurations,
+      "shot durations",
+    );
   }
 }
 
@@ -525,8 +544,51 @@ async function runPromptAuditCase(item) {
   );
 }
 
+async function runAssembleCase(item) {
+  const config = mergeStoryboardPresetConfig(
+    STANDARD_STORYBOARD_PRESET_CONFIG,
+    item.input.config ?? {},
+  );
+  const result = assembleStoryboard(item.input.draft, config.assembly);
+  const { expect } = item;
+  if (typeof expect.outputShots === "number") {
+    assert.equal(result.stats.outputShots, expect.outputShots, "outputShots");
+  }
+  if (typeof expect.minDurationMs === "number") {
+    assert.ok(
+      result.stats.totalDurationMs >= expect.minDurationMs,
+      `totalDurationMs ${result.stats.totalDurationMs} < ${expect.minDurationMs}`,
+    );
+  }
+  if (typeof expect.maxDurationMs === "number") {
+    assert.ok(
+      result.stats.totalDurationMs <= expect.maxDurationMs,
+      `totalDurationMs ${result.stats.totalDurationMs} > ${expect.maxDurationMs}`,
+    );
+  }
+  const inputBeats = item.input.draft.scenes.flatMap((scene) =>
+    scene.shots.flatMap((shot) => shot.beatIds),
+  );
+  const outputBeats = result.draft.scenes.flatMap((scene) =>
+    scene.shots.flatMap((shot) => shot.beatIds),
+  );
+  assert.deepEqual(outputBeats, inputBeats, "beat coverage/order");
+  if (expect.durationsInRange) {
+    const [minMs, maxMs] = expect.durationsInRange;
+    for (const scene of result.draft.scenes) {
+      for (const shot of scene.shots) {
+        assert.ok(
+          shot.durationMs >= minMs && shot.durationMs <= maxMs,
+          `shot duration ${shot.durationMs} outside ${minMs}-${maxMs}`,
+        );
+      }
+    }
+  }
+}
+
 const handlers = {
   preflight: runPreflightCase,
+  assemble: runAssembleCase,
   "camera-jump": runCameraJumpCase,
   "augment-cast": runAugmentCastCase,
   "normalize-action": runNormalizeActionCase,

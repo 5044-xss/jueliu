@@ -4,7 +4,8 @@ import {
   clearStoryboard,
   saveStoryboard,
 } from "@core/server/storyboard";
-import { applyOrchestration } from "@core/server/orchestration/apply";
+import { applyStoryboardPreset } from "@core/server/orchestration/preset";
+import { resolveStoryboardPreset } from "@core/server/library/storyboard-presets";
 import { getAssets } from "@core/server/assets";
 import { getProject, projectExists } from "@core/server/projects";
 import { preflightStoryboard } from "@core/server/preflight";
@@ -46,7 +47,15 @@ export async function POST(request: Request, { params }: Ctx) {
     return NextResponse.json({ error: "项目不存在" }, { status: 404 });
   }
   const json = await request.json().catch(() => null);
-  const parsed = storyboardDraftSchema.safeParse(json?.draft ?? json);
+  const body =
+    json && typeof json === "object"
+      ? (json as {
+          draft?: unknown;
+          presetId?: unknown;
+          useDraftDurations?: unknown;
+        })
+      : null;
+  const parsed = storyboardDraftSchema.safeParse(body?.draft ?? json);
   if (!parsed.success) {
     return NextResponse.json(
       {
@@ -64,9 +73,28 @@ export async function POST(request: Request, { params }: Ctx) {
   }
   return withLock(`orchestrate:${id}`, async () => {
     try {
-      saveStoryboard(id, parsed.data, getAssets(id));
-      applyOrchestration(id, project.vendor);
-      return NextResponse.json({ ok: true, scenes: getStoryboard(id) });
+      const presetId =
+        typeof body?.presetId === "string"
+          ? body.presetId
+          : project.storyboardPresetId ?? undefined;
+      const preset = resolveStoryboardPreset(presetId);
+      saveStoryboard(id, parsed.data, getAssets(id), {
+        useDraftDurations:
+          body?.useDraftDurations === true ||
+          preset.config.assembly.mode === "merge",
+      });
+      const result = applyStoryboardPreset(id, preset, project.vendor);
+      return NextResponse.json({
+        ok: true,
+        scenes: getStoryboard(id),
+        preset: {
+          id: preset.preset.id,
+          name: preset.preset.name,
+          version: preset.preset.version,
+          config: preset.config,
+        },
+        orchestration: result,
+      });
     } catch (error) {
       return NextResponse.json(
         { error: (error as Error).message || "保存分镜失败" },

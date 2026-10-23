@@ -1,0 +1,42 @@
+{
+  "id": "PIPE-041",
+  "title": "per-line 对白分组：不同说话人的两句台词不能合并成一镜",
+  "stage": "assemble",
+  "tags": ["preset", "assembly", "dialogue"],
+  "input": {
+    "config": {
+      "assembly": {
+        "mode": "merge",
+        "targetShotRatio": 0.5,
+        "shotDuration": { "minMs": 4000, "maxMs": 10000 },
+        "dialogueGrouping": "per-line",
+        "maxBeatsPerShot": 3
+      }
+    },
+    "draft": {
+      "scenes": [
+        {
+          "sceneIndex": "1-2",
+          "blocking": {
+            "axis": { "from": "n_a", "to": "n_b" },
+            "cameraSide": "left",
+            "nodes": [
+              { "id": "n_a", "label": "甲", "type": "character", "pos": { "x": 0.3, "y": 0.5 }, "facing": 0 },
+              { "id": "n_b", "label": "乙", "type": "character", "pos": { "x": 0.7, "y": 0.5 }, "facing": 180 }
+            ],
+            "paths": []
+          },
+          "shots": [
+            { "beatIds": ["1-2-b1"], "durationMs": 0, "camera": { "shotSize": "近景", "focal": "50mm", "angle": "平视", "movement": "固定", "side": "left" }, "lighting": "自然光", "action": "", "dialogue": [{ "character": "甲", "text": "你来了。" }], "expression": "平静", "subjectNodeIds": ["n_a"], "continuesPrev": true, "refs": [] },
+            { "beatIds": ["1-2-b2"], "durationMs": 0, "camera": { "shotSize": "近景", "focal": "50mm", "angle": "平视", "movement": "固定", "side": "left" }, "lighting": "自然光", "action": "", "dialogue": [{ "character": "乙", "text": "我来了。" }], "expression": "平静", "subjectNodeIds": ["n_a", "n_b"], "continuesPrev": true, "refs": [] }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "outputShots": 2,
+    "minDurationMs": 8000,
+    "maxDurationMs": 20000
+  }
+}

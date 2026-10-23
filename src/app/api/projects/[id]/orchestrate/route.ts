@@ -7,6 +7,8 @@ import {
   planOrchestration,
   type OrchestrationPlan,
 } from "@core/server/orchestration/apply";
+import { applyStoryboardPreset } from "@core/server/orchestration/preset";
+import { resolveStoryboardPreset } from "@core/server/library/storyboard-presets";
 import {
   captureOrchestrationState,
   restoreOrchestrationState,
@@ -102,7 +104,13 @@ export async function POST(request: Request, { params }: Ctx) {
         );
       }
       captureOrchestrationState(id, project.vendor);
-      const result = applyOrchestration(id, parsed.data.vendor, options);
+      const preset = resolveStoryboardPreset(
+        project.storyboardPresetId ?? undefined,
+      );
+      const result =
+        preset.preset.id === "standard"
+          ? applyOrchestration(id, parsed.data.vendor, options)
+          : applyStoryboardPreset(id, preset, parsed.data.vendor);
       const restored = restoreOrchestrationState(id, parsed.data.vendor);
       updateProject(id, { vendor: parsed.data.vendor });
       return NextResponse.json({ ok: true, ...result, restored });

@@ -60,6 +60,7 @@ import type {
 import type { PreflightIssue } from "@core/shared/preflight";
 import type { SegmentQcRecord } from "@core/shared/qc";
 import type { StoredAsset } from "@core/shared/schemas/assets";
+import type { LibraryStoryboardPreset } from "@core/shared/library/storyboard-presets";
 
 const TERMINAL_GEN_STATUS = new Set([
   "completed",
@@ -299,6 +300,8 @@ export default function StoryboardPage() {
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [vendor, setVendor] = useState<string>("h3");
   const [vendorOptions, setVendorOptions] = useState<VendorOption[]>([]);
+  const [presets, setPresets] = useState<LibraryStoryboardPreset[]>([]);
+  const [presetId, setPresetId] = useState<string>("standard");
   const [orchestrating, setOrchestrating] = useState(false);
   const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
   const [composerReloadKey, setComposerReloadKey] = useState(0);
@@ -332,23 +335,31 @@ export default function StoryboardPage() {
       if (!res.ok) throw new Error(await readError(res, `读取${what}失败`));
       return (await res.json()) as T;
     }
-    const [sb, script, assetsRes, projectRes, vendorsRes] = await Promise.all([
-      get<{
-        scenes?: StoredSceneStoryboard[];
-        preflight?: PreflightIssue[];
-        qc?: SegmentQcRecord[];
-      }>(
-        `/api/projects/${id}/storyboard`,
-        "分镜",
-      ),
-      get<{ script?: unknown }>(`/api/projects/${id}/script`, "剧本"),
-      get<{ assets?: StoredAsset[] }>(`/api/projects/${id}/assets`, "资产"),
-      get<{ project?: { vendor?: string; aspectRatio?: string } }>(
-        `/api/projects/${id}`,
-        "项目",
-      ),
-      get<{ vendors?: VendorOption[] }>(`/api/library/vendors`, "厂商"),
-    ]);
+    const [sb, script, assetsRes, projectRes, vendorsRes, presetsRes] =
+      await Promise.all([
+        get<{
+          scenes?: StoredSceneStoryboard[];
+          preflight?: PreflightIssue[];
+          qc?: SegmentQcRecord[];
+        }>(
+          `/api/projects/${id}/storyboard`,
+          "分镜",
+        ),
+        get<{ script?: unknown }>(`/api/projects/${id}/script`, "剧本"),
+        get<{ assets?: StoredAsset[] }>(`/api/projects/${id}/assets`, "资产"),
+        get<{
+          project?: {
+            vendor?: string;
+            aspectRatio?: string;
+            storyboardPresetId?: string | null;
+          };
+        }>(`/api/projects/${id}`, "项目"),
+        get<{ vendors?: VendorOption[] }>(`/api/library/vendors`, "厂商"),
+        get<{ presets?: LibraryStoryboardPreset[] }>(
+          `/api/library/storyboard-presets`,
+          "分镜预设",
+        ),
+      ]);
     const vendors = (vendorsRes.vendors ?? []) as VendorOption[];
     return {
       scenes: (sb.scenes ?? []) as StoredSceneStoryboard[],
@@ -362,6 +373,13 @@ export default function StoryboardPage() {
         "h3",
       aspectRatio: projectRes.project?.aspectRatio || "16:9",
       vendors,
+      presets: (presetsRes.presets ?? []) as LibraryStoryboardPreset[],
+      presetId:
+        (projectRes.project?.storyboardPresetId as string | undefined) ||
+        (presetsRes.presets ?? []).find(
+          (item: LibraryStoryboardPreset) => item.isDefault,
+        )?.id ||
+        "standard",
     };
   }, [id]);
 
@@ -379,6 +397,8 @@ export default function StoryboardPage() {
         setVendor(data.vendor);
         setProjectAspectRatio(data.aspectRatio);
         setVendorOptions(data.vendors);
+        setPresets(data.presets);
+        setPresetId(data.presetId);
         setLoaded(true);
       } catch (error) {
         if (!cancelled) {
@@ -398,6 +418,10 @@ export default function StoryboardPage() {
     setQcList(data.qc);
     setAssets(data.assets);
     setProjectAspectRatio(data.aspectRatio);
+    setPresets(data.presets);
+    setPresetId(data.presetId);
+    setVendorOptions(data.vendors);
+    setVendor(data.vendor);
     setFramesVersion((v) => v + 1);
   }, [load]);
 
@@ -1052,16 +1076,35 @@ export default function StoryboardPage() {
         body: JSON.stringify({
           skillId: "script-to-storyboard",
           projectId: id,
-          input: { extraInstructions: extra },
+          input: { extraInstructions: extra, presetId },
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "生成失败");
-      const orchestrated = await runOrchestrate(vendor, true);
-      if (!orchestrated) {
-        throw new Error("分镜已生成，但按厂商编排失败，请点「重新编排」重试");
+      await refresh();
+      const presetName =
+        presets.find((item) => item.id === presetId)?.name ?? presetId;
+      const assembly = data?.assembly as
+        | { outputShots?: number; totalDurationMs?: number; warnings?: string[] }
+        | undefined;
+      const orchestration = data?.orchestration as
+        | { segments?: number; clearedVideos?: number }
+        | undefined;
+      const durationText = assembly?.totalDurationMs
+        ? ` · ${Math.round(assembly.totalDurationMs / 1000)}s`
+        : "";
+      toast.success(
+        assembly?.outputShots
+          ? `分镜已生成：${presetName} · ${assembly.outputShots} 镜 · ${
+              orchestration?.segments ?? "?"
+            } 段${durationText}`
+          : `分镜已生成：${presetName}`,
+      );
+      if (assembly?.warnings?.length) {
+        toast.message("合并提示", {
+          description: assembly.warnings.slice(0, 2).join("；"),
+        });
       }
-      toast.success("分镜已生成并按所选厂商编排");
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
@@ -1163,6 +1206,26 @@ export default function StoryboardPage() {
               顺序生成
             </Button>
           )}
+
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="whitespace-nowrap">分镜方式</span>
+            <select
+              value={presetId}
+              onChange={(event) => setPresetId(event.target.value)}
+              disabled={busyGenerate || orchestrating}
+              title={
+                presets.find((item) => item.id === presetId)?.description ??
+                "选择分镜生成策略"
+              }
+              className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none transition-colors hover:border-foreground/25 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {presets.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <DropdownMenu>
             <DropdownMenuTrigger

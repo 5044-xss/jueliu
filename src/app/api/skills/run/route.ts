@@ -11,13 +11,21 @@ import {
   getContinuityRules,
   clearStoryboard,
 } from "@core/server/storyboard";
-import { applyOrchestration } from "@core/server/orchestration/apply";
+import { assembleStoryboard } from "@core/server/storyboard/assemble-shots";
+import { applyStoryboardPreset } from "@core/server/orchestration/preset";
+import { resolveStoryboardPreset } from "@core/server/library/storyboard-presets";
+import type { StoryboardPresetConfigPatch } from "@core/shared/library/storyboard-presets";
 import {
   isScript,
   isAssetsDraft,
   isStoryboardDraft,
 } from "@core/shared/schemas/guards";
-import { startJob, finishJob, isJobActive } from "@core/server/jobs";
+import {
+  startJob,
+  finishJob,
+  isJobActive,
+  updateJobParams,
+} from "@core/server/jobs";
 import { withLock } from "@core/server/lock";
 import { cancelProjectGeneration } from "@/lib/generation/cancel";
 
@@ -61,6 +69,29 @@ export async function POST(request: Request) {
   }
 
   const jobId = startJob(projectId, skillId);
+  const isStoryboardSkill = skillId === "script-to-storyboard";
+  const presetInput = inputParsed.data as {
+    presetId?: string;
+    overrides?: StoryboardPresetConfigPatch;
+    extraInstructions?: string;
+  };
+  const resolvedPreset = isStoryboardSkill
+    ? resolveStoryboardPreset(presetInput.presetId, presetInput.overrides)
+    : null;
+  const skillInput =
+    resolvedPreset && isStoryboardSkill
+      ? {
+          ...(inputParsed.data as Record<string, unknown>),
+          extraInstructions: [
+            resolvedPreset.config.prompt.extraInstructions,
+            presetInput.extraInstructions ?? "",
+          ]
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .join("\n\n"),
+        }
+      : inputParsed.data;
+
   try {
     const story = getStory(projectId).content;
     const script = getStoredScript(projectId);
@@ -68,7 +99,7 @@ export async function POST(request: Request) {
     const rules = getContinuityRules();
     const output = await skill.run(
       { projectId, project, story, script, assets, rules },
-      inputParsed.data,
+      skillInput,
     );
 
     if (skillId === "story-to-script" && isScript(output)) {
@@ -97,16 +128,43 @@ export async function POST(request: Request) {
 
     if (skillId === "script-to-storyboard" && isStoryboardDraft(output)) {
       // 与「重新编排」共用同一把锁：保存分镜 + 编排必须原子，不能被并发编排插队。
-      const stored = await withLock(`orchestrate:${projectId}`, async () => {
-        assertJobActive(projectId, jobId);
-        cancelProjectGeneration(projectId);
-        saveStoryboard(projectId, output, assets);
-        // 以镜为主：分镜只产出镜序列，段由编排层按所选厂商派生。
-        applyOrchestration(projectId, project.vendor);
-        return getStoryboard(projectId);
+      const preset = resolvedPreset ?? resolveStoryboardPreset(undefined);
+      const assembled = assembleStoryboard(output, preset.config.assembly);
+      const appliedResult = await withLock(
+        `orchestrate:${projectId}`,
+        async () => {
+          assertJobActive(projectId, jobId);
+          cancelProjectGeneration(projectId);
+          saveStoryboard(projectId, assembled.draft, assets, {
+            useDraftDurations: preset.config.assembly.mode === "merge",
+          });
+          const applied = applyStoryboardPreset(
+            projectId,
+            preset,
+            project.vendor,
+          );
+          return { scenes: getStoryboard(projectId), applied };
+        },
+      );
+      updateJobParams(projectId, jobId, {
+        presetId: preset.preset.id,
+        presetVersion: preset.preset.version,
+        effectiveConfig: preset.config,
+        assembly: assembled.stats,
+        orchestration: appliedResult.applied,
       });
       finishJob(projectId, jobId, "succeeded");
-      return NextResponse.json({ result: stored });
+      return NextResponse.json({
+        result: appliedResult.scenes,
+        preset: {
+          id: preset.preset.id,
+          name: preset.preset.name,
+          version: preset.preset.version,
+          config: preset.config,
+        },
+        assembly: assembled.stats,
+        orchestration: appliedResult.applied,
+      });
     }
 
     finishJob(projectId, jobId, "succeeded");

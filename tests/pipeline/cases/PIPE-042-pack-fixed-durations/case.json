@@ -1,0 +1,37 @@
+{
+  "id": "PIPE-042",
+  "title": "预设固定时长：pack 不再重新分配 5s/6s",
+  "stage": "pack-v2",
+  "tags": ["preset", "packing", "duration"],
+  "input": {
+    "defaultSegmentMs": 12000,
+    "options": {
+      "maxSegmentMs": 12000,
+      "maxShotsPerSegment": 6,
+      "qualityMaxShots": 6,
+      "ignoreDefaultSegmentMs": true
+    },
+    "vendor": {
+      "id": "h3",
+      "name": "H3",
+      "platform": "h3",
+      "supportMultiShot": true,
+      "supportFirstFrame": true,
+      "supportLastFrame": true,
+      "maxShotsPerSegment": 6,
+      "maxRefImages": 9,
+      "minSegmentMs": 4000,
+      "maxSegmentMs": 15000,
+      "durationStepMs": 1000
+    },
+    "shots": [
+      { "minMs": 4000, "idealMs": 5000, "maxMs": 10000, "fixedMs": 5000, "continuesPrev": true, "subjectKey": "a", "castIds": ["n_a"], "refLabels": [] },
+      { "minMs": 4000, "idealMs": 6000, "maxMs": 10000, "fixedMs": 6000, "continuesPrev": true, "subjectKey": "a", "castIds": ["n_a"], "refLabels": [] }
+    ]
+  },
+  "expect": {
+    "segments": [[0, 1]],
+    "targetMs": [11000],
+    "shotDurations": [[5000, 6000]]
+  }
+}
