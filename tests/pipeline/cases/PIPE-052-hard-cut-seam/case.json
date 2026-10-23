@@ -1,0 +1,27 @@
+{
+  "id": "PIPE-052",
+  "title": "分镜明确标注 hard-cut：段间必须硬切",
+  "stage": "continuity-seam",
+  "tags": ["continuity", "link-mode", "hard-cut", "R2"],
+  "input": {
+    "previous": {
+      "continuesPrev": true,
+      "camera": { "shotSize": "中景", "focal": "50mm" },
+      "presentCast": ["a", "b"]
+    },
+    "current": {
+      "transition": "hard-cut",
+      "continuesPrev": false,
+      "camera": { "shotSize": "中景", "focal": "50mm" },
+      "presentCast": ["a", "b"]
+    },
+    "isFirstOfScene": false,
+    "tailFrameAvailable": true
+  },
+  "expect": {
+    "linkMode": "hard-cut",
+    "reason": "hard-cut",
+    "transition": "hard-cut",
+    "hardCut": true
+  }
+}

@@ -766,7 +766,7 @@ export default function ExecutionPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto pb-4">
-      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 rounded-2xl bg-block-cream p-5">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-cream p-5">
         <div>
           <h2 className="text-base font-medium">分镜执行记录</h2>
           <p className="text-sm text-muted-foreground">

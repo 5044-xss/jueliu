@@ -8,7 +8,6 @@ const createSchema = z.object({
   videoStyle: z.string().optional(),
   styleId: z.string().nullable().optional(),
   aspectRatio: z.string().optional(),
-  defaultSegmentMs: z.number().int().positive().optional(),
 });
 
 type Ctx = { params: Promise<{ id: string }> };

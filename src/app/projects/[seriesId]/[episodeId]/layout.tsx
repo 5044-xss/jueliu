@@ -71,9 +71,6 @@ export default async function EpisodeLayout({
             style={project.style}
             locked={styleLocked}
           />
-          <span className="text-sm text-muted-foreground">
-            默认段时长 {(project.defaultSegmentMs / 1000).toFixed(1)}s
-          </span>
           <OpenProjectFolderButton projectId={episodeId} size="xs" />
         </div>
       </div>

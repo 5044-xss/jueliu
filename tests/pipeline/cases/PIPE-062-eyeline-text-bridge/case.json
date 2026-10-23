@@ -1,0 +1,29 @@
+{
+  "id": "PIPE-062",
+  "title": "同场视线匹配切、不使用尾帧：必须走文锚而不是硬切",
+  "stage": "continuity-seam",
+  "tags": ["continuity", "link-mode", "eyeline", "text-bridge", "R2"],
+  "input": {
+    "previous": {
+      "continuesPrev": true,
+      "camera": { "shotSize": "中景", "focal": "50mm", "side": "left" },
+      "presentCast": ["a", "b"]
+    },
+    "current": {
+      "transition": "eyeline",
+      "continuesPrev": true,
+      "camera": { "shotSize": "近景", "focal": "85mm", "side": "left" },
+      "presentCast": ["a", "b"]
+    },
+    "isFirstOfScene": false,
+    "allHard": false,
+    "tailFrameAvailable": false,
+    "strict": false
+  },
+  "expect": {
+    "linkMode": "text-bridge",
+    "reason": "text-bridge",
+    "transition": "eyeline",
+    "hardCut": true
+  }
+}

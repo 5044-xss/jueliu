@@ -22,6 +22,7 @@ import { SegmentVideo } from "@/components/segment-video";
 import { SegmentComposer } from "@/components/segment-composer";
 import { ShotEditDialog } from "@/components/shot-edit-dialog";
 import { BlockingEditDialog } from "@/components/blocking-edit-dialog";
+import { ExtraRequirementsDialog } from "@/components/extra-requirements-dialog";
 import { Elapsed } from "@/components/elapsed";
 import { LoadErrorState, LoadingState } from "@/components/load-state";
 import { LlmKeyNotice, useLlmConfigured } from "@/components/llm-notice";
@@ -42,6 +43,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -79,6 +87,18 @@ function clock(ms: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+function segmentLinkLabel(segment: StoredSegment): string {
+  if (segment.linkMode === "text-bridge") return "文锚";
+  if (segment.linkMode === "tail-frame") return "连续";
+  return "硬切";
+}
+
+function segmentLinkBadgeClass(segment: StoredSegment): string {
+  if (segment.linkMode === "text-bridge") return "bg-sky-500/90";
+  if (segment.linkMode === "tail-frame") return "bg-emerald-500/90";
+  return "bg-amber-500/90";
+}
+
 function formatStoryboardText(scenes: StoredSceneStoryboard[]): string {
   if (scenes.length === 0) return "（暂无分镜）";
   const lines: string[] = [];
@@ -112,7 +132,7 @@ function formatStoryboardText(scenes: StoredSceneStoryboard[]): string {
       );
       lines.push("");
       lines.push(
-        `— 第${segment.index}段（${segment.shots.length}镜 · ${(total / 1000).toFixed(1)}s · ${segment.hardCut ? "硬切" : "连续"}）`,
+        `— 第${segment.index}段（${segment.shots.length}镜 · ${(total / 1000).toFixed(1)}s · ${segmentLinkLabel(segment)}）`,
       );
       for (const shot of segment.shots) {
         const cameraText = [
@@ -756,6 +776,10 @@ export default function StoryboardPage() {
     })),
   );
   const returnedCount = allSegments.filter((e) => e.segment.videoPath).length;
+  const totalTargetMs = allSegments.reduce(
+    (sum, entry) => sum + entry.segment.targetMs,
+    0,
+  );
   // 顺序生成时若勾选自动补帧，会为这些「硬切/场首且缺起始画面」的段额外出图。
   const missingHardCutFrames = allSegments.filter(
     (entry) =>
@@ -1152,10 +1176,21 @@ export default function StoryboardPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 pb-4">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border bg-background px-3 py-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h2 className="text-sm font-medium">分镜</h2>
-          <span className="hidden h-4 w-px bg-border sm:block" />
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-mint p-5">
+        <div>
+          <h2 className="text-base font-medium">分镜</h2>
+          <p className="text-sm text-muted-foreground">
+            场次拆分为段落与分镜；选择厂商后按该厂商的镜数/时长/参考图规则重新编排。
+          </p>
+          {!isH3 && (
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+              云端生成仅适配 MiniMax H3；当前厂商「
+              {currentVendor?.name ?? vendor}
+              」请用「第三方生成」手动回传。
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
           <button
             type="button"
             onClick={() => setVendorDialogOpen(true)}
@@ -1179,13 +1214,6 @@ export default function StoryboardPage() {
               切换
             </span>
           </button>
-          {!isH3 && (
-            <span className="text-[11px] text-amber-700 dark:text-amber-400">
-              云端生成仅适配 MiniMax H3
-            </span>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
           {hasStoryboard && (
             <Button
               size="sm"
@@ -1209,23 +1237,44 @@ export default function StoryboardPage() {
 
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="whitespace-nowrap">分镜方式</span>
-            <select
+            <Select
               value={presetId}
-              onChange={(event) => setPresetId(event.target.value)}
+              onValueChange={(value) => setPresetId(value as string)}
+              items={presets.map((item) => ({
+                value: item.id,
+                label: item.name,
+              }))}
               disabled={busyGenerate || orchestrating}
-              title={
-                presets.find((item) => item.id === presetId)?.description ??
-                "选择分镜生成策略"
-              }
-              className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none transition-colors hover:border-foreground/25 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {presets.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger
+                size="sm"
+                className="bg-background pr-2 text-[0.8rem]"
+                title={
+                  presets.find((item) => item.id === presetId)?.description ??
+                  "选择分镜生成策略"
+                }
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {presets.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setExtraOpen(true)}
+            disabled={busyGenerate || orchestrating}
+          >
+            <FileText className="size-4" />
+            额外要求{extra.trim() ? "（已填写）" : ""}
+          </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -1236,10 +1285,6 @@ export default function StoryboardPage() {
               <ChevronDown className="size-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent className="max-h-80 overflow-y-auto">
-              <DropdownMenuItem onClick={() => setExtraOpen(true)}>
-                <FileText className="size-4" />
-                额外要求{extra.trim() ? "（已填写）" : ""}
-              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={genAllStartFrames}
                 disabled={
@@ -1340,7 +1385,7 @@ export default function StoryboardPage() {
           <CardContent className="flex flex-col items-center gap-1.5 py-16 text-center">
             <p className="font-medium">还没有分镜</p>
             <p className="text-sm text-muted-foreground">
-              点击右上角「生成分镜」开始；也可以先在「更多 → 额外要求」里补充要求。
+              点击右上角「生成分镜」开始；也可以先在「额外要求」里补充要求。
             </p>
           </CardContent>
         </Card>
@@ -1579,6 +1624,9 @@ export default function StoryboardPage() {
                   段落列表（{allSegments.length}）
                 </span>
                 <span className="text-xs text-muted-foreground">
+                  总时长 {clock(totalTargetMs)}
+                </span>
+                <span className="text-xs text-muted-foreground">
                   点击切换预览
                 </span>
                 <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -1639,9 +1687,15 @@ export default function StoryboardPage() {
                     >
                       <div className="relative aspect-video w-full overflow-hidden rounded bg-black">
                         <SegmentThumb projectId={id} segment={segment} />
-                        {segment.hardCut && segment.index > 1 && (
-                          <span className="absolute left-1 top-1 rounded bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-medium leading-none text-black">
-                            硬切
+                        {segment.index > 1 && (
+                          <span
+                            className={cn(
+                              "absolute left-1 top-1 rounded px-1.5 py-0.5 text-[10px] font-medium leading-none text-black",
+                              segmentLinkBadgeClass(segment),
+                            )}
+                            title={segment.seamReason ?? undefined}
+                          >
+                            {segmentLinkLabel(segment)}
                           </span>
                         )}
                         {generating && (
@@ -1665,7 +1719,9 @@ export default function StoryboardPage() {
                       <span className="text-xs text-muted-foreground">
                         {segment.shots.length} 镜 ·{" "}
                         {(total / 1000).toFixed(1)}s
-                        {segment.hardCut && segment.index > 1 ? " · 硬切" : ""}
+                        {segment.index > 1
+                          ? ` · ${segmentLinkLabel(segment)}`
+                          : ""}
                       </span>
                       <div className="flex items-center justify-between gap-1.5">
                         <span
@@ -1867,32 +1923,14 @@ export default function StoryboardPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={extraOpen} onOpenChange={setExtraOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>额外要求</DialogTitle>
-            <DialogDescription>
-              可选，下一次生成分镜时生效；不影响已有分镜。
-            </DialogDescription>
-          </DialogHeader>
-          <textarea
-            value={extra}
-            onChange={(e) => setExtra(e.target.value)}
-            placeholder="例如：多用户外自然光；避免快速推拉运镜。"
-            className="min-h-[120px] w-full rounded-lg border border-input bg-transparent p-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-          />
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setExtra("")}
-              disabled={!extra}
-            >
-              清空
-            </Button>
-            <Button onClick={() => setExtraOpen(false)}>完成</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ExtraRequirementsDialog
+        open={extraOpen}
+        onOpenChange={setExtraOpen}
+        value={extra}
+        onChange={setExtra}
+        placeholder="例如：多用户外自然光；避免快速推拉运镜。"
+        description="可选，下一次生成分镜时生效；不影响已有分镜。"
+      />
 
       <VendorSwitchDialog
         key={`${vendorDialogOpen}:${vendor}`}

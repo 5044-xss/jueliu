@@ -57,6 +57,19 @@ function segmentTitle(segment: ComposableSegment): string {
   return `${segment.sceneSlug || `第${segment.sceneIndex}场`} · 第${segment.index}段`;
 }
 
+function segmentLinkLabel(segment: ComposableSegment): string {
+  if (segment.linkMode === "text-bridge") return "文锚";
+  if (segment.linkMode === "tail-frame") return "连续";
+  return "硬切";
+}
+
+function clock(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
 export default function ComposePage() {
   const { episodeId: id } = useParams<{
     seriesId: string;
@@ -122,13 +135,12 @@ export default function ComposePage() {
         setCompositions(data.compositions ?? []);
         setShotsBySegment(data.shots);
         if (!initialized.current) {
-          const firstWithVideo = (data.segments ?? []).find((s) => s.hasVideo);
           setSelected(
             (data.segments ?? [])
               .filter((s) => s.hasVideo)
               .map((s) => s.segmentId),
           );
-          setPreviewId(firstWithVideo?.segmentId ?? null);
+          setPreviewId((data.segments ?? [])[0]?.segmentId ?? null);
           initialized.current = true;
         }
         setLoaded(true);
@@ -156,7 +168,7 @@ export default function ComposePage() {
     setPreviewId((prev) =>
       prev && (data.segments ?? []).some((s) => s.segmentId === prev)
         ? prev
-        : ((data.segments ?? []).find((s) => s.hasVideo)?.segmentId ?? null),
+        : ((data.segments ?? [])[0]?.segmentId ?? null),
     );
   }, [load]);
 
@@ -175,6 +187,10 @@ export default function ComposePage() {
   });
   const running = isJobRunning(jobs, "compose");
   const busy = exporting || running;
+  const totalTargetMs = segments.reduce(
+    (sum, segment) => sum + segment.targetMs,
+    0,
+  );
 
   function toggle(segmentId: string) {
     setSelected((prev) =>
@@ -263,16 +279,12 @@ export default function ComposePage() {
     );
   }
 
-  const withVideo = segments.filter((s) => s.hasVideo).length;
-  const staleSelected = selected.filter((sid) =>
-    segments.some((s) => s.segmentId === sid && s.stale),
-  ).length;
   const preview = segments.find((s) => s.segmentId === previewId) ?? null;
   const previewShots = previewId ? shotsBySegment.get(previewId) ?? [] : [];
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 pb-4">
-      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 rounded-2xl bg-block-pink p-5">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-pink p-5">
         <div>
           <h2 className="text-base font-medium">合成</h2>
           <p className="text-sm text-muted-foreground">
@@ -280,6 +292,50 @@ export default function ComposePage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {segments.length > 0 && (
+            <>
+              <span className="text-sm font-medium">转场</span>
+              <label className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">方式</span>
+                <Select
+                  value={transition}
+                  onValueChange={(value) => setTransition(value as string)}
+                  items={TRANSITIONS}
+                >
+                  <SelectTrigger className="w-36">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TRANSITIONS.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">时长</span>
+                <Select
+                  value={transitionMs}
+                  onValueChange={(value) => setTransitionMs(value as number)}
+                  items={DURATION_ITEMS}
+                  disabled={transition === "none"}
+                >
+                  <SelectTrigger className="w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DURATION_ITEMS.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+            </>
+          )}
           <OpenExportsFolderButton projectId={id} size="default" />
           <Button onClick={compose} disabled={busy || selected.length === 0}>
             {busy ? (
@@ -291,61 +347,6 @@ export default function ComposePage() {
           </Button>
         </div>
       </div>
-
-      {segments.length > 0 && (
-        <>
-          <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-background px-4 py-2.5">
-            <span className="text-sm font-medium">转场</span>
-            <label className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">方式</span>
-              <Select
-                value={transition}
-                onValueChange={(value) => setTransition(value as string)}
-                items={TRANSITIONS}
-              >
-                <SelectTrigger className="w-36">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TRANSITIONS.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">时长</span>
-              <Select
-                value={transitionMs}
-                onValueChange={(value) => setTransitionMs(value as number)}
-                items={DURATION_ITEMS}
-                disabled={transition === "none"}
-              >
-                <SelectTrigger className="w-28">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DURATION_ITEMS.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>
-            <span className="ml-auto text-xs text-muted-foreground">
-              已选 {selected.length} / 可合成 {withVideo}
-              {staleSelected > 0 && (
-                <span className="ml-2 text-amber-600 dark:text-amber-400">
-                  其中 {staleSelected} 段视频已过期
-                </span>
-              )}
-            </span>
-          </div>
-        </>
-      )}
 
       <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-0.5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-visible xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <Card
@@ -380,9 +381,13 @@ export default function ComposePage() {
             {preview && (
               <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span>目标 {(preview.targetMs / 1000).toFixed(1)}s</span>
-                {preview.hardCut && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    硬切
+                {preview.index > 1 && (
+                  <Badge
+                    variant="secondary"
+                    className="text-[10px]"
+                    title={preview.seamReason ?? undefined}
+                  >
+                    {segmentLinkLabel(preview)}
                   </Badge>
                 )}
                 {preview.stale && (
@@ -571,6 +576,9 @@ export default function ComposePage() {
             <span className="text-sm font-medium">
               段落列表（{segments.length}）
             </span>
+            <span className="text-xs text-muted-foreground">
+              总时长 {clock(totalTargetMs)}
+            </span>
             <span className="text-xs text-muted-foreground">点击切换预览</span>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-1">
@@ -636,7 +644,9 @@ export default function ComposePage() {
                   </span>
                   <span className="text-xs text-muted-foreground">
                     目标 {(segment.targetMs / 1000).toFixed(1)}s
-                    {segment.hardCut && " · 硬切"}
+                    {segment.index > 1
+                      ? ` · ${segmentLinkLabel(segment)}`
+                      : ""}
                   </span>
                   <div
                     className="flex items-center justify-between gap-1.5"

@@ -1,0 +1,27 @@
+{
+  "id": "PIPE-060",
+  "title": "strict 策略下机位不全同：必须硬切",
+  "stage": "continuity-seam",
+  "tags": ["continuity", "strict", "camera", "R2"],
+  "input": {
+    "previous": {
+      "continuesPrev": true,
+      "camera": { "shotSize": "中景", "focal": "50mm", "angle": "平视" },
+      "presentCast": ["a", "b"]
+    },
+    "current": {
+      "transition": "same-take",
+      "continuesPrev": true,
+      "camera": { "shotSize": "中景", "focal": "50mm", "angle": "略仰拍" },
+      "presentCast": ["a", "b"]
+    },
+    "isFirstOfScene": false,
+    "tailFrameAvailable": true,
+    "strict": true
+  },
+  "expect": {
+    "linkMode": "hard-cut",
+    "reason": "camera-jump",
+    "hardCut": true
+  }
+}

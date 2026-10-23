@@ -150,7 +150,7 @@ export default function SeriesPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 pb-6">
+    <div className="flex h-full min-h-0 flex-col gap-6 pb-6">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Link
           href="/projects"
@@ -203,10 +203,10 @@ export default function SeriesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="pr-3 pb-3">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+        <div className="min-h-0 flex-1 overflow-y-auto pr-3 pb-3">
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
             {episodes.map((e) => (
-              <Card key={e.id} className="border border-border gap-0 p-0">
+              <Card key={e.id} size="sm" className="border border-border gap-0 p-0">
                 {e.thumbnail ? (
                   <div className="relative aspect-video w-full overflow-hidden bg-black">
                     <video
@@ -222,44 +222,57 @@ export default function SeriesPage() {
                     <Film className="size-6" />
                   </div>
                 )}
-                <CardHeader className="pt-(--card-spacing) pb-2">
-                  <CardTitle className="truncate">{e.name}</CardTitle>
-                  <CardDescription>
+                <CardHeader className="pt-(--card-spacing) pb-1.5">
+                  <div className="flex min-w-0 items-center gap-1">
+                    <CardTitle className="min-w-0 flex-1 truncate">
+                      {e.name}
+                    </CardTitle>
+                    <OpenProjectFolderButton
+                      projectId={e.id}
+                      label=""
+                      size="icon-xs"
+                      variant="ghost"
+                      className="shrink-0"
+                    />
+                  </div>
+                  <CardDescription className="text-xs">
                     创建于 {new Date(e.createdAt).toLocaleString("zh-CN")}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="flex flex-wrap items-center gap-2 pb-(--card-spacing)">
+                <CardContent className="grid grid-cols-4 items-center gap-1.5 pb-(--card-spacing)">
                   <Button
-                    size="sm"
+                    size="xs"
+                    className="w-full px-1"
                     onClick={() => router.push(`/projects/${seriesId}/${e.id}`)}
                   >
-                    <FolderOpen className="size-4" />
+                    <FolderOpen className="size-3.5" />
                     打开
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => openEdit(e)}>
-                    <Pencil className="size-4" />
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    className="w-full px-1"
+                    onClick={() => openEdit(e)}
+                  >
+                    <Pencil className="size-3.5" />
                     编辑
                   </Button>
-                  <OpenProjectFolderButton
-                    projectId={e.id}
-                    label="文件夹"
-                    size="sm"
-                    variant="outline"
-                  />
                   <Button
-                    size="sm"
+                    size="xs"
                     variant="outline"
+                    className="w-full px-1"
                     onClick={() => setCopyTarget(e)}
                   >
-                    <Copy className="size-4" />
+                    <Copy className="size-3.5" />
                     复制
                   </Button>
                   <Button
-                    size="sm"
+                    size="xs"
                     variant="destructive"
+                    className="w-full px-1"
                     onClick={() => remove(e.id, e.name)}
                   >
-                    <Trash2 className="size-4" />
+                    <Trash2 className="size-3.5" />
                     删除
                   </Button>
                 </CardContent>

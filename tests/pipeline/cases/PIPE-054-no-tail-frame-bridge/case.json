@@ -1,0 +1,26 @@
+{
+  "id": "PIPE-054",
+  "title": "尾帧不可用：同镜延续也必须降为文锚",
+  "stage": "continuity-seam",
+  "tags": ["continuity", "link-mode", "tail-frame", "R2"],
+  "input": {
+    "previous": {
+      "continuesPrev": true,
+      "camera": { "shotSize": "中景", "focal": "50mm" },
+      "presentCast": ["a", "b"]
+    },
+    "current": {
+      "transition": "same-take",
+      "continuesPrev": true,
+      "camera": { "shotSize": "中景", "focal": "50mm" },
+      "presentCast": ["a", "b"]
+    },
+    "isFirstOfScene": false,
+    "tailFrameAvailable": false
+  },
+  "expect": {
+    "linkMode": "text-bridge",
+    "reason": "no-tail-frame",
+    "hardCut": true
+  }
+}

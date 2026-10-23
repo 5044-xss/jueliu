@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, Loader2, Sparkles, Trash2 } from "lucide-react";
+import { FileText, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
+import { ExtraRequirementsDialog } from "@/components/extra-requirements-dialog";
 import { LoadErrorState, LoadingState } from "@/components/load-state";
 import { useProjectJobs, isJobRunning } from "@core/client/use-jobs";
 import { Elapsed } from "@/components/elapsed";
@@ -63,6 +63,7 @@ export default function ScriptPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [extra, setExtra] = useState("");
+  const [extraOpen, setExtraOpen] = useState(false);
   const [sessionId, setSessionId] = useState(id);
 
   if (sessionId !== id) {
@@ -194,14 +195,14 @@ export default function ScriptPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 pb-4">
-      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 rounded-2xl bg-block-lime p-5">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-lime p-5">
         <div>
           <h2 className="text-base font-medium">剧本</h2>
           <p className="text-sm text-muted-foreground">
             由故事生成结构化分场剧本，可反复重新生成。
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {script && (
             <CopyButton text={scriptToText(script)} label="复制剧本" />
           )}
@@ -211,6 +212,14 @@ export default function ScriptPage() {
               清空
             </Button>
           )}
+          <Button
+            variant="outline"
+            onClick={() => setExtraOpen(true)}
+            disabled={busy}
+          >
+            <FileText className="size-4" />
+            额外要求{extra.trim() ? "（已填写）" : ""}
+          </Button>
           <Button onClick={generate} disabled={busy || llmMissing}>
             {busy ? (
               <Loader2 className="size-4 animate-spin" />
@@ -223,30 +232,6 @@ export default function ScriptPage() {
       </div>
 
       {llmMissing && <LlmKeyNotice />}
-
-      {!busy && (
-        <details className="group shrink-0 rounded-lg border border-border bg-muted/20 px-3 py-2">
-          <summary className="flex cursor-pointer list-none select-none items-center justify-between text-sm font-medium [&::-webkit-details-marker]:hidden">
-            额外要求（可选，下次生成时生效）
-            <span className="flex items-center gap-2">
-              {extra.trim() && (
-                <span className="text-xs font-normal text-muted-foreground">
-                  已填写
-                </span>
-              )}
-              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
-            </span>
-          </summary>
-          <div className="mt-3">
-            <Textarea
-              value={extra}
-              onChange={(e) => setExtra(e.target.value)}
-              placeholder="例如：控制在 5 场内；加强喜剧节奏；避免血腥描写。"
-              className="min-h-[90px]"
-            />
-          </div>
-        </details>
-      )}
 
       {busy && (
         <Card>
@@ -312,6 +297,15 @@ export default function ScriptPage() {
           </div>
         </div>
       )}
+
+      <ExtraRequirementsDialog
+        open={extraOpen}
+        onOpenChange={setExtraOpen}
+        value={extra}
+        onChange={setExtra}
+        placeholder="例如：控制在 5 场内；加强喜剧节奏；避免血腥描写。"
+        description="可选，下一次生成剧本时生效。"
+      />
     </div>
   );
 }

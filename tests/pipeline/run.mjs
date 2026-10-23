@@ -14,6 +14,10 @@ import {
   castContinuityCompatible,
 } from "../../packages/core/src/shared/cast-refs.ts";
 import { packSceneV2 } from "../../packages/core/src/server/orchestration/pack.ts";
+import {
+  buildTransitionBrief,
+  decideSeam,
+} from "../../packages/core/src/shared/continuity-engine.ts";
 import { assembleStoryboard } from "../../packages/core/src/server/storyboard/assemble-shots.ts";
 import {
   STANDARD_STORYBOARD_PRESET_CONFIG,
@@ -22,6 +26,7 @@ import {
 import { checkDialogueCoverage } from "../../packages/core/src/shared/dialogue-coverage.ts";
 import { renderH3Prompt } from "../../packages/core/src/server/compile/h3-render.ts";
 import { buildShotBlockingTextEn } from "../../packages/core/src/shared/blocking-text.ts";
+import { stripCostumeColors } from "../../packages/core/src/shared/costume-text.ts";
 import { preferredVideoImage } from "../../packages/core/src/shared/video-ref.ts";
 import { normalizeShotState } from "../../packages/core/src/server/storyboard/normalize-shot-state.ts";
 import { auditPropTrajectory } from "../../packages/core/src/shared/prompt-audit.ts";
@@ -361,6 +366,16 @@ async function runH3BlockingCase(item) {
   }
 }
 
+async function runCostumeTextCase(item) {
+  const text = stripCostumeColors(item.input.text);
+  for (const needle of item.expect.contains ?? []) {
+    assertContains(text, needle, "costume text");
+  }
+  for (const needle of item.expect.notContains ?? []) {
+    assertNotContains(text, needle, "costume text");
+  }
+}
+
 async function runSubmitPayloadCase(item) {  const built = buildH3Workflow(item.input);
   const workflow = built.workflow;
   const promptNode = workflow[item.expect.promptNode ?? "209"];
@@ -544,6 +559,35 @@ async function runPromptAuditCase(item) {
   );
 }
 
+async function runContinuitySeamCase(item) {
+  const decision = decideSeam(item.input);
+  assert.equal(decision.linkMode, item.expect.linkMode, "linkMode");
+  if (item.expect.reason) {
+    assert.equal(decision.reason, item.expect.reason, "reason");
+  }
+  if (item.expect.transition) {
+    assert.equal(decision.transition, item.expect.transition, "transition");
+  }
+  if (typeof item.expect.hardCut === "boolean") {
+    assert.equal(decision.hardCut, item.expect.hardCut, "hardCut");
+  }
+  if (item.expect.gates) {
+    for (const [key, value] of Object.entries(item.expect.gates)) {
+      assert.equal(decision.gates[key], value, `gate ${key}`);
+    }
+  }
+}
+
+async function runContinuityBriefCase(item) {
+  const text = buildTransitionBrief(item.input);
+  for (const needle of item.expect.contains ?? []) {
+    assertContains(text, needle, "transition brief");
+  }
+  for (const needle of item.expect.notContains ?? []) {
+    assertNotContains(text, needle, "transition brief");
+  }
+}
+
 async function runAssembleCase(item) {
   const config = mergeStoryboardPresetConfig(
     STANDARD_STORYBOARD_PRESET_CONFIG,
@@ -588,6 +632,8 @@ async function runAssembleCase(item) {
 
 const handlers = {
   preflight: runPreflightCase,
+  "continuity-seam": runContinuitySeamCase,
+  "continuity-brief": runContinuityBriefCase,
   assemble: runAssembleCase,
   "camera-jump": runCameraJumpCase,
   "augment-cast": runAugmentCastCase,
@@ -600,6 +646,7 @@ const handlers = {
   "dialogue-coverage": runDialogueCoverageCase,
   "h3-render": runH3RenderCase,
   "h3-blocking": runH3BlockingCase,
+  "costume-text": runCostumeTextCase,
   "video-ref": runVideoRefCase,
   "submit-payload": runSubmitPayloadCase,
 };

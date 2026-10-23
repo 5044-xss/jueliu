@@ -1,0 +1,27 @@
+{
+  "id": "PIPE-050",
+  "title": "同镜延续且人物只增不减：必须使用尾帧",
+  "stage": "continuity-seam",
+  "tags": ["continuity", "link-mode", "R2"],
+  "input": {
+    "previous": {
+      "continuesPrev": true,
+      "camera": { "shotSize": "中景", "focal": "50mm" },
+      "presentCast": ["a", "b"]
+    },
+    "current": {
+      "transition": "same-take",
+      "continuesPrev": true,
+      "camera": { "shotSize": "中景", "focal": "50mm" },
+      "presentCast": ["a", "b", "c"]
+    },
+    "isFirstOfScene": false,
+    "tailFrameAvailable": true
+  },
+  "expect": {
+    "linkMode": "tail-frame",
+    "reason": "tail-frame",
+    "transition": "same-take",
+    "hardCut": false
+  }
+}

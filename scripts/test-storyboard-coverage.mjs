@@ -156,6 +156,41 @@ test("预算：对白按 5 字/秒，动作按信息量，永不低于 min", () 
   assert.ok(actionBudget.minMs >= 1500 && actionBudget.minMs <= 3000);
 });
 
+test("v2 装段：切镜后允许人物出画，same-take 仍禁止", () => {
+  const h3 = DEFAULT_VENDORS.find((vendor) => vendor.id === "h3");
+  const shot = (castIds, transition) => ({
+    minMs: 4000,
+    idealMs: 4000,
+    maxMs: 4000,
+    fixedMs: 4000,
+    continuesPrev: true,
+    transition,
+    subjectKey: "action",
+    castIds,
+    refLabels: [],
+  });
+  const options = {
+    ignoreDefaultSegmentMs: true,
+    maxSegmentMs: 15000,
+    maxShotsPerSegment: 6,
+  };
+  const cut = packSceneV2(
+    [shot(["a", "b"], undefined), shot(["a"], "new-angle")],
+    h3,
+    15000,
+    options,
+  );
+  assert.equal(cut.segments.length, 1);
+
+  const sameTake = packSceneV2(
+    [shot(["a", "b"], undefined), shot(["a"], "same-take")],
+    h3,
+    15000,
+    options,
+  );
+  assert.equal(sameTake.segments.length, 2);
+});
+
 test("v2 装段：34 镜 → 9 段 / 89s，全部多镜且不压缩单镜", () => {
   const h3 = DEFAULT_VENDORS.find((vendor) => vendor.id === "h3");
   const packShots = beats.map((beat, index) => {

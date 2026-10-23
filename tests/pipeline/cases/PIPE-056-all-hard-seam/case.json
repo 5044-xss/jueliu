@@ -1,0 +1,27 @@
+{
+  "id": "PIPE-056",
+  "title": "项目选择全硬切：任何连续意图都不得接尾帧",
+  "stage": "continuity-seam",
+  "tags": ["continuity", "link-mode", "all-hard", "R2"],
+  "input": {
+    "previous": {
+      "continuesPrev": true,
+      "camera": { "shotSize": "中景", "focal": "50mm" },
+      "presentCast": ["a", "b"]
+    },
+    "current": {
+      "transition": "same-take",
+      "continuesPrev": true,
+      "camera": { "shotSize": "中景", "focal": "50mm" },
+      "presentCast": ["a", "b"]
+    },
+    "isFirstOfScene": false,
+    "allHard": true,
+    "tailFrameAvailable": true
+  },
+  "expect": {
+    "linkMode": "hard-cut",
+    "reason": "all-hard",
+    "hardCut": true
+  }
+}

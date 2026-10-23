@@ -1,0 +1,27 @@
+{
+  "id": "PIPE-057",
+  "title": "动作匹配切：时间连续但不接尾帧，必须走文锚",
+  "stage": "continuity-seam",
+  "tags": ["continuity", "link-mode", "match-action", "R2"],
+  "input": {
+    "previous": {
+      "continuesPrev": true,
+      "camera": { "shotSize": "中景", "focal": "50mm" },
+      "presentCast": ["a", "b"]
+    },
+    "current": {
+      "transition": "match-action",
+      "continuesPrev": true,
+      "camera": { "shotSize": "中景", "focal": "50mm" },
+      "presentCast": ["a", "b"]
+    },
+    "isFirstOfScene": false,
+    "tailFrameAvailable": true
+  },
+  "expect": {
+    "linkMode": "text-bridge",
+    "reason": "text-bridge",
+    "transition": "match-action",
+    "hardCut": true
+  }
+}

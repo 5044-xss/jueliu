@@ -1,0 +1,22 @@
+{
+  "id": "PIPE-055",
+  "title": "场次首段：无论内容多连续，都必须硬切",
+  "stage": "continuity-seam",
+  "tags": ["continuity", "link-mode", "scene-boundary", "R2"],
+  "input": {
+    "previous": null,
+    "current": {
+      "transition": "same-take",
+      "continuesPrev": false,
+      "camera": { "shotSize": "全景", "focal": "35mm" },
+      "presentCast": ["a"]
+    },
+    "isFirstOfScene": true,
+    "tailFrameAvailable": true
+  },
+  "expect": {
+    "linkMode": "hard-cut",
+    "reason": "first",
+    "hardCut": true
+  }
+}

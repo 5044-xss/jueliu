@@ -40,7 +40,6 @@ export function ProjectFormDialog({
   const [style, setStyle] = useState("");
   const [videoStyle, setVideoStyle] = useState("");
   const [aspectRatio, setAspectRatio] = useState(DEFAULT_ASPECT_RATIO);
-  const [defaultSegmentSec, setDefaultSegmentSec] = useState(10);
   // 打开时的原始风格，用于判断「本次是否真的改了风格」（风格是锁定字段）。
   const [loadedStyle, setLoadedStyle] = useState("");
   const [loadedStyleId, setLoadedStyleId] = useState<string | null>(null);
@@ -74,9 +73,6 @@ export function ProjectFormDialog({
         setLoadedStyle(project.style ?? "");
         setVideoStyle(project.videoStyle ?? "");
         setAspectRatio(project.aspectRatio ?? DEFAULT_ASPECT_RATIO);
-        setDefaultSegmentSec(
-          Math.max(1, Math.round((project.defaultSegmentMs ?? 10000) / 1000)),
-        );
       })
       .catch((error: Error) => {
         if (!cancelled) toast.error(error.message);
@@ -107,7 +103,6 @@ export function ProjectFormDialog({
         name: name.trim(),
         videoStyle: videoStyle.trim(),
         aspectRatio,
-        defaultSegmentMs: Math.round(defaultSegmentSec * 1000),
       };
       // 风格是锁定字段：只有本次真的改了风格才提交它，避免「只改时长」被风格锁一起拒掉。
       const styleChanged =
@@ -159,7 +154,7 @@ export function ProjectFormDialog({
         <DialogHeader>
           <DialogTitle>{mode === "create" ? "新建子集" : "编辑子集"}</DialogTitle>
           <DialogDescription>
-            设定子集名称、风格与画面比例，后续所有生成都会继承。
+            设定子集名称、风格与画面比例；段时长按所选厂商的能力自动协商。
           </DialogDescription>
         </DialogHeader>
         {loading ? (
@@ -218,30 +213,14 @@ export function ProjectFormDialog({
                 </p>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="pf-ratio">画面比例</Label>
-                <SelectField
-                  id="pf-ratio"
-                  value={aspectRatio}
-                  onChange={setAspectRatio}
-                  options={ASPECT_OPTIONS.map((r) => ({ value: r, label: r }))}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="pf-sec">默认段时长（秒）</Label>
-                <Input
-                  id="pf-sec"
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={defaultSegmentSec}
-                  onChange={(e) => setDefaultSegmentSec(Number(e.target.value))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  单次生成的目标时长上限（实际按厂商上限与镜时长协商）。
-                </p>
-              </div>
+            <div className="grid gap-2">
+              <Label htmlFor="pf-ratio">画面比例</Label>
+              <SelectField
+                id="pf-ratio"
+                value={aspectRatio}
+                onChange={setAspectRatio}
+                options={ASPECT_OPTIONS.map((r) => ({ value: r, label: r }))}
+              />
             </div>
           </div>
         )}

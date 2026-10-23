@@ -1,0 +1,27 @@
+{
+  "id": "PIPE-053",
+  "title": "同镜延续但景别焦段跳变：降为文锚，不硬接尾帧",
+  "stage": "continuity-seam",
+  "tags": ["continuity", "link-mode", "camera", "R2"],
+  "input": {
+    "previous": {
+      "continuesPrev": true,
+      "camera": { "shotSize": "中景", "focal": "50mm" },
+      "presentCast": ["a", "b"]
+    },
+    "current": {
+      "transition": "same-take",
+      "continuesPrev": true,
+      "camera": { "shotSize": "特写", "focal": "85mm" },
+      "presentCast": ["a", "b"]
+    },
+    "isFirstOfScene": false,
+    "tailFrameAvailable": true
+  },
+  "expect": {
+    "linkMode": "text-bridge",
+    "reason": "camera-jump",
+    "transition": "same-take",
+    "hardCut": true
+  }
+}

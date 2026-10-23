@@ -1,0 +1,28 @@
+{
+  "id": "PIPE-063",
+  "title": "x=0.4/0.62 必须分左右，不能都写成 center",
+  "stage": "h3-blocking",
+  "tags": ["blocking", "h3", "regression", "video-issue"],
+  "input": {
+    "blocking": {
+      "nodes": [
+        { "id": "n_zhou", "label": "周奎", "type": "character", "pos": { "x": 0.4, "y": 0.5 }, "facing": 0 },
+        { "id": "n_zhua", "label": "朱慈烺", "type": "character", "pos": { "x": 0.62, "y": 0.56 }, "facing": 180 }
+      ],
+      "axis": { "from": "n_zhou", "to": "n_zhua" },
+      "cameraSide": "left"
+    },
+    "subjectNodeIds": ["n_zhou", "n_zhua"],
+    "action": "朱慈烺走近茶案，压低声音。"
+  },
+  "expect": {
+    "contains": [
+      "周奎 is on the left side of the frame",
+      "朱慈烺 is on the right side of the frame"
+    ],
+    "notContains": [
+      "周奎 is on the center of the frame",
+      "朱慈烺 is on the center of the frame"
+    ]
+  }
+}

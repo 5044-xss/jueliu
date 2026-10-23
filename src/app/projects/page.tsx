@@ -176,7 +176,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 pb-6">
+    <div className="flex h-full min-h-0 flex-col gap-6 pb-6">
       <PageHeader
         eyebrow="Projects"
         title="项目"
@@ -224,7 +224,7 @@ export default function HomePage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="pr-3 pb-3">
+        <div className="min-h-0 flex-1 overflow-y-auto pr-3 pb-3">
           <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {series.map((s) => (
               <Card key={s.id} className="border border-border">

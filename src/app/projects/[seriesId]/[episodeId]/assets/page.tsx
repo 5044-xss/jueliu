@@ -9,6 +9,7 @@ import {
   ChevronUp,
   CloudUpload,
   Copy,
+  FileText,
   Library,
   Loader2,
   MoreHorizontal,
@@ -27,6 +28,7 @@ import { PreviewImage } from "@/components/preview-image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ExtraRequirementsDialog } from "@/components/extra-requirements-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1068,6 +1070,7 @@ export default function AssetsPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [extra, setExtra] = useState("");
+  const [extraOpen, setExtraOpen] = useState(false);
   const [version, setVersion] = useState(0);
   const [editAsset, setEditAsset] = useState<StoredAsset | null>(null);
   const [activeType, setActiveType] =
@@ -1367,14 +1370,14 @@ export default function AssetsPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 pb-4">
-      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 rounded-2xl bg-block-cream p-5">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-cream p-5">
         <div>
           <h2 className="text-base font-medium">资产</h2>
           <p className="text-sm text-muted-foreground">
             角色：基础造型 + 妆造，默认每套造型一张单图全身照（竖版 3:4），可在卡片「参考图」处切换为四视图（横版 16:9）；场景：每个时段先出「全景」主视角空镜，俯瞰按需、反打等分镜轴线确定后再补。
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {assets.length > 0 && (
             <Button
               variant="outline"
@@ -1407,6 +1410,14 @@ export default function AssetsPage() {
               全部还原
             </Button>
           )}
+          <Button
+            variant="outline"
+            onClick={() => setExtraOpen(true)}
+            disabled={busy || !hasScript}
+          >
+            <FileText className="size-4" />
+            额外要求{extra.trim() ? "（已填写）" : ""}
+          </Button>
           <Button onClick={generate} disabled={busy || !hasScript || llmMissing}>
             {busy ? (
               <Loader2 className="size-4 animate-spin" />
@@ -1426,30 +1437,6 @@ export default function AssetsPage() {
             请先在「剧本」页生成剧本，再生成资产。
           </CardContent>
         </Card>
-      )}
-
-      {hasScript && !busy && (
-        <details className="group shrink-0 rounded-lg border border-border bg-muted/20 px-3 py-2">
-          <summary className="flex cursor-pointer list-none select-none items-center justify-between text-sm font-medium [&::-webkit-details-marker]:hidden">
-            额外要求（可选，下次生成时生效）
-            <span className="flex items-center gap-2">
-              {extra.trim() && (
-                <span className="text-xs font-normal text-muted-foreground">
-                  已填写
-                </span>
-              )}
-              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
-            </span>
-          </summary>
-          <div className="mt-3">
-            <Textarea
-              value={extra}
-              onChange={(e) => setExtra(e.target.value)}
-              placeholder="例如：主角固定穿深蓝连帽卫衣；场景统一写实电影质感。"
-              className="min-h-[80px]"
-            />
-          </div>
-        </details>
       )}
 
       {busy && (
@@ -1493,7 +1480,7 @@ export default function AssetsPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {assets
                 .filter((a) => a.type === activeType)
                 .map((asset) => {
@@ -1518,8 +1505,8 @@ export default function AssetsPage() {
                     style,
                   });
                   return (
-                    <Card key={asset.id} className="border border-border">
-                      <CardContent className="flex flex-col gap-2.5">
+                    <Card key={asset.id} size="sm" className="border border-border">
+                      <CardContent className="flex flex-col gap-2">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex min-w-0 flex-col gap-1">
                             <div className="flex min-w-0 items-center gap-2">
@@ -1698,7 +1685,7 @@ export default function AssetsPage() {
                           完整提示词（含妆造 / 构图 / 风格，复制请点「编辑」）
                         </span>
                         <p
-                          className="line-clamp-3 text-xs leading-5 text-muted-foreground"
+                          className="line-clamp-2 text-xs leading-5 text-muted-foreground"
                           title={displayPrompt}
                         >
                           {displayPrompt || "（无提示词）"}
@@ -1708,10 +1695,10 @@ export default function AssetsPage() {
                           <PreviewImage
                             src={`/api/projects/${id}/assets/views/${baseView.id}/image?v=${version}`}
                             alt={asset.name}
-                            className="h-44 w-full rounded-md object-contain"
+                            className="h-32 w-full rounded-md object-contain"
                           />
                         ) : (
-                          <div className="flex h-44 items-center justify-center rounded-md bg-muted text-xs text-muted-foreground">
+                          <div className="flex h-32 items-center justify-center rounded-md bg-muted text-xs text-muted-foreground">
                             未回传图片
                           </div>
                         )}
@@ -1740,6 +1727,15 @@ export default function AssetsPage() {
           }}
         />
       )}
+
+      <ExtraRequirementsDialog
+        open={extraOpen}
+        onOpenChange={setExtraOpen}
+        value={extra}
+        onChange={setExtra}
+        placeholder="例如：主角固定穿深蓝连帽卫衣；场景统一写实电影质感。"
+        description="可选，下一次生成资产时生效。"
+      />
     </div>
   );
 }

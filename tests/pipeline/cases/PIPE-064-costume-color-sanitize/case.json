@@ -1,0 +1,25 @@
+{
+  "id": "PIPE-064",
+  "title": "服装短语里的 LLM 自编颜色/材质必须被去掉，环境色和编译元指令也要清理",
+  "stage": "costume-text",
+  "tags": ["h3", "costume", "regression", "video-issue"],
+  "input": {
+    "text": "The emperor in dark plain court robes stands; the crown prince in a pale ivory dragon robe rises; a young man in a pale standard court robe walks; the eunuch is wearing a black silk robe; red pillars behind the robe remain. Do not write costume color, material, pattern or accessory details."
+  },
+  "expect": {
+    "contains": [
+      "The emperor in plain court robes stands",
+      "the crown prince in a dragon robe rises",
+      "a young man in a standard court robe walks",
+      "the eunuch is wearing a robe",
+      "red pillars behind the robe remain"
+    ],
+    "notContains": [
+      "dark plain",
+      "pale ivory",
+      "pale standard",
+      "black silk",
+      "Do not write costume color"
+    ]
+  }
+}
