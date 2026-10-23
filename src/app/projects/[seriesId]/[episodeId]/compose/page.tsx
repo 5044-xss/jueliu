@@ -268,12 +268,11 @@ export default function ComposePage() {
     segments.some((s) => s.segmentId === sid && s.stale),
   ).length;
   const preview = segments.find((s) => s.segmentId === previewId) ?? null;
-  const previewOrder = previewId ? selected.indexOf(previewId) : -1;
   const previewShots = previewId ? shotsBySegment.get(previewId) ?? [] : [];
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl bg-block-pink p-5">
+    <div className="flex h-full min-h-0 flex-col gap-4 pb-4">
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 rounded-2xl bg-block-pink p-5">
         <div>
           <h2 className="text-base font-medium">合成</h2>
           <p className="text-sm text-muted-foreground">
@@ -293,243 +292,254 @@ export default function ComposePage() {
         </div>
       </div>
 
-      {segments.length === 0 && (
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            还没有分镜段落，请先在「分镜」页生成并回传视频。
-          </CardContent>
-        </Card>
-      )}
-
       {segments.length > 0 && (
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex flex-wrap items-center gap-2">
-                转场设置
-                <span className="text-xs font-normal text-muted-foreground">
-                  已选 {selected.length} / 可合成 {withVideo}
+          <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-background px-4 py-2.5">
+            <span className="text-sm font-medium">转场</span>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">方式</span>
+              <Select
+                value={transition}
+                onValueChange={(value) => setTransition(value as string)}
+                items={TRANSITIONS}
+              >
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TRANSITIONS.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">时长</span>
+              <Select
+                value={transitionMs}
+                onValueChange={(value) => setTransitionMs(value as number)}
+                items={DURATION_ITEMS}
+                disabled={transition === "none"}
+              >
+                <SelectTrigger className="w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DURATION_ITEMS.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            <span className="ml-auto text-xs text-muted-foreground">
+              已选 {selected.length} / 可合成 {withVideo}
+              {staleSelected > 0 && (
+                <span className="ml-2 text-amber-600 dark:text-amber-400">
+                  其中 {staleSelected} 段视频已过期
                 </span>
-                {staleSelected > 0 && (
-                  <span className="text-xs font-normal text-amber-600 dark:text-amber-400">
-                    其中 {staleSelected} 段视频已过期（分镜改过）
-                  </span>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap items-end gap-4">
-              <label className="flex flex-col gap-1.5 text-sm">
-                <span className="text-muted-foreground">转场方式</span>
-                <Select
-                  value={transition}
-                  onValueChange={(value) => setTransition(value as string)}
-                  items={TRANSITIONS}
-                >
-                  <SelectTrigger className="w-44">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TRANSITIONS.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </label>
-              <label className="flex flex-col gap-1.5 text-sm">
-                <span className="text-muted-foreground">转场时长</span>
-                <Select
-                  value={transitionMs}
-                  onValueChange={(value) => setTransitionMs(value as number)}
-                  items={DURATION_ITEMS}
-                  disabled={transition === "none"}
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DURATION_ITEMS.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </label>
-              <p className="text-xs text-muted-foreground">
-                硬切不消耗时长；其余转场会让相邻两段重叠，成片总时长相应缩短。
-              </p>
-            </CardContent>
-          </Card>
+              )}
+            </span>
+          </div>
+        </>
+      )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex flex-wrap items-center gap-2">
-                预览
-                {preview ? (
-                  <>
-                    <span className="text-sm font-normal">
-                      {segmentTitle(preview)}
-                    </span>
-                    {previewOrder >= 0 && (
-                      <Badge variant="secondary">
-                        第 {previewOrder + 1} 段
-                      </Badge>
-                    )}
-                  </>
-                ) : (
-                  <span className="text-sm font-normal text-muted-foreground">
-                    点击下方片段预览
-                  </span>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-0.5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-visible">
+        <Card
+          size="sm"
+          className="flex h-[360px] min-h-0 flex-col border border-border lg:h-full"
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium">视频</span>
+              {preview && (
+                <span className="truncate text-xs font-normal text-muted-foreground">
+                  {segmentTitle(preview)}
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-2">
+            <div className="flex min-h-0 flex-1 items-center justify-center">
               {preview?.hasVideo ? (
                 <video
                   key={`${preview.segmentId}-${version}`}
                   controls
                   src={`/api/projects/${id}/segments/${preview.segmentId}/video`}
-                  className="max-h-80 w-full rounded-md bg-black"
+                  className="max-h-full w-full rounded-md bg-black"
                 />
               ) : (
-                <div className="flex min-h-48 items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">
-                  {preview ? "该段尚未回传视频" : "暂无可预览片段"}
+                <div className="flex aspect-video w-full items-center justify-center rounded-md bg-black text-muted-foreground">
+                  <Film className="size-8" />
                 </div>
               )}
-              <div className="flex flex-col gap-2 text-sm">
-                {preview ? (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <span>目标 {(preview.targetMs / 1000).toFixed(1)}s</span>
-                      <span>·</span>
-                      <span>{previewShots.length} 镜</span>
-                      {preview.hardCut && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          硬切
-                        </Badge>
-                      )}
-                      {preview.stale && (
-                        <Badge
-                          variant="secondary"
-                          className="border-amber-500/50 bg-amber-500/10 text-[10px] text-amber-700 dark:text-amber-300"
-                          title="本段视频生成后分镜内容又改过，视频与当前分镜不再对应"
-                        >
-                          视频已过期
-                        </Badge>
-                      )}
-                    </div>
-                    {previewShots.length === 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        暂无分镜详情。
-                      </p>
-                    )}
-                    {previewShots.map((shot, i) => (
-                      <div
-                        key={shot.id}
-                        className="flex flex-col gap-1 rounded-lg border p-2.5"
-                      >
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span className="font-medium text-foreground">
-                            镜 {i + 1}
-                          </span>
-                          <span>{(shot.durationMs / 1000).toFixed(1)}s</span>
-                        </div>
-                        {shot.action && <p className="leading-6">{shot.action}</p>}
-                        {shot.dialogue.length > 0 && (
-                          <div className="leading-6">
-                            <span className="text-muted-foreground">台词：</span>
-                            {shot.dialogue.map((line, li) => (
-                              <span key={li} className="block">
-                                {line.character ? `${line.character}：` : ""}「
-                                {line.text}」
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        {shot.expression && (
-                          <p className="text-xs text-muted-foreground">
-                            表情：{shot.expression}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </>
-                ) : (
-                  <p className="text-muted-foreground">
-                    从下方列表点选一段，这里会显示该段视频与分镜内容。
-                  </p>
+            </div>
+            {preview && (
+              <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span>目标 {(preview.targetMs / 1000).toFixed(1)}s</span>
+                {preview.hardCut && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    硬切
+                  </Badge>
+                )}
+                {preview.stale && (
+                  <Badge
+                    variant="secondary"
+                    className="border-amber-500/50 bg-amber-500/10 text-[10px] text-amber-700 dark:text-amber-300"
+                    title="本段视频生成后分镜内容又改过，视频与当前分镜不再对应"
+                  >
+                    视频已过期
+                  </Badge>
                 )}
               </div>
-            </CardContent>
-          </Card>
-        </>
-      )}
+            )}
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>导出记录（{compositions.length}）</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {compositions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">还没有导出成片。</p>
-          ) : (
-            <div className="flex h-80 flex-col gap-3 overflow-y-auto pr-1">
-              {compositions.map((composition) => (
-                <div key={composition.id} className="rounded-lg border p-3">
-                  <div className="flex flex-wrap items-center gap-2 text-sm">
-                    <Badge
-                      variant={
-                        composition.status === "ready"
-                          ? "default"
-                          : composition.status === "running"
-                            ? "secondary"
-                            : "destructive"
-                      }
+        <Card
+          size="sm"
+          className="flex h-[420px] min-h-0 flex-col border border-border lg:h-full"
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium">分镜</span>
+              <span className="text-xs font-normal text-muted-foreground">
+                {previewShots.length} 镜
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="min-h-0 flex-1 overflow-y-auto pb-2">
+            <div className="flex flex-col gap-2 text-sm">
+              {preview ? (
+                previewShots.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    暂无分镜详情。
+                  </p>
+                ) : (
+                  previewShots.map((shot, i) => (
+                    <div
+                      key={shot.id}
+                      className="flex flex-col gap-1 rounded-lg border p-2.5"
                     >
-                      {composition.status === "ready"
-                        ? "已完成"
-                        : composition.status === "running"
-                          ? "合成中"
-                          : "失败"}
-                    </Badge>
-                    <span>
-                      {composition.segmentIds.length} 段 ·{" "}
-                      {transitionLabel(composition.transition)} ·{" "}
-                      {(composition.transitionMs / 1000).toFixed(1)}s
-                    </span>
-                    {composition.durationMs != null && (
-                      <span className="text-xs text-muted-foreground">
-                        成片 {(composition.durationMs / 1000).toFixed(1)}s
-                      </span>
-                    )}
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {new Date(composition.createdAt).toLocaleString()}
-                    </span>
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      onClick={() => removeComposition(composition.id)}
-                      title="删除成片"
-                    >
-                      <Trash2 className="size-3" />
-                    </Button>
-                  </div>
-                  {composition.status === "failed" && composition.error && (
-                    <p className="mt-1.5 text-xs text-destructive">
-                      {composition.error}
-                    </p>
-                  )}
-                  {composition.status === "ready" && composition.hasExport && (
-                    <div className="mt-2 flex flex-col gap-2">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          镜 {i + 1}
+                        </span>
+                        <span>{(shot.durationMs / 1000).toFixed(1)}s</span>
+                      </div>
+                      {shot.action && <p className="leading-6">{shot.action}</p>}
+                      {shot.dialogue.length > 0 && (
+                        <div className="leading-6">
+                          <span className="text-muted-foreground">台词：</span>
+                          {shot.dialogue.map((line, li) => (
+                            <span key={li} className="block">
+                              {line.character ? `${line.character}：` : ""}「
+                              {line.text}」
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {shot.expression && (
+                        <p className="text-xs text-muted-foreground">
+                          表情：{shot.expression}
+                        </p>
+                      )}
+                    </div>
+                  ))
+                )
+              ) : (
+                <p className="text-muted-foreground">
+                  {segments.length === 0
+                    ? "还没有分镜段落，请先在「分镜」页生成并回传视频。"
+                    : "从下方列表点选一段，这里会显示该段视频与分镜内容。"}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          size="sm"
+          className="flex h-[420px] min-h-0 flex-col border border-border lg:h-full"
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium">导出记录</span>
+              <span className="text-xs font-normal text-muted-foreground">
+                {compositions.length} 条
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="min-h-0 flex-1 overflow-y-auto pb-2">
+            <div className="flex flex-col gap-3">
+              {compositions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">还没有导出成片。</p>
+              ) : (
+                compositions.map((composition) => (
+                  <div key={composition.id} className="rounded-lg border p-3">
+                    {composition.status === "ready" && composition.hasExport && (
                       <video
                         key={version}
                         controls
                         src={`/api/projects/${id}/compositions/${composition.id}/video`}
-                        className="max-h-64 w-full rounded-md bg-black"
+                        className="max-h-48 w-full rounded-md bg-black"
                       />
-                      <div className="flex flex-wrap items-center gap-2">
+                    )}
+                    <div
+                      className={cn(
+                        "flex flex-wrap items-center gap-2 text-sm",
+                        composition.status === "ready" &&
+                          composition.hasExport &&
+                          "mt-2",
+                      )}
+                    >
+                      <Badge
+                        variant={
+                          composition.status === "ready"
+                            ? "default"
+                            : composition.status === "running"
+                              ? "secondary"
+                              : "destructive"
+                        }
+                      >
+                        {composition.status === "ready"
+                          ? "已完成"
+                          : composition.status === "running"
+                            ? "合成中"
+                            : "失败"}
+                      </Badge>
+                      <span>
+                        {composition.segmentIds.length} 段 ·{" "}
+                        {transitionLabel(composition.transition)} ·{" "}
+                        {(composition.transitionMs / 1000).toFixed(1)}s
+                      </span>
+                      {composition.durationMs != null && (
+                        <span className="text-xs text-muted-foreground">
+                          成片 {(composition.durationMs / 1000).toFixed(1)}s
+                        </span>
+                      )}
+                      <span className="ml-auto text-xs text-muted-foreground">
+                        {new Date(composition.createdAt).toLocaleString()}
+                      </span>
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        onClick={() => removeComposition(composition.id)}
+                        title="删除成片"
+                      >
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </div>
+                    {composition.status === "failed" && composition.error && (
+                      <p className="mt-1.5 text-xs text-destructive">
+                        {composition.error}
+                      </p>
+                    )}
+                    {composition.status === "ready" && composition.hasExport && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
                         <a
                           href={`/api/projects/${id}/compositions/${composition.id}/video?download=1`}
                           download
@@ -546,17 +556,17 @@ export default function ComposePage() {
                           compositionId={composition.id}
                         />
                       </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+                    )}
+                  </div>
+                ))
+              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       {segments.length > 0 && (
-        <div className="sticky bottom-0 z-30 -mx-4 border-t bg-background px-4 py-3">
+        <div className="shrink-0 border-t bg-background pt-3">
           <div className="flex flex-wrap items-center gap-2 pb-2">
             <span className="text-sm font-medium">
               段落列表（{segments.length}）

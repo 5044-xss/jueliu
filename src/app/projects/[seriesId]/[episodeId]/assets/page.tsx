@@ -1329,8 +1329,8 @@ export default function AssetsPage() {
   );
 
   return (
-    <div className="flex flex-col gap-4 pb-6">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl bg-block-cream p-5">
+    <div className="flex h-full min-h-0 flex-col gap-4 pb-4">
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 rounded-2xl bg-block-cream p-5">
         <div>
           <h2 className="text-base font-medium">资产</h2>
           <p className="text-sm text-muted-foreground">
@@ -1392,7 +1392,7 @@ export default function AssetsPage() {
       )}
 
       {hasScript && !busy && (
-        <details className="group rounded-lg border border-border bg-muted/20 px-3 py-2">
+        <details className="group shrink-0 rounded-lg border border-border bg-muted/20 px-3 py-2">
           <summary className="flex cursor-pointer list-none select-none items-center justify-between text-sm font-medium [&::-webkit-details-marker]:hidden">
             额外要求（可选，下次生成时生效）
             <span className="flex items-center gap-2">
@@ -1426,8 +1426,8 @@ export default function AssetsPage() {
       )}
 
       {!busy && (
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-1 border-b">
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="flex shrink-0 items-center gap-1 border-b">
             {(["character", "scene", "prop"] as const).map((type) => {
               const count = assets.filter((a) => a.type === type).length;
               return (
@@ -1448,6 +1448,7 @@ export default function AssetsPage() {
             })}
           </div>
 
+          <div className="min-h-0 flex-1 overflow-y-auto pb-3 pr-1">
           {assets.filter((a) => a.type === activeType).length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
@@ -1642,6 +1643,7 @@ export default function AssetsPage() {
                 })}
             </div>
           )}
+          </div>
         </div>
       )}
 

@@ -1,0 +1,43 @@
+{
+  "id": "PIPE-030",
+  "title": "说话人不在画面内时必须写成画外音，不能写成在场开口",
+  "stage": "h3-render",
+  "tags": ["h3", "dialogue", "offscreen", "speaker", "regression"],
+  "input": {
+    "mode": "reference",
+    "aspectRatio": "16:9",
+    "subjects": [
+      { "id": "n_chen", "name": "陈平生", "kind": "character", "sourcePictures": [2] },
+      { "id": "n_lu_yi", "name": "路人乙", "kind": "character", "sourcePictures": [3] },
+      { "id": "n_lu_jia", "name": "路人甲", "kind": "character", "sourcePictures": [4] },
+      { "id": "scene", "name": "广场", "kind": "scene", "sourcePictures": [1] }
+    ],
+    "shots": [
+      {
+        "index": 1,
+        "durationMs": 3000,
+        "visual": "Chen Pingsheng keeps sweeping, only his fingers tightening.",
+        "sound": "broom on stone",
+        "subjectIds": ["n_chen"],
+        "dialogue": [
+          {
+            "character": "路人乙",
+            "text": "如今另嫁他人，他该不会来抢亲吧？",
+            "target": "路人甲",
+            "offscreen": true
+          }
+        ]
+      }
+    ],
+    "soundscape": "mountain wind",
+    "music": "N/A"
+  },
+  "expect": {
+    "contains": [
+      "An off-screen voice of <Subject 2>",
+      "The speaker never appears in frame",
+      "The addressee <Subject 3> is also not visible"
+    ],
+    "notContains": ["speaker remains in frame", "speaks on-screen"]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "PIPE-021",
+  "title": "自打动作必须被识别（陈平生朝陈平生挥去）",
+  "stage": "cinematic-audit",
+  "tags": ["cinematic", "action", "regression"],
+  "input": {
+    "kind": "self-target",
+    "action": "陈平生握紧拳头，杀气腾腾，朝陈平生挥去",
+    "labels": ["陈平生", "何文成"]
+  },
+  "expect": {
+    "labels": ["陈平生"]
+  }
+}

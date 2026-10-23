@@ -1,0 +1,90 @@
+{
+  "id": "PIPE-027",
+  "title": "整场固定机位超过 60% 时，确定性补足运镜",
+  "stage": "cinematic-audit",
+  "tags": ["cinematic", "camera", "regression"],
+  "input": {
+    "kind": "camera-pass",
+    "draft": {
+      "scenes": [
+        {
+          "sceneIndex": "1-1",
+          "blocking": {
+            "axis": { "from": "n_a", "to": "n_b" },
+            "cameraSide": "left",
+            "nodes": [
+              { "id": "n_a", "label": "甲", "type": "character", "pos": { "x": 0.3, "y": 0.5 }, "facing": 0 },
+              { "id": "n_b", "label": "乙", "type": "character", "pos": { "x": 0.7, "y": 0.5 }, "facing": 180 }
+            ],
+            "paths": []
+          },
+          "shots": [
+            {
+              "beatIds": ["1-1-b1"],
+              "durationMs": 0,
+              "camera": { "focal": "35mm", "shotSize": "全景", "angle": "平视", "movement": "固定", "side": "left" },
+              "lighting": "窗光，侧逆光，高对比",
+              "action": "甲站在门口，抬头看向乙",
+              "dialogue": [],
+              "expression": "眉心压紧",
+              "subjectNodeIds": ["n_a"],
+              "continuesPrev": false,
+              "refs": []
+            },
+            {
+              "beatIds": ["1-1-b2"],
+              "durationMs": 0,
+              "camera": { "focal": "50mm", "shotSize": "中景", "angle": "平视", "movement": "固定", "side": "left" },
+              "lighting": "窗光，侧逆光，高对比",
+              "action": "甲开口说话",
+              "dialogue": [{ "character": "甲", "text": "你来了。" }],
+              "expression": "嘴角绷直",
+              "subjectNodeIds": ["n_a"],
+              "continuesPrev": true,
+              "refs": []
+            },
+            {
+              "beatIds": ["1-1-b3"],
+              "durationMs": 0,
+              "camera": { "focal": "50mm", "shotSize": "中景", "angle": "平视", "movement": "固定", "side": "left" },
+              "lighting": "窗光，侧逆光，高对比",
+              "action": "乙转身，朝甲走近一步",
+              "dialogue": [],
+              "expression": "眼神发冷",
+              "subjectNodeIds": ["n_b"],
+              "continuesPrev": true,
+              "refs": []
+            },
+            {
+              "beatIds": ["1-1-b4"],
+              "durationMs": 0,
+              "camera": { "focal": "85mm", "shotSize": "特写", "angle": "平视", "movement": "固定", "side": "left" },
+              "lighting": "窗光，侧逆光，高对比",
+              "action": "甲垂眸，手指攥紧",
+              "dialogue": [],
+              "expression": "呼吸变沉",
+              "subjectNodeIds": ["n_a"],
+              "continuesPrev": true,
+              "refs": []
+            },
+            {
+              "beatIds": ["1-1-b5"],
+              "durationMs": 0,
+              "camera": { "focal": "35mm", "shotSize": "全景", "angle": "平视", "movement": "固定", "side": "left" },
+              "lighting": "窗光，侧逆光，高对比",
+              "action": "两人隔着桌子对视",
+              "dialogue": [],
+              "expression": "对峙",
+              "subjectNodeIds": ["n_a", "n_b"],
+              "continuesPrev": true,
+              "refs": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "fixedRatioMax": 0.6
+  }
+}

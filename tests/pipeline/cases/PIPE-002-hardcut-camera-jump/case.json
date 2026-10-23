@@ -66,6 +66,6 @@
   },
   "expect": {
     "errors": ["hardcut-conflict"],
-    "warnings": []
+    "warnings": ["action-unfilmable", "expression-missing", "lighting-generic"]
   }
 }

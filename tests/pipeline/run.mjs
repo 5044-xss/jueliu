@@ -20,6 +20,14 @@ import { buildShotBlockingTextEn } from "../../packages/core/src/shared/blocking
 import { preferredVideoImage } from "../../packages/core/src/shared/video-ref.ts";
 import { normalizeShotState } from "../../packages/core/src/server/storyboard/normalize-shot-state.ts";
 import { auditPropTrajectory } from "../../packages/core/src/shared/prompt-audit.ts";
+import {
+  auditShotCinematics,
+  cinematicStats,
+  diversifyCameraMovement,
+  findSelfTargets,
+  isGenericLighting,
+  isUnfilmableAction,
+} from "../../packages/core/src/shared/cinematic-audit.ts";
 import { buildH3Workflow } from "../../src/lib/generation/comfy.ts";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -434,6 +442,76 @@ async function runDialogueTargetCase(item) {
   }
 }
 
+async function runCinematicAuditCase(item) {
+  const kind = item.input.kind;
+  if (kind === "self-target") {
+    assert.deepEqual(
+      findSelfTargets(item.input.action, item.input.labels).map(
+        (hit) => hit.label,
+      ),
+      item.expect.labels,
+      "self-target labels",
+    );
+    return;
+  }
+  if (kind === "unfilmable") {
+    assert.deepEqual(
+      item.input.actions.map((action) => isUnfilmableAction(action)),
+      item.expect.results,
+      "unfilmable results",
+    );
+    return;
+  }
+  if (kind === "lighting") {
+    assert.deepEqual(
+      item.input.lightings.map((lighting) => isGenericLighting(lighting)),
+      item.expect.generic,
+      "generic lighting",
+    );
+    return;
+  }
+  if (kind === "shot") {
+    const issues = auditShotCinematics(item.input);
+    assertCodes(
+      [...new Set(issues.map((issue) => issue.code))],
+      item.expect.codes,
+      "cinematic issue codes",
+    );
+    return;
+  }
+  if (kind === "camera-pass") {
+    const result = diversifyCameraMovement(item.input.draft);
+    const stats = cinematicStats(result.scenes.flatMap((scene) => scene.shots));
+    assert.ok(
+      stats.fixedRatio <= 0.6 + 1e-9,
+      `fixedRatio ${stats.fixedRatio} > 0.6`,
+    );
+    const moving = result.scenes.flatMap((scene) =>
+      scene.shots.filter(
+        (shot) =>
+          shot.camera.movement && shot.camera.movement !== "固定",
+      ),
+    );
+    assert.ok(moving.length > 0, "至少应有一个镜头被补上运镜");
+    return;
+  }
+  if (kind === "stats") {
+    const stats = cinematicStats(item.input.shots);
+    for (const [key, value] of Object.entries(item.expect)) {
+      if (key === "fixedRatio") {
+        assert.ok(
+          Math.abs(stats.fixedRatio - value) < 0.001,
+          `fixedRatio expected ${value}, got ${stats.fixedRatio}`,
+        );
+      } else {
+        assert.equal(stats[key], value, key);
+      }
+    }
+    return;
+  }
+  assert.fail(`未知 cinematic-audit kind：${kind}`);
+}
+
 async function runPromptAuditCase(item) {
   const issues = auditPropTrajectory(
     item.input.action,
@@ -453,6 +531,7 @@ const handlers = {
   "augment-cast": runAugmentCastCase,
   "normalize-action": runNormalizeActionCase,
   "dialogue-target": runDialogueTargetCase,
+  "cinematic-audit": runCinematicAuditCase,
   "prompt-audit": runPromptAuditCase,
   "pack-v2": runPackV2Case,
   "cast-continuity": runCastContinuityCase,

@@ -26,6 +26,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { OpenProjectFolderButton } from "@/components/workspace-actions";
 import { ProjectFormDialog } from "@/components/project-form-dialog";
+import { SeriesSwitcher } from "@/components/series-switcher";
 import { CopyDialog } from "@/components/copy-dialog";
 import { useConfirm } from "@/components/confirm-dialog";
 import { readError } from "@/lib/http";
@@ -40,6 +41,7 @@ export default function SeriesPage() {
   const router = useRouter();
   const confirm = useConfirm();
   const [series, setSeries] = useState<SeriesSummary | null>(null);
+  const [seriesList, setSeriesList] = useState<SeriesSummary[]>([]);
   const [episodes, setEpisodes] = useState<EpisodeCard[] | null>(null);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -49,9 +51,14 @@ export default function SeriesPage() {
   const [copying, setCopying] = useState(false);
 
   const reload = useCallback(async () => {
-    const res = await fetch(`/api/series/${seriesId}`);
+    const [res, listRes] = await Promise.all([
+      fetch(`/api/series/${seriesId}`),
+      fetch("/api/projects"),
+    ]);
     const data = await res.json();
+    const listData = await listRes.json().catch(() => ({}));
     setSeries((data.series ?? null) as SeriesSummary | null);
+    setSeriesList((listData.series ?? []) as SeriesSummary[]);
     setEpisodes((data.episodes ?? []) as EpisodeCard[]);
   }, [seriesId]);
 
@@ -59,11 +66,16 @@ export default function SeriesPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/series/${seriesId}`);
+        const [res, listRes] = await Promise.all([
+          fetch(`/api/series/${seriesId}`),
+          fetch("/api/projects"),
+        ]);
         if (!res.ok) throw new Error(await readError(res, "读取项目失败"));
         const data = await res.json();
+        const listData = await listRes.json().catch(() => ({}));
         if (cancelled) return;
         setSeries((data.series ?? null) as SeriesSummary | null);
+        setSeriesList((listData.series ?? []) as SeriesSummary[]);
         setEpisodes((data.episodes ?? []) as EpisodeCard[]);
       } catch (error) {
         if (!cancelled) toast.error((error as Error).message || "读取项目失败");
@@ -148,9 +160,15 @@ export default function SeriesPage() {
           项目
         </Link>
         <span className="text-muted-foreground/50">/</span>
-        <span className="text-foreground">
-          {series ? series.name : "…"}
-        </span>
+        {series ? (
+          seriesList.length > 0 ? (
+            <SeriesSwitcher currentId={seriesId} series={seriesList} />
+          ) : (
+            <span className="text-foreground">{series.name}</span>
+          )
+        ) : (
+          <span className="text-foreground">…</span>
+        )}
       </div>
 
       <PageHeader

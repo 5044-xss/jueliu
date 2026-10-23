@@ -1,0 +1,55 @@
+{
+  "id": "PIPE-028",
+  "title": "特写里塞两个角色必须报构图过挤",
+  "stage": "preflight",
+  "tags": ["composition", "regression"],
+  "input": {
+    "enforceErrors": true,
+    "vendor": {
+      "maxRefImages": 9,
+      "maxShotsPerSegment": 6,
+      "minSegmentMs": 4000,
+      "maxSegmentMs": 12000
+    },
+    "scene": {
+      "index": "1-1",
+      "blocking": {
+        "nodes": [
+          { "id": "n_chen", "label": "陈平生", "type": "character", "pos": { "x": 0.2, "y": 0.6 }, "facing": 0 },
+          { "id": "n_he", "label": "何文成", "type": "character", "pos": { "x": 0.8, "y": 0.6 }, "facing": 180 }
+        ],
+        "axis": { "from": "n_chen", "to": "n_he" },
+        "cameraSide": "left"
+      }
+    },
+    "segments": [
+      {
+        "id": "seg-1",
+        "index": 1,
+        "targetMs": 4000,
+        "hardCut": true,
+        "shots": [
+          {
+            "id": "shot-1",
+            "index": 0,
+            "durationMs": 4000,
+            "camera": { "shotSize": "特写", "focal": "85mm", "angle": "平视", "movement": "固定" },
+            "action": "陈平生看向何文成",
+            "dialogue": [],
+            "expression": "眼神发冷",
+            "lighting": "侧逆光，暖色温，高对比",
+            "subjectNodeIds": ["n_chen", "n_he"],
+            "refs": [
+              { "role": "character", "assetName": "陈平生", "variantLabel": "", "viewLabel": "" },
+              { "role": "character", "assetName": "何文成", "variantLabel": "", "viewLabel": "" }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "errors": ["composition-crowded"],
+    "warnings": []
+  }
+}

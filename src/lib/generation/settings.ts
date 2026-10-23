@@ -67,10 +67,15 @@ export function resolutionToSize(
   return { width: snap(dim.width), height: snap(dim.height) };
 }
 
+export const IMAGE_API_PROTOCOLS = ["toapis-image", "apimart-image"] as const;
+export type ImageApiProtocol = (typeof IMAGE_API_PROTOCOLS)[number];
+
 export const generationSchema = z.object({
-  /** Toapi 兼容地址。国内用 https://toapis.cn/v1（含 /v1）。 */
+  /** 图像接口地址（Toapi / APIMart 兼容）。国内 Toapi 用 https://toapis.cn/v1。 */
   baseUrl: z.string().min(1).default("https://toapis.cn/v1"),
-  /** Toapi API Key（密钥，读取时打码）。 */
+  /** 图像接口协议；由服务商能力路由写入。 */
+  imageProtocol: z.enum(IMAGE_API_PROTOCOLS).default("toapis-image"),
+  /** 图像 API Key（密钥，读取时打码）。 */
   apiKey: z.string().default(""),
   /** 图像模型。默认 gpt-image-2（支持文生图 + reference_images 图生图）。 */
   imageModel: z.string().min(1).default("gpt-image-2"),
@@ -144,14 +149,14 @@ export function getMaskedGenerationSettings(): GenerationSettings {
   return maskSectionSecrets(GENERATION_SECTION, getGenerationSettings());
 }
 
-/** 出图前校验 Toapi 配置（缺失时抛明确错误，避免建了任务却没配置）。 */
+/** 出图前校验图像接口配置（缺失时抛明确错误，避免建了任务却没配置）。 */
 export function assertImageGenerationConfigured(): void {
   const s = getGenerationSettings();
   if (!s.baseUrl.trim()) {
-    throw new Error("未配置 Toapi 接口地址（设置 → 云端生成（Toapi））");
+    throw new Error("未配置图像接口地址（设置 → 服务商 → 能力路由）");
   }
   if (!s.apiKey.trim()) {
-    throw new Error("未配置 Toapi API Key（设置 → 云端生成（Toapi））");
+    throw new Error("未配置图像 API Key（设置 → 服务商）");
   }
 }
 

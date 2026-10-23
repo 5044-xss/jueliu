@@ -1,0 +1,54 @@
+{
+  "id": "PIPE-029",
+  "title": "递物镜头必须把接收方放进画面",
+  "stage": "preflight",
+  "tags": ["composition", "handoff", "regression"],
+  "input": {
+    "enforceErrors": true,
+    "vendor": {
+      "maxRefImages": 9,
+      "maxShotsPerSegment": 6,
+      "minSegmentMs": 4000,
+      "maxSegmentMs": 12000
+    },
+    "scene": {
+      "index": "1-3",
+      "blocking": {
+        "nodes": [
+          { "id": "n_chen", "label": "陈平生", "type": "character", "pos": { "x": 0.2, "y": 0.6 }, "facing": 0 },
+          { "id": "n_xiao", "label": "小厮", "type": "character", "pos": { "x": 0.8, "y": 0.6 }, "facing": 180 }
+        ],
+        "axis": { "from": "n_chen", "to": "n_xiao" },
+        "cameraSide": "left"
+      }
+    },
+    "segments": [
+      {
+        "id": "seg-1",
+        "index": 1,
+        "targetMs": 4000,
+        "hardCut": true,
+        "shots": [
+          {
+            "id": "shot-1",
+            "index": 0,
+            "durationMs": 4000,
+            "camera": { "shotSize": "近景", "focal": "85mm", "angle": "平视", "movement": "固定" },
+            "action": "小厮将金元递给陈平生",
+            "dialogue": [],
+            "expression": "小厮谄媚地笑",
+            "lighting": "侧逆光，暖色温，高对比",
+            "subjectNodeIds": ["n_xiao"],
+            "refs": [
+              { "role": "character", "assetName": "小厮", "variantLabel": "", "viewLabel": "" }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "errors": ["cast-missing", "handoff-subject-missing"],
+    "warnings": []
+  }
+}

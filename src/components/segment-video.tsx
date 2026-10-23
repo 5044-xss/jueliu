@@ -242,71 +242,84 @@ export function SegmentVideo({
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant={videoPath ? "default" : "secondary"}>
-          <Film className="size-3" />
-          {videoPath ? "已回传" : "未回传"}
-        </Badge>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => fileRef.current?.click()}
-          disabled={busy === "upload"}
-        >
-          {busy === "upload" ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Upload className="size-3.5" />
+      <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto">
+          <Badge variant={videoPath ? "default" : "secondary"} className="shrink-0">
+            <Film className="size-3" />
+            {videoPath ? "已回传" : "未回传"}
+          </Badge>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => fileRef.current?.click()}
+            disabled={busy === "upload"}
+            className="shrink-0"
+          >
+            {busy === "upload" ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Upload className="size-3.5" />
+            )}
+            回传视频
+          </Button>
+          {videoPath && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => extract("first")}
+                disabled={busy !== null}
+                className="shrink-0"
+              >
+                {busy === "extract-first" ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <ImageDown className="size-3.5" />
+                )}
+                截首帧
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => extract("last")}
+                disabled={busy !== null}
+                className="shrink-0"
+              >
+                {busy === "extract-last" ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <ImageDown className="size-3.5" />
+                )}
+                截尾帧
+              </Button>
+            </>
           )}
-          回传视频
-        </Button>
+        </div>
         {videoPath && (
-          <>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => extract("first")}
-              disabled={busy !== null}
-            >
-              {busy === "extract-first" ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <ImageDown className="size-3.5" />
-              )}
-              截首帧
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => extract("last")}
-              disabled={busy !== null}
-            >
-              {busy === "extract-last" ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <ImageDown className="size-3.5" />
-              )}
-              截尾帧
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={removeVideo}
-              disabled={busy !== null}
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
-          </>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={removeVideo}
+            disabled={busy !== null}
+            className="shrink-0"
+            title="移除视频"
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
         )}
       </div>
 
-      {videoPath && (
+      {videoPath ? (
         <video
           key={version}
           controls
           src={`/api/projects/${projectId}/segments/${segmentId}/video`}
           className="max-h-64 w-full rounded-md bg-black"
         />
+      ) : (
+        <div className="flex aspect-video w-full items-center justify-center rounded-md bg-black text-muted-foreground">
+          <Film className="size-6" />
+        </div>
       )}
 
       {frames.length > 0 && (

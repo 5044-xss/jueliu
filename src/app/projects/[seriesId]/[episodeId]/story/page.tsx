@@ -136,8 +136,8 @@ export default function StoryPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 pb-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-lilac p-5">
+    <div className="flex h-full min-h-0 flex-col gap-4 pb-4">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-lilac p-5">
         <div>
           <h2 className="text-base font-medium">故事</h2>
           <p className="text-sm text-muted-foreground">
@@ -169,8 +169,8 @@ export default function StoryPage() {
         </div>
       </div>
 
-      <Card>
-        <CardContent>
+      <Card className="min-h-0 flex-1 border border-border">
+        <CardContent className="flex min-h-0 flex-1 flex-col">
           <Textarea
             value={content}
             onChange={(e) => {
@@ -182,7 +182,7 @@ export default function StoryPage() {
               if (dirtyRef.current) void flush(false);
             }}
             placeholder="例如：城市广场的巨型屏幕突然亮起，沈清和当众宣布……"
-            className="min-h-[420px] resize-y text-sm leading-7"
+            className="h-full min-h-0 resize-none [field-sizing:fixed] text-sm leading-7"
           />
         </CardContent>
       </Card>

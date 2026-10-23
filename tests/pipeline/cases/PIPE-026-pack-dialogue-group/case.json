@@ -1,0 +1,59 @@
+{
+  "id": "PIPE-026",
+  "title": "双人同框对话可合段，cast 保持稳定",
+  "stage": "pack-v2",
+  "tags": ["packing", "pacing", "dialogue", "regression"],
+  "input": {
+    "defaultSegmentMs": 12000,
+    "options": { "maxCastPerSegment": 4 },
+    "vendor": {
+      "id": "h3",
+      "name": "H3",
+      "platform": "h3",
+      "supportMultiShot": true,
+      "supportFirstFrame": true,
+      "supportLastFrame": true,
+      "maxShotsPerSegment": 6,
+      "maxRefImages": 9,
+      "minSegmentMs": 4000,
+      "maxSegmentMs": 12000,
+      "durationStepMs": 1000
+    },
+    "shots": [
+      {
+        "minMs": 1600,
+        "idealMs": 1800,
+        "maxMs": 3100,
+        "continuesPrev": false,
+        "subjectKey": "d:路人甲",
+        "castIds": ["n_jia", "n_yi"],
+        "dialogueGroupKey": "cluster:n_jia,n_yi",
+        "refLabels": []
+      },
+      {
+        "minMs": 1600,
+        "idealMs": 1800,
+        "maxMs": 3100,
+        "continuesPrev": true,
+        "subjectKey": "d:路人乙",
+        "castIds": ["n_jia", "n_yi"],
+        "dialogueGroupKey": "cluster:n_jia,n_yi",
+        "refLabels": []
+      },
+      {
+        "minMs": 1600,
+        "idealMs": 1800,
+        "maxMs": 3100,
+        "continuesPrev": true,
+        "subjectKey": "d:路人甲",
+        "castIds": ["n_jia", "n_yi"],
+        "dialogueGroupKey": "cluster:n_jia,n_yi",
+        "refLabels": []
+      }
+    ]
+  },
+  "expect": {
+    "segments": [[0, 1, 2]],
+    "minMs": 4000
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "id": "PIPE-023",
+  "title": "只写 daylight/纯日光视为笼统光效，具体光效可通过",
+  "stage": "cinematic-audit",
+  "tags": ["cinematic", "lighting", "regression"],
+  "input": {
+    "kind": "lighting",
+    "lightings": [
+      "daylight",
+      "白天明亮光照",
+      "暖色氛围光，边缘光勾勒人物轮廓",
+      "逆光，紫电银蓝雷霆在周身炸裂"
+    ]
+  },
+  "expect": {
+    "generic": [true, true, false, false]
+  }
+}

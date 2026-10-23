@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>掘漫 · 布局方案原型</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#18181b; --muted:#f4f4f5; --muted-fg:#71717a;
+    --border:#e4e4e7; --primary:#18181b; --primary-fg:#fafafa;
+    --accent:#f4f4f5; --radius:12px; --radius-sm:8px; --radius-lg:16px;
+    --lilac:#c5b0f4; --lime:#dceeb1; --cream:#f4ecd6; --mint:#c8e6cd; --pink:#efd4d4; --coral:#f3c9b6;
+    --green:#059669; --green-bg:rgba(16,185,129,.12); --amber:#b45309; --amber-bg:rgba(245,158,11,.12);
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  }
+  *{box-sizing:border-box;border-color:var(--border);}
+  html,body{height:100%;}
+  body{margin:0;overflow:hidden;background:var(--bg);color:var(--fg);font-family:var(--font);
+       -webkit-font-smoothing:antialiased;font-size:14px;line-height:1.45;}
+  button{font-family:inherit;cursor:pointer;}
+  a{color:inherit;text-decoration:none;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:#d4d4d8;border:3px solid #fff;border-radius:8px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+
+  .ic{width:16px;height:16px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:2;
+      stroke-linecap:round;stroke-linejoin:round;}
+  .ic.fill{fill:currentColor;stroke:none;}
+
+  .app{display:flex;height:100dvh;width:100%;overflow:hidden;position:relative;}
+
+  .rail{width:76px;flex:0 0 76px;border-right:1px solid var(--border);background:#fcfcfc;
+        display:flex;flex-direction:column;align-items:center;padding:14px 0 16px;gap:4px;}
+  .rail .logo{width:40px;height:40px;border-radius:12px;background:var(--primary);color:#fff;
+              display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
+  .rail .logo .ic{width:20px;height:20px;}
+  .rnav{display:flex;flex-direction:column;gap:6px;}
+  .ritem{width:52px;height:50px;border:1px solid transparent;background:transparent;border-radius:12px;
+         display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+         font-size:10px;color:var(--muted-fg);transition:background .15s,color .15s;}
+  .ritem:hover{background:var(--accent);color:var(--fg);}
+  .ritem.active{background:var(--primary);color:var(--primary-fg);}
+  .rail .spacer{flex:1;}
+  .ravatar{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);
+           background:var(--lilac);color:#3f2d6b;font-size:12px;font-weight:600;}
+
+  .main-col{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;}
+
+  .topbar{flex:0 0 auto;height:56px;border-bottom:1px solid var(--border);background:var(--bg);}
+  .topbar-inner{height:100%;display:flex;align-items:center;justify-content:space-between;gap:16px;
+                padding:0 22px;max-width:none;margin:0 auto;}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;}
+  .brand .ic{width:19px;height:19px;}
+  .proj-title{display:none;align-items:center;gap:10px;min-width:0;}
+  .proj-title .eyebrow{font-size:10px;letter-spacing:.14em;color:var(--muted-fg);}
+  .proj-title b{font-weight:600;font-size:14px;}
+  .proj-title .muted{font-size:13px;}
+  .ctx-ep,.ctx-pj{align-items:center;gap:10px;}
+  .ctx-pj{display:none;}
+  .view-projects .ctx-ep{display:none;}
+  .view-projects .ctx-pj{display:flex;}
+  .top-actions{display:flex;align-items:center;gap:10px;}
+  .vsep{width:1px;height:20px;background:var(--border);}
+  .chip{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px;border-radius:999px;
+        border:1px solid var(--border);background:transparent;font-size:12px;color:var(--muted-fg);}
+  .chip:hover{background:var(--accent);color:var(--fg);}
+  .chip .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px var(--green-bg);}
+  .icon-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;
+            border-radius:8px;border:1px solid transparent;background:transparent;color:var(--muted-fg);}
+  .icon-btn:hover{background:var(--accent);color:var(--fg);}
+  .avatar{width:30px;height:30px;border-radius:50%;background:var(--lilac);color:#3f2d6b;
+          display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;}
+
+  .content-area{flex:1;min-height:0;position:relative;display:flex;justify-content:center;overflow:hidden;}
+  .page{width:100%;height:100%;display:flex;flex-direction:column;min-height:0;
+        padding:16px 22px 16px;background:var(--bg);}
+  .mode-current .page{max-width:1152px;box-shadow:0 0 0 1px var(--border);}
+
+  .mode-current .rail{display:none;}
+  .mode-current .topbar-inner{max-width:1152px;padding:0 16px;}
+  .mode-current .proj-title{display:none;}
+  .mode-proposed .brand{display:none;}
+  .mode-proposed .proj-title{display:flex;}
+
+  .app.mode-current .content-area{background-image:repeating-linear-gradient(135deg,#fafafa 0 9px,#f1f1f3 9px 18px);}
+  .gutter-note{position:absolute;top:50%;transform:translateY(-50%);display:none;z-index:2;
+               font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:#b6b6bf;
+               writing-mode:vertical-rl;}
+  .mode-current .gutter-note{display:block;}
+  .left-note{left:9px;}
+  .right-note{right:9px;}
+  @media (max-width:1320px){.gutter-note{display:none !important;}}
+
+  .sb-view{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;}
+  .view-projects .sb-view{display:none;}
+  .view-storyboard .projects-view{display:none;}
+
+  .crumb-row{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+             gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted-fg);}
+  .crumb{display:flex;align-items:center;gap:6px;min-width:0;}
+  .crumb .ic{width:13px;height:13px;}
+  .crumb b{color:var(--fg);font-weight:500;}
+  .crumb .slash{color:#c4c4cc;}
+  .crumb-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .mini-chip{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border-radius:999px;
+             border:1px solid var(--border);font-size:11.5px;color:var(--muted-fg);background:transparent;}
+  .mini-chip:hover{background:var(--accent);color:var(--fg);}
+  .mini-chip .ic{width:12px;height:12px;}
+  .mini-chip.solid{background:var(--primary);color:var(--primary-fg);border-color:var(--primary);}
+
+  .tabsbar{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .tabs{display:inline-flex;gap:2px;background:var(--muted);padding:3px;border-radius:999px;}
+  .tabs span{padding:5px 14px;border-radius:999px;font-size:12.5px;color:var(--muted-fg);cursor:pointer;white-space:nowrap;}
+  .tabs span:hover{color:var(--fg);}
+  .tabs span.on{background:#fff;color:var(--fg);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.06);}
+  .genbar{flex:0 0 auto;border:1px solid var(--border);border-radius:12px;background:#fcfcfb;overflow:hidden;}
+  .gb-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+           padding:8px 12px;cursor:pointer;user-select:none;}
+  .gb-title{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;}
+  .gb-title .ic{width:13px;height:13px;color:var(--muted-fg);transition:transform .18s;transform:rotate(90deg);}
+  .genbar.open .gb-title .ic{transform:rotate(-90deg);}
+  .gb-hint{font-size:10.5px;color:var(--muted-fg);display:flex;align-items:center;gap:8px;}
+  .gb-hint .filled{color:var(--green);}
+  .gb-body{display:none;padding:0 12px 10px;}
+  .genbar.open .gb-body{display:block;}
+  .gb-body textarea{width:100%;min-height:62px;resize:vertical;border:1px solid var(--border);
+                    border-radius:9px;padding:8px 10px;font-family:inherit;font-size:12px;
+                    line-height:1.6;outline:none;background:#fff;color:var(--fg);}
+  .gb-body textarea::placeholder{color:#a1a1aa;}
+  .gb-body textarea:focus{border-color:#a1a1aa;box-shadow:0 0 0 3px rgba(161,161,170,.2);}
+  .gb-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;
+           font-size:10.5px;color:var(--muted-fg);}
+  .jobsbar{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted-fg);}
+  .job-pill{display:flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:999px;
+            padding:4px 10px;background:#fff;}
+  .job-pill .bar{width:64px;height:4px;border-radius:999px;background:var(--muted);overflow:hidden;}
+  .job-pill .bar i{display:block;height:100%;width:62%;background:var(--primary);border-radius:999px;}
+  .spinner{width:11px;height:11px;border-radius:50%;border:1.5px solid #d4d4d8;border-top-color:var(--fg);
+           animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .workspace{flex:1;min-height:0;display:grid;grid-template-columns:264px minmax(0,1.25fr) minmax(0,1fr);
+             grid-template-rows:minmax(0,1fr);border:1px solid var(--border);border-radius:14px;
+             overflow:hidden;background:#fff;}
+  .pane{display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;background:#fff;}
+  .pane + .pane{border-left:1px solid var(--border);}
+  .pane-head{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;
+             padding:9px 13px;border-bottom:1px solid var(--border);min-height:47px;}
+  .pane-head .t{font-size:12.5px;font-weight:600;}
+  .pane-head .m{font-size:11px;color:var(--muted-fg);}
+  .pane-meta{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--muted-fg);}
+  .stat-dot{width:6px;height:6px;border-radius:50%;background:var(--green);}
+  .pane-body{flex:1;min-height:0;overflow-y:auto;}
+
+  .seg-list{padding:6px;}
+  .scene-label{display:flex;align-items:center;justify-content:space-between;padding:10px 8px 5px;
+               font-size:10.5px;color:var(--muted-fg);}
+  .scene-label span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .seg-item{width:100%;display:flex;align-items:center;gap:9px;padding:7px 8px;border:1px solid transparent;
+            border-radius:10px;background:transparent;text-align:left;color:var(--fg);}
+  .seg-item:hover{background:var(--accent);}
+  .seg-item.active{background:var(--primary);color:var(--primary-fg);}
+  .seg-item .sthumb{width:40px;height:25px;border-radius:6px;flex:0 0 auto;
+                    background:radial-gradient(circle at 65% 45%,rgba(255,255,255,.55),transparent 20%),
+                               linear-gradient(135deg,#2b2b36,#4c4c5c);}
+  .seg-item .sthumb.v2{background:radial-gradient(circle at 40% 55%,rgba(255,255,255,.4),transparent 20%),
+                               linear-gradient(135deg,#3a2f45,#6a4f7a);}
+  .seg-item .sthumb.v3{background:radial-gradient(circle at 55% 40%,rgba(255,255,255,.4),transparent 18%),
+                               linear-gradient(135deg,#2c3a3a,#4c6a5e);}
+  .seg-item .stext{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1;}
+  .seg-item .stext b{font-size:12px;font-weight:500;}
+  .seg-item .stext small{font-size:10.5px;color:var(--muted-fg);white-space:nowrap;}
+  .seg-item.active .stext small{color:rgba(255,255,255,.66);}
+  .seg-item .sdot{width:6px;height:6px;border-radius:50%;background:var(--green);flex:0 0 auto;}
+  .seg-item .sdot.wait{background:#d4d4d8;}
+
+  .shots{padding:10px 12px 16px;}
+  .seg-title{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 2px 8px;}
+  .seg-title .l{display:flex;align-items:baseline;gap:7px;min-width:0;}
+  .seg-title .l b{font-size:13px;font-weight:600;}
+  .seg-title .l span{font-size:11px;color:var(--muted-fg);white-space:nowrap;}
+  .head-actions{display:flex;align-items:center;gap:6px;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:32px;padding:0 12px;
+       border:1px solid transparent;border-radius:9px;background:var(--primary);color:var(--primary-fg);
+       font-size:12.5px;font-weight:500;white-space:nowrap;transition:opacity .15s;}
+  .btn:hover{opacity:.88;}
+  .btn.outline{background:transparent;color:var(--fg);border-color:var(--border);}
+  .btn.outline:hover{background:var(--accent);opacity:1;}
+  .btn.sm{height:28px;padding:0 9px;font-size:11.5px;border-radius:8px;}
+  .btn.xs{height:24px;padding:0 8px;font-size:11px;border-radius:7px;}
+  .btn .ic{width:13px;height:13px;}
+  .btn.grow{flex:1;}
+
+  .shot{display:flex;gap:11px;padding:9px;border:1px solid transparent;border-radius:12px;cursor:pointer;
+        transition:background .15s,border-color .15s;}
+  .shot:hover{background:var(--accent);}
+  .shot.selected{border-color:var(--fg);background:#fbfbfa;box-shadow:0 0 0 3px rgba(24,24,27,.05);}
+  .shot-thumb{width:112px;height:63px;flex:0 0 auto;border-radius:8px;position:relative;overflow:hidden;
+              background:radial-gradient(circle at 68% 45%,rgba(255,255,255,.5),transparent 15%),
+                         radial-gradient(circle at 20% 75%,rgba(197,176,244,.4),transparent 45%),
+                         linear-gradient(135deg,#232330,#3d3d4d 60%,#565668);}
+  .shot-thumb.v2{background:radial-gradient(circle at 35% 50%,rgba(255,255,255,.45),transparent 14%),
+                            radial-gradient(circle at 82% 78%,rgba(243,201,182,.4),transparent 45%),
+                            linear-gradient(135deg,#31262a,#5c4247 60%,#7d5f60);}
+  .shot-thumb.v3{background:radial-gradient(circle at 58% 42%,rgba(255,255,255,.45),transparent 12%),
+                            radial-gradient(circle at 18% 30%,rgba(200,230,205,.35),transparent 40%),
+                            linear-gradient(135deg,#24302c,#3f574d 60%,#5b7a6b);}
+  .shot-thumb .ix{position:absolute;left:5px;top:5px;font-family:var(--mono);font-size:9px;
+                  background:rgba(0,0,0,.45);color:#fff;border-radius:4px;padding:1px 4px;}
+  .shot-thumb .dur{position:absolute;right:5px;bottom:5px;font-family:var(--mono);font-size:9px;
+                   background:rgba(0,0,0,.55);color:#fff;border-radius:4px;padding:1px 4px;}
+  .shot-body{min-width:0;display:flex;flex-direction:column;gap:4px;justify-content:center;}
+  .shot-title{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .shot-title b{font-size:12.5px;font-weight:600;}
+  .tag{border:1px solid var(--border);border-radius:5px;padding:0 5px;font-size:10px;color:var(--muted-fg);}
+  .shot-body p{margin:0;font-size:11.5px;line-height:1.5;color:var(--muted-fg);
+                display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .shot-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:1px;}
+  .shot-tags span{font-size:10px;color:var(--muted-fg);background:var(--muted);border-radius:999px;padding:1px 6px;}
+  .shot.selected .shot-tags span{background:#f0f0f0;}
+
+  .divider{display:flex;align-items:center;gap:8px;margin:12px 2px 8px;font-size:10.5px;color:var(--muted-fg);}
+  .divider::after{content:"";flex:1;height:1px;background:var(--border);}
+
+  .detail .pane-body{padding:12px 14px 16px;display:flex;flex-direction:column;gap:11px;}
+  .preview{position:relative;border-radius:10px;overflow:hidden;aspect-ratio:16/9;
+           background:radial-gradient(circle at 72% 38%,rgba(255,255,255,.55),transparent 9%),
+                      radial-gradient(circle at 30% 60%,rgba(197,176,244,.45),transparent 32%),
+                      radial-gradient(circle at 80% 85%,rgba(243,201,182,.3),transparent 38%),
+                      linear-gradient(135deg,#1b1b24,#34343f 55%,#4f4a5e);}
+  .preview .p-badge{position:absolute;left:8px;top:8px;font-size:9.5px;color:#fff;
+                    background:rgba(0,0,0,.45);border-radius:5px;padding:2px 6px;}
+  .preview .p-time{position:absolute;right:8px;bottom:8px;font-family:var(--mono);font-size:9.5px;
+                   color:#fff;background:rgba(0,0,0,.45);border-radius:5px;padding:2px 6px;}
+  .preview .play{position:absolute;inset:0;margin:auto;width:40px;height:40px;border-radius:50%;
+                 border:1px solid rgba(255,255,255,.4);background:rgba(0,0,0,.35);color:#fff;
+                 display:flex;align-items:center;justify-content:center;}
+  .preview .play .ic{width:16px;height:16px;margin-left:2px;fill:#fff;stroke:none;}
+  .detail-actions{display:flex;gap:7px;}
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 10px;
+             border:1px solid var(--border);border-radius:10px;padding:10px;}
+  .info-grid div{display:flex;flex-direction:column;gap:1px;min-width:0;}
+  .info-grid span{font-size:10px;color:var(--muted-fg);}
+  .info-grid b{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sec-label{margin:2px 0 -4px;font-size:10.5px;letter-spacing:.06em;color:var(--muted-fg);}
+  .refs{display:flex;gap:6px;flex-wrap:wrap;}
+  .ref{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);border-radius:999px;
+       padding:2px 9px 2px 3px;font-size:11px;}
+  .ref .av{width:18px;height:18px;border-radius:50%;flex:0 0 auto;}
+  .av.a1{background:linear-gradient(135deg,#efd4d4,#d8a6a6);}
+  .av.a2{background:linear-gradient(135deg,#c8e6cd,#8fc39b);}
+  .av.a3{background:linear-gradient(135deg,#f4ecd6,#d6c48f);}
+  .body-text{margin:0;font-size:11.5px;line-height:1.65;color:#52525b;}
+  .line{display:flex;gap:7px;font-size:11.5px;line-height:1.55;padding:6px 8px;border-radius:8px;background:var(--muted);}
+  .line b{color:var(--muted-fg);font-weight:500;flex:0 0 auto;}
+
+  .projects-view{width:100%;max-width:1180px;margin:0 auto;padding:26px 4px 60px;overflow-y:auto;}
+  .pv-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:22px;}
+  .eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-fg);}
+  .pv-head h1{font-size:27px;font-weight:300;letter-spacing:-.4px;margin:8px 0 6px;}
+  .pv-head .sub{margin:0;font-size:12.5px;line-height:1.6;color:var(--muted-fg);max-width:560px;}
+  .pv-note{font-size:10.5px;color:var(--muted-fg);border:1px dashed var(--border);border-radius:999px;padding:3px 9px;}
+  .p-grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));align-items:start;}
+  .p-card{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:14px;overflow:hidden;
+          background:#fff;cursor:pointer;transition:box-shadow .15s,transform .15s;}
+  .p-card:hover{box-shadow:0 8px 24px rgba(0,0,0,.06);transform:translateY(-1px);}
+  .p-cover{position:relative;aspect-ratio:16/9;padding:12px;display:flex;flex-direction:column;
+           justify-content:flex-end;color:#fff;}
+  .p-cover::after{content:"";position:absolute;inset:0;
+                  background:linear-gradient(to top,rgba(0,0,0,.5),transparent 55%);}
+  .p-cover .p-tag{position:absolute;left:10px;top:10px;font-size:9.5px;background:rgba(0,0,0,.35);
+                  border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:2px 7px;z-index:1;}
+  .p-cover .p-name{position:relative;z-index:1;font-size:17px;font-weight:600;letter-spacing:.02em;}
+  .g1{background:linear-gradient(135deg,#8f7ae0,#4b3a8f 75%);}
+  .g2{background:linear-gradient(135deg,#e08c6c,#8f3f2e 75%);}
+  .g3{background:linear-gradient(135deg,#7cbf8c,#2f6a48 75%);}
+  .g4{background:linear-gradient(135deg,#d8c48a,#8a6f31 75%);}
+  .p-body{padding:11px 12px 12px;display:flex;flex-direction:column;gap:8px;}
+  .p-meta{font-size:11px;color:var(--muted-fg);}
+  .p-prog{height:4px;border-radius:999px;background:var(--muted);overflow:hidden;}
+  .p-prog i{display:block;height:100%;background:var(--primary);border-radius:999px;}
+  .p-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted-fg);}
+  .p-foot .btn{opacity:0;transition:opacity .15s;}
+  .p-card:hover .p-foot .btn{opacity:1;}
+
+  .overlay{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;
+           padding:24px;background:rgba(24,24,27,.4);backdrop-filter:blur(2px);}
+  .overlay.open{display:flex;}
+  .dlg{width:100%;max-width:720px;max-height:calc(100vh - 48px);background:#fff;border:1px solid var(--border);
+       border-radius:16px;box-shadow:0 24px 80px rgba(0,0,0,.24);display:flex;flex-direction:column;overflow:hidden;}
+  .dlg-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+            padding:15px 18px 12px;border-bottom:1px solid var(--border);}
+  .dlg-head h3{margin:0;font-size:15px;font-weight:600;}
+  .dlg-head p{margin:3px 0 0;font-size:11.5px;line-height:1.55;color:var(--muted-fg);}
+  .dlg-body{padding:14px 18px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;}
+  .dlg-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;
+            padding:11px 18px;border-top:1px solid var(--border);background:#fcfcfb;}
+  .dlg-foot .tip{font-size:10.5px;color:var(--muted-fg);}
+  .dlg-sec-t{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--muted-fg);
+             display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .ref-strip{display:flex;gap:8px;flex-wrap:wrap;}
+  .ref-thumb{width:76px;display:flex;flex-direction:column;gap:4px;}
+  .ref-thumb .im{aspect-ratio:1;border-radius:8px;border:1px solid var(--border);position:relative;overflow:hidden;}
+  .ref-thumb .im::after{content:attr(data-n);position:absolute;left:4px;top:4px;font-family:var(--mono);
+                        font-size:9px;color:#fff;background:rgba(0,0,0,.45);border-radius:4px;padding:1px 4px;}
+  .ref-thumb span{font-size:10px;color:var(--muted-fg);text-align:center;
+                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .mini-tabs{display:inline-flex;background:var(--muted);border-radius:8px;padding:2px;gap:1px;}
+  .mini-tabs button{border:0;background:transparent;font-size:11px;padding:3px 9px;border-radius:6px;
+                    color:var(--muted-fg);}
+  .mini-tabs button:hover{color:var(--fg);}
+  .mini-tabs button.on{background:#fff;color:var(--fg);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.07);}
+  .prompt-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;}
+  .prompt-tools{display:flex;align-items:center;gap:5px;}
+  .stale-note{font-size:10.5px;line-height:1.5;color:#b45309;background:rgba(245,158,11,.1);
+              border:1px solid rgba(245,158,11,.4);border-radius:8px;padding:6px 9px;margin-bottom:7px;}
+  .prompt-area{width:100%;min-height:190px;resize:vertical;border:1px solid var(--border);border-radius:10px;
+               background:#f7f7f5;padding:10px 12px;font-family:var(--mono);font-size:11.5px;
+               line-height:1.75;color:#3f3f46;outline:none;display:block;}
+  .prompt-area:focus{background:#fff;border-color:#a1a1aa;box-shadow:0 0 0 3px rgba(161,161,170,.2);}
+  .dlg-close{width:28px;height:28px;border-radius:8px;border:0;background:transparent;color:var(--muted-fg);
+             font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .dlg-close:hover{background:var(--accent);color:var(--fg);}
+
+  .demo-bar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:100;
+            display:flex;align-items:center;gap:10px;padding:6px 8px 6px 10px;border-radius:999px;
+            background:rgba(24,24,27,.94);color:#fff;box-shadow:0 10px 30px rgba(0,0,0,.22);
+            backdrop-filter:blur(8px);font-size:12px;white-space:nowrap;max-width:calc(100vw - 24px);}
+  .seg-ctl{display:inline-flex;gap:2px;background:rgba(255,255,255,.1);padding:2px;border-radius:999px;}
+  .seg-ctl button{border:0;background:transparent;color:rgba(255,255,255,.65);font-size:11.5px;
+                  padding:5px 11px;border-radius:999px;transition:background .15s,color .15s;}
+  .seg-ctl button:hover{color:#fff;}
+  .seg-ctl button.on{background:#fff;color:#18181b;font-weight:500;}
+  .demo-sep{width:1px;height:18px;background:rgba(255,255,255,.18);}
+  .demo-meta{color:rgba(255,255,255,.6);font-size:11px;font-family:var(--mono);}
+  .demo-meta b{color:#fff;font-weight:500;}
+
+  @media (max-width:1080px){
+    .workspace{grid-template-columns:232px minmax(0,1fr);}
+    .detail{display:none;}
+  }
+  @media (max-width:820px){
+    .rail{display:none;}
+    .workspace{grid-template-columns:minmax(0,1fr);}
+    .segments{display:none;}
+    .demo-meta{display:none;}
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-clapper" viewBox="0 0 24 24"><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></symbol>
+  <symbol id="i-library" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="m6 3 14 9-14 9Z"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></symbol>
+</svg>
+
+<div class="app mode-proposed view-storyboard" id="app">
+  <aside class="rail">
+    <div class="logo"><svg class="ic"><use href="#i-clapper"/></svg></div>
+    <nav class="rnav">
+      <button class="ritem active"><svg class="ic"><use href="#i-clapper"/></svg><span>项目</span></button>
+      <button class="ritem"><svg class="ic"><use href="#i-library"/></svg><span>资源</span></button>
+      <button class="ritem"><svg class="ic"><use href="#i-settings"/></svg><span>设置</span></button>
+    </nav>
+    <div class="spacer"></div>
+    <button class="ravatar">L</button>
+  </aside>
+
+  <div class="main-col">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand"><svg class="ic"><use href="#i-clapper"/></svg><span>掘漫</span></div>
+        <div class="proj-title">
+          <span class="ctx-ep">
+            <span class="eyebrow">WORKBENCH</span>
+            <b>雨夜追踪</b><span class="muted">· 第 1 集 · 雨夜重逢</span>
+          </span>
+          <span class="ctx-pj">
+            <span class="eyebrow">PROJECTS</span>
+            <b>全部剧集</b><span class="muted">· 4 个项目</span>
+          </span>
+        </div>
+        <div class="top-actions">
+          <button class="chip"><span class="dot"></span>2 个任务运行中</button>
+          <span class="vsep"></span>
+          <button class="icon-btn"><svg class="ic"><use href="#i-search"/></svg></button>
+          <div class="avatar">L</div>
+        </div>
+      </div>
+    </header>
+
+    <div class="content-area">
+      <div class="gutter-note left-note">空白</div>
+      <div class="gutter-note right-note">空白</div>
+
+      <div class="page">
+        <div class="sb-view">
+          <div class="crumb-row">
+            <div class="crumb">
+              <svg class="ic" style="transform:rotate(180deg)"><use href="#i-chevron"/></svg>
+              <span>项目</span><span class="slash">/</span>
+              <b>雨夜追踪</b><span class="slash">/</span>
+              <b>第 1 集</b>
+            </div>
+            <div class="crumb-actions">
+              <button class="mini-chip">16:9</button>
+              <button class="mini-chip">写实 · 赛博夜雨</button>
+              <span class="mini-chip" style="border-style:dashed">默认段时长 3.0s</span>
+              <button class="mini-chip"><svg class="ic"><use href="#i-folder"/></svg>打开文件夹</button>
+              <button class="btn sm"><svg class="ic"><use href="#i-sparkles"/></svg>重新生成分镜</button>
+            </div>
+          </div>
+
+          <div class="tabsbar">
+            <div class="tabs">
+              <span>剧情</span><span>角色</span><span class="on">分镜</span><span>执行</span><span>合成</span>
+            </div>
+            <div class="jobsbar">
+              <div class="job-pill"><span class="spinner"></span>起始画面 · 8/18<span class="bar"><i></i></span></div>
+            </div>
+          </div>
+
+          <div class="genbar open" id="genbar">
+            <div class="gb-head" id="gbHead">
+              <span class="gb-title">
+                <svg class="ic"><use href="#i-chevron"/></svg>
+                额外要求（可选，下次生成时生效）
+              </span>
+              <span class="gb-hint"><span class="filled">已填写</span><span>第 1 场 · 第 1 段</span></span>
+            </div>
+            <div class="gb-body">
+              <textarea placeholder="例如：多用户外自然光；避免快速推拉运镜；林夏保持湿发与米色风衣，怀表要有明显磨损。">第 1 场保持雨夜冷调，霓虹反光要碎；林夏的湿发贴在脸侧，避免快速推拉运镜。</textarea>
+              <div class="gb-foot">
+                <span>仅影响下一次「重新生成分镜」，不会改动已有镜头。</span>
+                <span>38 / 500</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="workspace">
+            <aside class="pane segments">
+              <div class="pane-head">
+                <span class="t">段落列表</span>
+                <span class="pane-meta"><i class="stat-dot"></i>已回传 2/5</span>
+              </div>
+              <div class="pane-body seg-list">
+                <div class="scene-label"><span>第 1 场 · 咖啡馆 · 夜</span><span>3 段</span></div>
+                <button class="seg-item active">
+                  <span class="sthumb"></span>
+                  <span class="stext"><b>第 1 段</b><small>3 镜 · 6.0s · 连续</small></span>
+                  <span class="sdot"></span>
+                </button>
+                <button class="seg-item">
+                  <span class="sthumb v2"></span>
+                  <span class="stext"><b>第 2 段</b><small>2 镜 · 4.5s · 硬切</small></span>
+                  <span class="sdot wait"></span>
+                </button>
+                <div class="scene-label"><span>第 2 场 · 后巷 · 雨</span><span>2 段</span></div>
+                <button class="seg-item">
+                  <span class="sthumb v3"></span>
+                  <span class="stext"><b>第 3 段</b><small>4 镜 · 7.5s · 连续</small></span>
+                  <span class="sdot wait"></span>
+                </button>
+                <button class="seg-item">
+                  <span class="sthumb v2"></span>
+                  <span class="stext"><b>第 4 段</b><small>2 镜 · 4.0s · 硬切</small></span>
+                  <span class="sdot wait"></span>
+                </button>
+                <div class="scene-label"><span>第 3 场 · 天台 · 黎明</span><span>1 段</span></div>
+                <button class="seg-item">
+                  <span class="sthumb"></span>
+                  <span class="stext"><b>第 5 段</b><small>3 镜 · 6.0s · 连续</small></span>
+                  <span class="sdot wait"></span>
+                </button>
+              </div>
+            </aside>
+
+            <section class="pane shots">
+              <div class="pane-head">
+                <span class="t">第 1 场 · 第 1 段</span>
+                <span class="head-actions">
+                  <button class="btn outline sm">本段体检</button>
+                  <button class="btn sm" data-open-gen><svg class="ic"><use href="#i-sparkles"/></svg>生成本段</button>
+                </span>
+              </div>
+              <div class="pane-body shots-body">
+                <div class="seg-title">
+                  <span class="l"><b>3 个镜头</b><span>6.0s · 连续</span></span>
+                  <span class="tag">起始画面已生成</span>
+                </div>
+
+                <div class="shot">
+                  <div class="shot-thumb">
+                    <span class="ix">S1-01</span><span class="dur">2.0s</span>
+                  </div>
+                  <div class="shot-body">
+                    <div class="shot-title"><b>全景 · 固定</b><span class="tag">24mm</span></div>
+                    <p>雨夜的咖啡馆外，霓虹在积水里碎成一片。林夏推门而入，风铃响了一声。</p>
+                    <div class="shot-tags"><span>林夏</span><span>咖啡馆外</span></div>
+                  </div>
+                </div>
+
+                <div class="shot selected">
+                  <div class="shot-thumb v2">
+                    <span class="ix">S1-02</span><span class="dur">2.0s</span>
+                  </div>
+                  <div class="shot-body">
+                    <div class="shot-title"><b>近景 · 慢推</b><span class="tag">35mm</span></div>
+                    <p>她抬眼，视线穿过人群，落在角落里那个男人的身上。</p>
+                    <div class="shot-tags"><span>林夏</span><span>咖啡馆内</span><span>台词 1</span></div>
+                  </div>
+                </div>
+
+                <div class="shot">
+                  <div class="shot-thumb v3">
+                    <span class="ix">S1-03</span><span class="dur">2.0s</span>
+                  </div>
+                  <div class="shot-body">
+                    <div class="shot-title"><b>特写 · 固定</b><span class="tag">50mm</span></div>
+                    <p>男人指尖的旧怀表，指针停在三年前的那一秒。</p>
+                    <div class="shot-tags"><span>旧怀表</span></div>
+                  </div>
+                </div>
+
+                <div class="divider">第 2 段 · 2 镜 · 4.5s · 硬切</div>
+
+                <div class="shot">
+                  <div class="shot-thumb">
+                    <span class="ix">S1-04</span><span class="dur">2.0s</span>
+                  </div>
+                  <div class="shot-body">
+                    <div class="shot-title"><b>中景 · 跟</b><span class="tag">35mm</span></div>
+                    <p>林夏穿过桌椅，雨水顺着伞骨滴在地板上。</p>
+                    <div class="shot-tags"><span>林夏</span><span>咖啡馆内</span></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="pane detail">
+              <div class="pane-head">
+                <span class="t">镜头详情 · S1-02</span>
+                <button class="icon-btn"><svg class="ic"><use href="#i-more"/></svg></button>
+              </div>
+              <div class="pane-body">
+                <div class="preview">
+                  <span class="p-badge">起始画面</span>
+                  <button class="play"><svg class="ic"><use href="#i-play"/></svg></button>
+                  <span class="p-time">00:02</span>
+                </div>
+                <div class="detail-actions">
+                  <button class="btn outline sm grow">重绘起始画面</button>
+                  <button class="btn sm grow" data-open-gen>生成视频</button>
+                </div>
+                <div class="info-grid">
+                  <div><span>景别</span><b>近景</b></div>
+                  <div><span>焦段</span><b>35mm</b></div>
+                  <div><span>机位</span><b>平视 · 右侧</b></div>
+                  <div><span>运动</span><b>慢推</b></div>
+                  <div><span>时长</span><b>2.0s</b></div>
+                  <div><span>转场</span><b>硬切</b></div>
+                </div>
+                <p class="sec-label">参考</p>
+                <div class="refs">
+                  <span class="ref"><i class="av a1"></i>林夏</span>
+                  <span class="ref"><i class="av a2"></i>咖啡馆内景</span>
+                  <span class="ref"><i class="av a3"></i>旧怀表</span>
+                </div>
+                <p class="sec-label">动作</p>
+                <p class="body-text">她抬眼，视线穿过嘈杂的人群，落在角落里那个男人的身上。雨水顺着伞骨滴落，霓虹在她的瞳孔里碎成两片。</p>
+                <p class="sec-label">台词</p>
+                <div class="line"><b>林夏</b><span>好久不见。</span></div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div class="projects-view">
+          <div class="pv-head">
+            <div>
+              <span class="eyebrow">PROJECTS</span>
+              <h1>你的漫剧项目</h1>
+              <p class="sub">本地工作区中的全部剧集。工作台页会占满窗口，而这类列表与设置页保持阅读宽度。</p>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span class="pv-note">内容页 · 上限 1180px</span>
+              <button class="btn"><svg class="ic"><use href="#i-plus"/></svg>新建项目</button>
+            </div>
+          </div>
+          <div class="p-grid">
+            <a class="p-card">
+              <div class="p-cover g1"><span class="p-tag">进行中</span><span class="p-name">雨夜追踪</span></div>
+              <div class="p-body">
+                <div class="p-meta">3 集 · 16:9 · 写实 · 赛博夜雨</div>
+                <div class="p-prog"><i style="width:62%"></i></div>
+                <div class="p-foot"><span>12 / 18 段已生成</span><button class="btn xs outline">选集</button></div>
+              </div>
+            </a>
+            <a class="p-card">
+              <div class="p-cover g2"><span class="p-tag">进行中</span><span class="p-name">纸鸢与铁</span></div>
+              <div class="p-body">
+                <div class="p-meta">5 集 · 9:16 · 国风 · 蒸汽</div>
+                <div class="p-prog"><i style="width:34%"></i></div>
+                <div class="p-foot"><span>9 / 26 段已生成</span><button class="btn xs outline">选集</button></div>
+              </div>
+            </a>
+            <a class="p-card">
+              <div class="p-cover g3"><span class="p-tag">已完结</span><span class="p-name">山海便利店</span></div>
+              <div class="p-body">
+                <div class="p-meta">8 集 · 16:9 · 日常 · 轻奇幻</div>
+                <div class="p-prog"><i style="width:100%"></i></div>
+                <div class="p-foot"><span>32 / 32 段已生成</span><button class="btn xs outline">选集</button></div>
+              </div>
+            </a>
+            <a class="p-card">
+              <div class="p-cover g4"><span class="p-tag">草稿</span><span class="p-name">归途列车</span></div>
+              <div class="p-body">
+                <div class="p-meta">1 集 · 16:9 · 悬疑 · 长镜头</div>
+                <div class="p-prog"><i style="width:8%"></i></div>
+                <div class="p-foot"><span>1 / 12 段已生成</span><button class="btn xs outline">选集</button></div>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="genOverlay">
+  <div class="dlg" role="dialog" aria-modal="true" aria-label="生成本段">
+    <div class="dlg-head">
+      <div>
+        <h3>生成本段 · 第 1 场 第 1 段</h3>
+        <p>确认参考图与提示词后提交云端生成。提示词可直接编辑，保存后用于本次生成。</p>
+      </div>
+      <button class="dlg-close" id="genClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="dlg-body">
+      <div>
+        <p class="dlg-sec-t">
+          参考图
+          <span style="font-weight:400;letter-spacing:0;color:var(--muted-fg)">按「图1、图2…」顺序上传，共 3 张</span>
+        </p>
+        <div class="ref-strip" style="margin-top:7px">
+          <div class="ref-thumb">
+            <div class="im" data-n="图1" style="background:radial-gradient(circle at 60% 40%,rgba(255,255,255,.5),transparent 18%),linear-gradient(135deg,#3a2f45,#6a4f7a)"></div>
+            <span>林夏 · 近景</span>
+          </div>
+          <div class="ref-thumb">
+            <div class="im" data-n="图2" style="background:radial-gradient(circle at 40% 60%,rgba(255,255,255,.4),transparent 20%),linear-gradient(135deg,#2c3a3a,#4c6a5e)"></div>
+            <span>咖啡馆内景</span>
+          </div>
+          <div class="ref-thumb">
+            <div class="im" data-n="图3" style="background:radial-gradient(circle at 55% 45%,rgba(255,255,255,.5),transparent 16%),linear-gradient(135deg,#3d3527,#7a6440)"></div>
+            <span>旧怀表</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="prompt-bar">
+          <div class="mini-tabs" id="promptTabs">
+            <button class="on">视频生成提示词</button>
+            <button>正文</button>
+            <button>上次生成</button>
+          </div>
+          <div class="prompt-tools">
+            <button class="btn outline xs">重新生成</button>
+            <button class="btn outline xs">复制</button>
+            <button class="btn xs">保存</button>
+          </div>
+        </div>
+        <div class="stale-note">当前提示词与上次实际生成使用的不一致；已有视频可能是用旧提示词生成的。</div>
+        <textarea class="prompt-area" spellcheck="false">第 1 场 / 近景 / 35mm 慢推。
+雨夜咖啡馆，暖黄钨丝灯与窗外冷蓝霓虹形成双色温对比。
+林夏（25 岁，湿发贴脸，米色风衣）坐在靠窗位置，抬眼看向画面右侧。
+浅景深，背景人群与灯串虚化成光斑；中低机位平视，镜头极缓慢推进约 5 厘米。
+电影质感，胶片颗粒轻微，24fps，无水印，无字幕。</textarea>
+      </div>
+
+      <div>
+        <p class="dlg-sec-t">生成参数（引导）</p>
+        <pre style="margin:7px 0 0;border:1px solid var(--border);border-radius:9px;background:#f7f7f5;padding:8px 11px;font-family:var(--mono);font-size:11px;line-height:1.7;color:#52525b;overflow:auto">--ar 16:9 --duration 5s --fps 24 --seed 20261023</pre>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <span class="tip">将上传 3 张参考图到「即梦 · 4.0」，预计消耗 1 次生成额度</span>
+      <span style="display:flex;gap:7px">
+        <button class="btn outline sm" id="genCancel">取消</button>
+        <button class="btn sm" id="genSubmit"><svg class="ic"><use href="#i-sparkles"/></svg>生成本段</button>
+      </span>
+    </div>
+  </div>
+</div>
+
+<div class="demo-bar">
+  <div class="seg-ctl">
+    <button data-mode="current">当前布局</button>
+    <button data-mode="proposed" class="on">建议布局</button>
+  </div>
+  <span class="demo-sep"></span>
+  <div class="seg-ctl">
+    <button data-view="storyboard" class="on">分镜工作台</button>
+    <button data-view="projects">项目列表</button>
+  </div>
+  <span class="demo-sep"></span>
+  <span class="demo-meta" id="metrics">窗口 <b id="winw">—</b></span>
+</div>
+
+<script>
+  const app = document.getElementById('app');
+  const winw = document.getElementById('winw');
+  const metrics = document.getElementById('metrics');
+  const modeBtns = document.querySelectorAll('[data-mode]');
+  const viewBtns = document.querySelectorAll('[data-view]');
+
+  let mode = 'proposed';
+  let view = 'storyboard';
+
+  function setMode(next) {
+    mode = next;
+    app.classList.toggle('mode-proposed', mode === 'proposed');
+    app.classList.toggle('mode-current', mode === 'current');
+    modeBtns.forEach((b) => b.classList.toggle('on', b.dataset.mode === mode));
+    updateMetrics();
+  }
+
+  function setView(next) {
+    view = next;
+    app.classList.toggle('view-storyboard', view === 'storyboard');
+    app.classList.toggle('view-projects', view === 'projects');
+    viewBtns.forEach((b) => b.classList.toggle('on', b.dataset.view === view));
+    updateMetrics();
+  }
+
+  function updateMetrics() {
+    winw.textContent = window.innerWidth + 'px';
+    const page = document.querySelector('.page');
+    const area = document.querySelector('.content-area');
+    const gap = Math.max(0, Math.round((area.clientWidth - page.clientWidth) / 2));
+    const active = mode === 'current' && window.innerWidth > 1320;
+    const noteLeft = document.querySelector('.left-note');
+    const noteRight = document.querySelector('.right-note');
+    const label = active && gap > 8 ? '空白 ' + gap + 'px' : '';
+    noteLeft.textContent = label;
+    noteRight.textContent = label;
+
+    if (view === 'storyboard') {
+      const mid = document.querySelector('.shots');
+      const right = document.querySelector('.detail');
+      const mw = mid ? Math.round(mid.getBoundingClientRect().width) : 0;
+      const rw = right && getComputedStyle(right).display !== 'none'
+        ? Math.round(right.getBoundingClientRect().width) : 0;
+      metrics.innerHTML = '窗口 <b>' + window.innerWidth + 'px</b> · 中栏 <b>' + mw +
+        'px</b> · 右栏 <b>' + rw + 'px</b>';
+    } else {
+      metrics.innerHTML = '窗口 <b>' + window.innerWidth + 'px</b> · 内容页上限 <b>1180px</b>';
+    }
+  }
+
+  modeBtns.forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  viewBtns.forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
+
+  document.querySelectorAll('.shot').forEach((el) => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.shot').forEach((s) => s.classList.remove('selected'));
+      el.classList.add('selected');
+    });
+  });
+  document.querySelectorAll('.seg-item').forEach((el) => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.seg-item').forEach((s) => s.classList.remove('active'));
+      el.classList.add('active');
+    });
+  });
+  document.getElementById('gbHead').addEventListener('click', () => {
+    document.getElementById('genbar').classList.toggle('open');
+    updateMetrics();
+  });
+
+  const genOverlay = document.getElementById('genOverlay');
+  const openGen = () => { genOverlay.classList.add('open'); };
+  const closeGen = () => { genOverlay.classList.remove('open'); };
+  document.querySelectorAll('[data-open-gen]').forEach((b) => b.addEventListener('click', openGen));
+  document.getElementById('genClose').addEventListener('click', closeGen);
+  document.getElementById('genCancel').addEventListener('click', closeGen);
+  genOverlay.addEventListener('click', (e) => { if (e.target === genOverlay) closeGen(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeGen(); });
+  document.querySelectorAll('#promptTabs button').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#promptTabs button').forEach((x) => x.classList.remove('on'));
+      b.classList.add('on');
+    });
+  });
+
+  window.addEventListener('resize', updateMetrics);
+
+  const params = new URLSearchParams(location.search);
+  if (params.get('mode') === 'current') setMode('current');
+  if (params.get('view') === 'projects') setView('projects');
+  if (params.get('gen') === '1') openGen();
+  requestAnimationFrame(updateMetrics);
+</script>
+</body>
+</html>

@@ -47,6 +47,6 @@
   },
   "expect": {
     "errors": ["cast-missing"],
-    "warnings": []
+    "warnings": ["expression-missing", "lighting-generic"]
   }
 }

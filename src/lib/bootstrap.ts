@@ -2,6 +2,7 @@ import path from "node:path";
 import { configureCore, registerDbExtensions } from "@core/server/setup";
 import { ensureColumn, type Db } from "@core/server/db/extensions";
 import { registerGenerationSettings } from "@/lib/generation/settings";
+import { registerProviderSettings } from "@/lib/settings/providers-server";
 
 // jueman 的启动引导：在首次触碰 DB / settings 之前完成三个接缝。
 // 幂等，可从 instrumentation 与各路由安全重复调用。
@@ -32,6 +33,7 @@ export function ensureCore(): void {
 
   // 接缝C：产品设置段。
   registerGenerationSettings();
+  registerProviderSettings();
 }
 
 export { ensureCore as bootstrap };

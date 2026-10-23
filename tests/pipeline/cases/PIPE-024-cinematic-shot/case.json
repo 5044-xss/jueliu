@@ -1,0 +1,44 @@
+{
+  "id": "PIPE-024",
+  "title": "单镜审计同时抓空表情/笼统光/自打/说话人缺失/机位雷同",
+  "stage": "cinematic-audit",
+  "tags": ["cinematic", "shot", "regression"],
+  "input": {
+    "kind": "shot",
+    "action": "陈平生握紧拳头，杀气腾腾，朝陈平生挥去",
+    "expression": "",
+    "lighting": "daylight",
+    "camera": {
+      "shotSize": "中景",
+      "focal": "50mm",
+      "angle": "平视",
+      "movement": "固定",
+      "side": "left"
+    },
+    "dialogue": [
+      { "character": "司仪", "text": "新娘子来咯！" }
+    ],
+    "characterLabels": ["陈平生", "何文成"],
+    "hasPresentCast": true,
+    "previous": {
+      "camera": {
+        "shotSize": "中景",
+        "focal": "50mm",
+        "angle": "平视",
+        "movement": "固定",
+        "side": "left"
+      },
+      "lighting": "daylight",
+      "expression": ""
+    }
+  },
+  "expect": {
+    "codes": [
+      "camera-monotone",
+      "expression-missing",
+      "lighting-generic",
+      "self-target",
+      "speaker-not-in-scene"
+    ]
+  }
+}

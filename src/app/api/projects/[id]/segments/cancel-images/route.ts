@@ -14,6 +14,8 @@ export async function POST(_request: Request, { params }: Ctx) {
     return NextResponse.json({ error: "项目不存在" }, { status: 404 });
   }
   const { cancelled } = cancelSegmentImages(id);
-  const jobs = cancelRunningJobs(id, "gen-image", "已取消（用户中断）");
+  const jobs =
+    cancelRunningJobs(id, "gen-image", "已取消（用户中断）") +
+    cancelRunningJobs(id, "gen-start-frames", "已取消（用户中断）");
   return NextResponse.json({ cancelled, jobs });
 }

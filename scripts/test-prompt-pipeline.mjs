@@ -197,7 +197,7 @@ function inFrameSubjects(text) {
 function parseDialogueLines(text) {
   const lines = [];
   const re =
-    /((?:<Subject\s+\d+>[\s,]*)+)\(S[\d,\s]*\)\s*says(?: in an off-screen voiceover|,\s*addressing\s+((?:<Subject\s+\d+>[\s,]*)+))?:\s*<d>\s*(?:\[[^\]]*\])?\s*([\s\S]*?)<\/d>/g;
+    /((?:<Subject\s+\d+>[\s,]*)+)\(S[\d,\s]*\)\s*says(?: in an off-screen voiceover|,\s*addressing\s+((?:<Subject\s+\d+>[\s,]*)+)(?:\s+who\s+is\s+off-screen)?|,\s*addressing\s+someone\s+off-screen)?:\s*<d>\s*(?:\[[^\]]*\])?\s*([\s\S]*?)<\/d>/g;
   for (const match of text.matchAll(re)) {
     lines.push({
       subjects: subjectTags(match[1]),
@@ -429,8 +429,20 @@ function auditPrompt(prompt, segment, shots, scene, issues) {
       }
     }
 
+    // 画外说话人/台词对象允许以 <Subject N> 出现在台词句里，
+    // 但不能进 in-frame 列表；这里只放行台词参与者，避免误报。
+    const dialogueSubjectIds = new Set();
+    for (const line of shot.dialogue) {
+      const speakerId = subjectByName.get(normalize(line.character));
+      if (typeof speakerId === "number") dialogueSubjectIds.add(speakerId);
+      const targetId = line.target
+        ? subjectByName.get(normalize(line.target))
+        : undefined;
+      if (typeof targetId === "number") dialogueSubjectIds.add(targetId);
+    }
     for (const id of new Set(subjectTags(block.text))) {
       if (expectedSubjectIds.has(id)) continue;
+      if (dialogueSubjectIds.has(id)) continue;
       const subject = subjectById.get(id);
       if (!subject || subject.kind === "location") continue;
       push(
@@ -484,9 +496,13 @@ function auditPrompt(prompt, segment, shots, scene, issues) {
       const expectedTargetId = expected.target
         ? subjectByName.get(normalize(expected.target))
         : undefined;
+      const targetIsOffscreenOnly =
+        expected.offscreen === true &&
+        !subjectByName.has(normalize(expected.target || ""));
       if (
         typeof expectedTargetId === "number" &&
-        !actual.targets.includes(expectedTargetId)
+        !actual.targets.includes(expectedTargetId) &&
+        !(targetIsOffscreenOnly && actual.targets.length === 0)
       ) {
         push(
           "error",

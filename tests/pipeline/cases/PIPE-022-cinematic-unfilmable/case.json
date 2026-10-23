@@ -1,0 +1,19 @@
+{
+  "id": "PIPE-022",
+  "title": "概括式/心理式动作不可拍，具体动作可通过",
+  "stage": "cinematic-audit",
+  "tags": ["cinematic", "action", "regression"],
+  "input": {
+    "kind": "unfilmable",
+    "actions": [
+      "陈平生继续讽刺",
+      "围观弟子认为这是杀人诛心，逼陈平生收下",
+      "何文成怒吼",
+      "陈平生握紧拳头，朝何文成挥去",
+      "陈平生看向何文成"
+    ]
+  },
+  "expect": {
+    "results": [true, true, true, false, false]
+  }
+}

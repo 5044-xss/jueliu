@@ -8,7 +8,11 @@ import { getVendor } from "@core/server/library/vendors";
 import { getStoryboard } from "@core/server/storyboard";
 import { mediaSignature } from "@core/server/media-signature";
 import { getSegmentVideoPath, getProjectMediaDir, isSafeId } from "@core/server/paths";
-import { setSegmentVideo } from "@core/server/frames";
+import {
+  getFrames,
+  setSegmentFirstFrame,
+  setSegmentVideo,
+} from "@core/server/frames";
 import { getProjectDb, nowIso } from "@core/server/db";
 import { runSegmentQc } from "@core/server/qc";
 import { isAutoRetryableQc } from "./retry";
@@ -18,9 +22,11 @@ import {
 } from "@core/server/generation-snapshot";
 import { getOrCompileH3PromptInfo } from "./prompt";
 import { captureAndAdoptTail } from "./tail";
+import { generateSegmentStartFrame } from "./image";
 import {
   getGenerationSettings,
   assertVideoGenerationConfigured,
+  assertImageGenerationConfigured,
   type GenerationSettings,
 } from "./settings";
 import {
@@ -476,6 +482,51 @@ export interface SequentialRunResult {
   total: number;
 }
 
+interface StoryboardEntry {
+  scene: ReturnType<typeof getStoryboard>[number];
+  segment: ReturnType<typeof getStoryboard>[number]["segments"][number];
+  index: number;
+  previous: ReturnType<typeof getStoryboard>[number]["segments"][number] | null;
+  isFirstOfScene: boolean;
+}
+
+function storyboardEntries(projectId: string): StoryboardEntry[] {
+  return getStoryboard(projectId).flatMap((scene) =>
+    scene.segments.map((segment, index) => ({
+      scene,
+      segment,
+      index,
+      previous: index > 0 ? scene.segments[index - 1] : null,
+      isFirstOfScene: index === 0,
+    })),
+  );
+}
+
+/**
+ * 保证本段有起始画面：
+ * - 连续段优先接上一段尾帧（不算出图费用）；
+ * - autoStartFrames=true 时，硬切/场首/尾帧不可用才补一张 AI 首帧；
+ * - 关闭时保持无首帧，直接走无关键帧生成（T2VA），避免额外费用。
+ */
+async function ensureSegmentStartFrame(
+  projectId: string,
+  entry: StoryboardEntry,
+  autoStartFrames: boolean,
+): Promise<void> {
+  if (entry.segment.firstFrameId) return;
+  if (!entry.isFirstOfScene && !entry.segment.hardCut && entry.previous) {
+    const last = getFrames(projectId, entry.previous.id).find(
+      (frame) => frame.kind === "last",
+    );
+    if (last) {
+      setSegmentFirstFrame(projectId, entry.segment.id, last.id, "auto");
+      return;
+    }
+  }
+  if (!autoStartFrames) return;
+  await generateSegmentStartFrame(projectId, entry.segment.id);
+}
+
 /**
  * 一键生成：整批一个任务，按场次/段顺序**逐段**生成（不并发）。
  * 每段出片后，若是连续段的上一段，自动截尾帧并接为下一段的起始画面。
@@ -483,20 +534,31 @@ export interface SequentialRunResult {
  */
 export async function startSequentialVideoRun(
   projectId: string,
-  opts?: { onlyMissing?: boolean },
+  opts?: { onlyMissing?: boolean; autoStartFrames?: boolean },
 ): Promise<SequentialRunResult> {
   assertH3Project(projectId);
   assertVideoGenerationConfigured();
   const onlyMissing = opts?.onlyMissing !== false;
-  const segments = getStoryboard(projectId).flatMap((scene) => scene.segments);
+  // 默认不自动补关键帧，缺首帧的段落直接无关键帧生成，避免静默产生出图费用。
+  const autoStartFrames = opts?.autoStartFrames === true;
+  const entries = storyboardEntries(projectId);
   const total = onlyMissing
-    ? segments.filter((s) => !s.videoPath).length
-    : segments.length;
+    ? entries.filter((entry) => !entry.segment.videoPath).length
+    : entries.length;
   if (total === 0) {
     throw new Error("没有可生成的段落（可能都已有视频）");
   }
+  if (autoStartFrames) {
+    const missingStart = entries.filter(
+      (entry) =>
+        (!onlyMissing || !entry.segment.videoPath) &&
+        !entry.segment.firstFrameId &&
+        (entry.isFirstOfScene || entry.segment.hardCut),
+    );
+    if (missingStart.length > 0) assertImageGenerationConfigured();
+  }
   const jobId = startJob(projectId, BATCH_JOB_KIND);
-  void runSequentialJob(projectId, jobId, onlyMissing);
+  void runSequentialJob(projectId, jobId, onlyMissing, entries, autoStartFrames);
   return { jobId, total };
 }
 
@@ -504,9 +566,10 @@ async function runSequentialJob(
   projectId: string,
   jobId: string,
   onlyMissing: boolean,
+  entries: StoryboardEntry[],
+  autoStartFrames: boolean,
 ): Promise<void> {
   const settings = getGenerationSettings();
-  const segments = getStoryboard(projectId).flatMap((scene) => scene.segments);
   const stopped = () => jobStatus(projectId, jobId) !== "running";
 
   let done = 0;
@@ -514,13 +577,24 @@ async function runSequentialJob(
   let failed = 0;
   let firstError: string | null = null;
 
-  for (const segment of segments) {
+  for (const entry of entries) {
+    const segment = entry.segment;
     if (stopped()) {
       finishJob(projectId, jobId, "failed", "已取消");
       return;
     }
     if (onlyMissing && segment.videoPath) {
       skipped += 1;
+      continue;
+    }
+
+    // 起始画面：连续段优先接上一段尾帧；未开启自动补帧时允许无首帧直接生成。
+    try {
+      await ensureSegmentStartFrame(projectId, entry, autoStartFrames);
+    } catch (error) {
+      updateSegmentGen(projectId, segment.id, { status: "failed" });
+      failed += 1;
+      if (!firstError) firstError = (error as Error).message;
       continue;
     }
 

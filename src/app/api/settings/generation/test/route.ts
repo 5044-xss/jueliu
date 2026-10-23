@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ensureCore } from "@/lib/bootstrap";
 import { getGenerationSettings, getMaskedGenerationSettings } from "@/lib/generation/settings";
-import { ToApiClient } from "@/lib/generation/toapi";
+import { createImageClient } from "@/lib/generation/image-client";
 
 // 连接自检：可用请求体临时覆盖 baseUrl / apiKey（否则用已保存配置）。
 export async function POST(request: Request) {
@@ -26,7 +26,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const client = new ToApiClient({ baseUrl, apiKey, timeoutMs: 20_000 });
+  const client = createImageClient({
+    baseUrl,
+    apiKey,
+    timeoutMs: 20_000,
+    protocol: saved.imageProtocol,
+  });
   const result = await client.testConnection();
   return NextResponse.json(result);
 }

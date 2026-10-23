@@ -1,0 +1,39 @@
+{
+  "id": "PIPE-025",
+  "title": "场景统计：固定机位比例、光效种类、空表情、概括动作",
+  "stage": "cinematic-audit",
+  "tags": ["cinematic", "stats", "regression"],
+  "input": {
+    "kind": "stats",
+    "shots": [
+      {
+        "camera": { "shotSize": "中景", "focal": "50mm", "angle": "平视", "movement": "固定" },
+        "lighting": "daylight",
+        "expression": "",
+        "action": "何文成怒吼"
+      },
+      {
+        "camera": { "shotSize": "中景", "focal": "50mm", "angle": "平视", "movement": "固定" },
+        "lighting": "暖色氛围光，边缘光勾勒人物轮廓",
+        "expression": "冷笑",
+        "action": "陈平生握紧拳头"
+      },
+      {
+        "camera": { "shotSize": "近景", "focal": "85mm", "angle": "平视", "movement": "推" },
+        "lighting": "逆光，紫电银蓝雷霆在周身炸裂",
+        "expression": "暴怒",
+        "action": "何文成握紧拳头，朝陈平生挥去"
+      }
+    ]
+  },
+  "expect": {
+    "shots": 3,
+    "fixedShots": 2,
+    "fixedRatio": 0.6667,
+    "uniqueLighting": 3,
+    "uniqueCamera": 2,
+    "emptyExpression": 1,
+    "genericLighting": 1,
+    "unfilmableActions": 1
+  }
+}

@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   ChevronDown,
   CloudUpload,
+  FileText,
   Film,
+  ImagePlus,
   Loader2,
   Pencil,
   Sparkles,
@@ -46,19 +48,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@core/client/utils";
 import type {
   StoredSceneStoryboard,
+  StoredSegment,
   StoredShot,
 } from "@core/shared/schemas/storyboard";
 import type { PreflightIssue } from "@core/shared/preflight";
-import type { SegmentQcRecord, QcSummary } from "@core/shared/qc";
+import type { SegmentQcRecord } from "@core/shared/qc";
 import type { StoredAsset } from "@core/shared/schemas/assets";
 
 const TERMINAL_GEN_STATUS = new Set([
@@ -76,6 +74,88 @@ function clock(ms: number): string {
   const minutes = Math.floor(total / 60);
   const seconds = total % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatStoryboardText(scenes: StoredSceneStoryboard[]): string {
+  if (scenes.length === 0) return "（暂无分镜）";
+  const lines: string[] = [];
+  for (const scene of scenes) {
+    lines.push(`【第${scene.sceneIndex}场 · ${scene.sceneSlug || "未命名"}】`);
+    lines.push(
+      `地点：${scene.location || "未标注"}｜时间：${scene.timeOfDay || "未标注"}｜${scene.interiorExterior || "未标注"}`,
+    );
+    if (scene.blocking) {
+      lines.push(
+        `本场站位：轴线 ${
+          scene.blocking.nodes.find(
+            (node) => node.id === scene.blocking?.axis.from,
+          )?.label ?? scene.blocking.axis.from
+        } ↔ ${
+          scene.blocking.nodes.find(
+            (node) => node.id === scene.blocking?.axis.to,
+          )?.label ?? scene.blocking.axis.to
+        }｜镜头侧${scene.blocking.cameraSide === "left" ? "左" : "右"}；${scene.blocking.nodes
+          .map(
+            (node) =>
+              `${node.label}(${node.pos.x.toFixed(2)},${node.pos.y.toFixed(2)}) 朝${Math.round(node.facing)}°`,
+          )
+          .join("；")}`,
+      );
+    }
+    for (const segment of scene.segments) {
+      const total = segment.shots.reduce(
+        (sum, shot) => sum + shot.durationMs,
+        0,
+      );
+      lines.push("");
+      lines.push(
+        `— 第${segment.index}段（${segment.shots.length}镜 · ${(total / 1000).toFixed(1)}s · ${segment.hardCut ? "硬切" : "连续"}）`,
+      );
+      for (const shot of segment.shots) {
+        const cameraText = [
+          shot.camera.shotSize,
+          shot.camera.focal,
+          shot.camera.angle,
+          shot.camera.movement,
+          shot.camera.side === "left"
+            ? "轴线左"
+            : shot.camera.side === "right"
+              ? "轴线右"
+              : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        lines.push(
+          `  镜${shot.index + 1}（${(shot.durationMs / 1000).toFixed(1)}s${cameraText ? ` · ${cameraText}` : ""}）`,
+        );
+        if (shot.lighting) lines.push(`    光线：${shot.lighting}`);
+        if (shot.action) lines.push(`    动作：${shot.action}`);
+        if (shot.dialogue.length > 0) {
+          lines.push(
+            `    台词：${shot.dialogue
+              .map(
+                (line) =>
+                  `${line.character ? `${line.character}：` : ""}「${line.text}」`,
+              )
+              .join("；")}`,
+          );
+        }
+        if (shot.expression) lines.push(`    表情：${shot.expression}`);
+        if (shot.refs.length > 0) {
+          lines.push(
+            `    参考：${shot.refs
+              .map(
+                (ref) =>
+                  `${ref.assetName}${ref.variantLabel ? `·${ref.variantLabel}` : ""}${ref.viewLabel ? `·${ref.viewLabel}` : ""}`,
+              )
+              .join("；")}`,
+          );
+        }
+      }
+    }
+    lines.push("");
+  }
+  return lines.join("\n").trim();
 }
 
 function ShotView({
@@ -155,6 +235,43 @@ function ShotView({
   );
 }
 
+function SegmentThumb({
+  projectId,
+  segment,
+}: {
+  projectId: string;
+  segment: StoredSegment;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  if (!segment.videoPath) {
+    return (
+      <div className="flex aspect-video w-full items-center justify-center text-muted-foreground">
+        <Film className="size-4" />
+      </div>
+    );
+  }
+  return (
+    <video
+      ref={videoRef}
+      src={`/api/projects/${projectId}/segments/${segment.id}/video#t=0.1`}
+      muted
+      loop
+      playsInline
+      preload="metadata"
+      className="aspect-video w-full object-cover"
+      onMouseEnter={() => {
+        void videoRef.current?.play().catch(() => {});
+      }}
+      onMouseLeave={() => {
+        const video = videoRef.current;
+        if (!video) return;
+        video.pause();
+        video.currentTime = 0;
+      }}
+    />
+  );
+}
+
 export default function StoryboardPage() {
   const { episodeId: id } = useParams<{
     seriesId: string;
@@ -163,11 +280,11 @@ export default function StoryboardPage() {
   const [scenes, setScenes] = useState<StoredSceneStoryboard[]>([]);
   const [preflight, setPreflight] = useState<PreflightIssue[]>([]);
   const [qcList, setQcList] = useState<SegmentQcRecord[]>([]);
-  const [qcSummary, setQcSummary] = useState<QcSummary | null>(null);
   const [qcBusy, setQcBusy] = useState(false);
   const [recompileBusy, setRecompileBusy] = useState(false);
   const [repairBusy, setRepairBusy] = useState(false);
   const [preflightOpen, setPreflightOpen] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState(false);
   const [hardCutBusy, setHardCutBusy] = useState(false);
   const [hasScript, setHasScript] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -181,7 +298,6 @@ export default function StoryboardPage() {
   const [vendorOptions, setVendorOptions] = useState<VendorOption[]>([]);
   const [orchestrating, setOrchestrating] = useState(false);
   const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
-  const [viewTab, setViewTab] = useState<"generate" | "preview">("generate");
   const [composerReloadKey, setComposerReloadKey] = useState(0);
   const [projectAspectRatio, setProjectAspectRatio] = useState("16:9");
   const [editShot, setEditShot] = useState<{
@@ -192,7 +308,11 @@ export default function StoryboardPage() {
     useState<StoredSceneStoryboard | null>(null);
   const [framesVersion, setFramesVersion] = useState(0);
   const [videoGen, setVideoGen] = useState(false);
-  const [batchBusy, setBatchBusy] = useState<null | "videos">(null);
+  const [batchBusy, setBatchBusy] = useState<
+    null | "videos" | "start-frames"
+  >(null);
+  const [videoBatchOpen, setVideoBatchOpen] = useState(false);
+  const [autoStartFrames, setAutoStartFrames] = useState(false);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState(id);
 
@@ -213,7 +333,6 @@ export default function StoryboardPage() {
         scenes?: StoredSceneStoryboard[];
         preflight?: PreflightIssue[];
         qc?: SegmentQcRecord[];
-        qcSummary?: QcSummary;
       }>(
         `/api/projects/${id}/storyboard`,
         "分镜",
@@ -231,7 +350,6 @@ export default function StoryboardPage() {
       scenes: (sb.scenes ?? []) as StoredSceneStoryboard[],
       preflight: (sb.preflight ?? []) as PreflightIssue[],
       qc: (sb.qc ?? []) as SegmentQcRecord[],
-      qcSummary: (sb.qcSummary ?? null) as QcSummary | null,
       hasScript: Boolean(script.script),
       assets: (assetsRes.assets ?? []) as StoredAsset[],
       vendor:
@@ -252,7 +370,6 @@ export default function StoryboardPage() {
         setScenes(data.scenes);
         setPreflight(data.preflight);
         setQcList(data.qc);
-        setQcSummary(data.qcSummary);
         setHasScript(data.hasScript);
         setAssets(data.assets);
         setVendor(data.vendor);
@@ -275,7 +392,6 @@ export default function StoryboardPage() {
     setScenes(data.scenes);
     setPreflight(data.preflight);
     setQcList(data.qc);
-    setQcSummary(data.qcSummary);
     setAssets(data.assets);
     setProjectAspectRatio(data.aspectRatio);
     setFramesVersion((v) => v + 1);
@@ -289,7 +405,6 @@ export default function StoryboardPage() {
     if (data?.scenes) setScenes(data.scenes as StoredSceneStoryboard[]);
     if (data?.preflight) setPreflight(data.preflight as PreflightIssue[]);
     if (data?.qc) setQcList(data.qc as SegmentQcRecord[]);
-    if (data?.qcSummary) setQcSummary(data.qcSummary as QcSummary);
     // 让预览里的 SegmentVideo 也重读视频/帧，边出边显示。
     setFramesVersion((v) => v + 1);
   }, [id]);
@@ -471,17 +586,8 @@ export default function StoryboardPage() {
   }
 
   // 顺序生成视频：整批一个任务，按场次/段顺序逐段生成；连续段尾帧自动接为下一段首帧。
-  async function genAllVideos() {
-    if (
-      !(await confirm({
-        title: "顺序生成视频",
-        description:
-          "为所有「未生成视频」的段落顺序生成云端视频？逐段执行、不并发，连续段的尾帧会自动接为下一段起始画面。长片耗时较长。",
-        confirmText: "开始生成",
-      }))
-    ) {
-      return;
-    }
+  async function genAllVideos(autoFrames: boolean) {
+    setVideoBatchOpen(false);
     setBatchBusy("videos");
     try {
       const targetIds = allSegments
@@ -496,7 +602,7 @@ export default function StoryboardPage() {
       const res = await fetch(`/api/projects/${id}/segments/generate-videos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ onlyMissing: true }),
+        body: JSON.stringify({ onlyMissing: true, autoStartFrames: autoFrames }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "提交失败");
@@ -510,8 +616,40 @@ export default function StoryboardPage() {
     }
   }
 
+  // 批量补硬切/场首的 AI 起始画面；连续段仍走上一段尾帧。
+  async function genAllStartFrames() {
+    if (
+      !(await confirm({
+        title: "批量补首帧",
+        description:
+          "为所有「硬切/场首且还没有起始画面」的段落生成 AI 首帧？连续段不在这里出图，会在顺序生成视频时自动接上一段尾帧。",
+        confirmText: "开始补帧",
+      }))
+    ) {
+      return;
+    }
+    setBatchBusy("start-frames");
+    try {
+      const res = await fetch(
+        `/api/projects/${id}/segments/generate-start-frames`,
+        { method: "POST" },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "提交失败");
+      toast.success(`已开始补首帧：${data.total} 段`, {
+        description: "完成后先看首帧，再顺序生成视频。",
+      });
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setBatchBusy(null);
+    }
+  }
+
   // 起始画面出图（Toapi）在跑时，提供「取消出图」。
-  const imageRunning = isJobRunning(jobs, "gen-image");
+  const imageRunning =
+    isJobRunning(jobs, "gen-image") ||
+    isJobRunning(jobs, "gen-start-frames");
   async function cancelImages() {
     try {
       const res = await fetch(
@@ -590,9 +728,17 @@ export default function StoryboardPage() {
     })),
   );
   const returnedCount = allSegments.filter((e) => e.segment.videoPath).length;
+  // 顺序生成时若勾选自动补帧，会为这些「硬切/场首且缺起始画面」的段额外出图。
+  const missingHardCutFrames = allSegments.filter(
+    (entry) =>
+      !entry.segment.videoPath &&
+      !entry.segment.firstFrameId &&
+      (entry.isFirstOfScene || entry.segment.hardCut),
+  ).length;
   const cloudRunning =
     batchBusy !== null ||
     isJobRunning(jobs, "gen-image") ||
+    isJobRunning(jobs, "gen-start-frames") ||
     isJobRunning(jobs, "gen-video") ||
     isJobRunning(jobs, "gen-videos");
 
@@ -933,8 +1079,8 @@ export default function StoryboardPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl bg-block-mint p-5">
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 rounded-2xl bg-block-mint p-5">
         <div>
           <h2 className="text-base font-medium">分镜</h2>
           <p className="text-sm text-muted-foreground">
@@ -945,14 +1091,6 @@ export default function StoryboardPage() {
               云端生成仅适配 MiniMax H3；当前厂商「
               {currentVendor?.name ?? vendor}
               」请用「第三方生成」手动回传。
-            </p>
-          )}
-          {qcSummary && qcSummary.checkedSegments > 0 && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              QC 已检 {qcSummary.checkedSegments}/{qcSummary.totalSegments} ·
-              首次硬失败 {qcSummary.firstAttemptHardFail}（
-              {(qcSummary.firstPassHardFailRate * 100).toFixed(0)}%）· 重试成功{" "}
-              {qcSummary.retrySucceeded}/{qcSummary.retriedSegments}
             </p>
           )}
         </div>
@@ -984,7 +1122,7 @@ export default function StoryboardPage() {
           {hasStoryboard && (
             <Button
               variant="outline"
-              onClick={genAllVideos}
+              onClick={() => setVideoBatchOpen(true)}
               disabled={busyGenerate || orchestrating || cloudRunning || !isH3}
               title={
                 isH3
@@ -998,6 +1136,32 @@ export default function StoryboardPage() {
                 <CloudUpload className="size-4" />
               )}
               顺序生成视频
+            </Button>
+          )}
+
+          {hasStoryboard && (
+            <Button
+              variant="outline"
+              onClick={genAllStartFrames}
+              disabled={
+                busyGenerate ||
+                orchestrating ||
+                cloudRunning ||
+                !isH3
+              }
+              title={
+                isH3
+                  ? "为硬切/场首段落批量生成 AI 起始画面；连续段仍接上一段尾帧"
+                  : "云端出图仅适配 H3 项目"
+              }
+            >
+              {batchBusy === "start-frames" ||
+              isJobRunning(jobs, "gen-start-frames") ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <ImagePlus className="size-4" />
+              )}
+              批量补首帧
             </Button>
           )}
 
@@ -1028,6 +1192,13 @@ export default function StoryboardPage() {
                 >
                   <Stethoscope className="size-4" />
                   本段体检与修复
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setSourceOpen(true)}
+                  title="只读查看当前分镜内容的原文"
+                >
+                  <FileText className="size-4" />
+                  查看分镜原文
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -1101,72 +1272,204 @@ export default function StoryboardPage() {
 
       {!busyGenerate && hasStoryboard && preview && previewScene && (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="inline-flex items-center gap-1 rounded-full bg-muted p-1">
-              <button
-                type="button"
-                onClick={() => setViewTab("generate")}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-                  viewTab === "generate"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
+          <div className="flex min-h-0 flex-1 flex-col gap-4 pb-4">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background">
+            <div className="flex flex-wrap items-start justify-between gap-2 border-b bg-muted/20 px-3 py-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="text-sm font-medium">
+                  {previewScene.sceneSlug || `第${previewScene.sceneIndex}场`} ·
+                  第{preview.index}段
+                </span>
+                <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                  {preview.shots.length} 镜 · {(previewTotal / 1000).toFixed(1)}s
+                </span>
+                {!previewEntry?.isFirstOfScene && (
+                  <span
+                    className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
+                    title="由本段首镜的「延续上一镜」自动决定；如需修改请编辑该镜。"
+                  >
+                    {preview.hardCut ? "与上一段：硬切" : "与上一段：连续"}
+                  </span>
                 )}
-              >
-                <Sparkles className="size-3.5" />
-                生成
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewTab("preview")}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-                  viewTab === "preview"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
+                {preview.stale && (
+                  <span
+                    className="rounded-full border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-300"
+                    title="本段视频生成后分镜、参考图或参数又改过，视频与当前内容不再对应。"
+                  >
+                    视频已过期
+                  </span>
                 )}
-              >
-                <Film className="size-3.5" />
-                预览
-              </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {cloudRunning && (
+                  <span className="flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                    <Loader2 className="size-3 animate-spin" />
+                    云端生成中…
+                  </span>
+                )}
+                {imageRunning && (
+                  <button
+                    type="button"
+                    onClick={cancelImages}
+                    className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive"
+                  >
+                    取消起始画面出图
+                  </button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPreflightOpen(true)}
+                >
+                  <Stethoscope className="size-3.5" />
+                  本段体检
+                </Button>
+              </div>
             </div>
-            <span className="text-xs text-muted-foreground">
-              {viewTab === "generate"
-                ? "提交内容以输入框内的提示词为准 · 高级操作收在「更多」里"
-                : "只读查看本段分镜 · 底部段落列表始终保留"}
-            </span>
-          </div>
+            <div className="min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-[248px_minmax(0,1.15fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
+            <aside className="flex h-[420px] min-h-0 flex-col overflow-hidden border-b lg:h-full lg:border-b-0 lg:border-r">
+              <div className="flex items-center justify-between gap-2 border-b px-3 py-2.5">
+                <span className="text-sm font-medium">段落列表</span>
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span
+                    className={cn(
+                      "size-1.5 rounded-full",
+                      returnedCount === allSegments.length && allSegments.length > 0
+                        ? "bg-emerald-500"
+                        : "bg-muted-foreground/40",
+                    )}
+                  />
+                  已回传 {returnedCount}/{allSegments.length}
+                </span>
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-1.5">
+                {scenes.map((scene) => (
+                  <div
+                    key={`${scene.sceneIndex}:${scene.sceneSlug}`}
+                    className="flex flex-col gap-0.5"
+                  >
+                    <div className="flex items-center justify-between px-2 pb-1 pt-2 text-[11px] text-muted-foreground">
+                      <span className="truncate">
+                        {scene.sceneSlug || `第${scene.sceneIndex}场`}
+                      </span>
+                      <span className="shrink-0">{scene.segments.length} 段</span>
+                    </div>
+                    {scene.segments.map((segment) => {
+                      const active = segment.id === preview.id;
+                      const generating =
+                        cloudRunning && isSegmentGenerating(segment.genStatus);
+                      const qc = qcBySegment.get(segment.id);
+                      const total = segment.shots.reduce(
+                        (sum, shot) => sum + shot.durationMs,
+                        0,
+                      );
+                      return (
+                        <div
+                          key={segment.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setPreviewId(segment.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setPreviewId(segment.id);
+                            }
+                          }}
+                          className={cn(
+                            "flex cursor-pointer items-start gap-2 rounded-lg border border-transparent p-1.5 transition-colors",
+                            active
+                              ? "border-border bg-muted/60"
+                              : "hover:bg-muted/40",
+                          )}
+                        >
+                          <div className="relative mt-0.5 w-[68px] shrink-0 overflow-hidden rounded-md bg-black">
+                            <SegmentThumb
+                              projectId={id}
+                              segment={segment}
+                            />
+                            {segment.hardCut && segment.index > 1 && (
+                              <span className="absolute left-1 top-1 rounded bg-amber-500/90 px-1 py-0.5 text-[9px] font-medium leading-none text-black">
+                                硬切
+                              </span>
+                            )}
+                            {generating && (
+                              <span className="absolute left-1 top-1 flex items-center gap-1 rounded bg-blue-600/90 px-1 py-0.5 text-[9px] leading-none text-white">
+                                <Loader2 className="size-2 animate-spin" />
+                                生成中
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <span className="truncate text-xs font-medium">
+                              第{segment.index}段
+                            </span>
+                            <span className="truncate text-[11px] text-muted-foreground">
+                              {segment.shots.length} 镜 ·{" "}
+                              {(total / 1000).toFixed(1)}s
+                            </span>
+                            <span
+                              className={cn(
+                                "flex flex-wrap items-center gap-1 text-[11px]",
+                                generating
+                                  ? "text-blue-600 dark:text-blue-400"
+                                  : segment.stale
+                                    ? "text-amber-700 dark:text-amber-400"
+                                    : segment.videoPath
+                                      ? "text-emerald-600 dark:text-emerald-400"
+                                      : "text-muted-foreground",
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  "size-1.5 rounded-full",
+                                  generating
+                                    ? "bg-blue-500"
+                                    : segment.stale
+                                      ? "bg-amber-500"
+                                      : segment.videoPath
+                                        ? "bg-emerald-500"
+                                        : "bg-muted-foreground/40",
+                                )}
+                              />
+                              {generating
+                                ? "生成中"
+                                : segment.stale
+                                  ? "视频已过期"
+                                  : segment.videoPath
+                                    ? "已回传"
+                                    : "未回传"}
+                              {qc && (
+                                <span className="ml-1 rounded bg-background px-1 text-[10px]">
+                                  {qc.status === "passed"
+                                    ? "QC 过"
+                                    : qc.status === "failed"
+                                      ? "QC 未过"
+                                      : "QC 复核"}
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+              <div className="border-t px-3 py-2 text-[10.5px] text-muted-foreground">
+                悬停缩略图可预览 · 点击切换段落
+              </div>
+            </aside>
 
-          {viewTab === "generate" ? (
-            <>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex flex-wrap items-center gap-2">
-                    生成结果
-                    <span className="text-sm font-normal">
-                      {previewScene.sceneSlug || `第${previewScene.sceneIndex}场`} ·
-                      第{preview.index}段
-                    </span>
-                    <span className="text-xs font-normal text-muted-foreground">
-                      {preview.shots.length} 镜 · {(previewTotal / 1000).toFixed(1)}s
-                    </span>
-                    {!previewEntry?.isFirstOfScene && (
-                      <span
-                        className="rounded-full border border-border px-2 py-0.5 text-[11px] font-normal text-muted-foreground"
-                        title="由本段首镜的「延续上一镜」自动决定；如需修改请编辑该镜。"
-                      >
-                        {preview.hardCut ? "与上一段：硬切" : "与上一段：连续"}
+                <section className="flex h-[420px] min-h-0 min-w-0 flex-col overflow-hidden border-b lg:h-full lg:border-b-0 lg:border-r">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-3 py-2">
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      生成结果
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {preview.shots.length} 镜 ·{" "}
+                        {(previewTotal / 1000).toFixed(1)}s
                       </span>
-                    )}
-                    {preview.stale && (
-                      <span
-                        className="rounded-full border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-[11px] font-normal text-amber-700 dark:text-amber-300"
-                        title="本段视频生成后分镜、参考图或参数又改过，视频与当前内容不再对应。"
-                      >
-                        视频已过期
-                      </span>
-                    )}
-                    <span className="ml-auto flex flex-wrap items-center gap-1.5">
+                    </span>
+                    <span className="flex flex-wrap items-center gap-1.5">
                       {preview.videoPath ? (
                         <>
                           {previewQc ? (
@@ -1193,6 +1496,12 @@ export default function StoryboardPage() {
                               待质检
                             </span>
                           )}
+                          <span
+                            className="flex size-3.5 cursor-help items-center justify-center rounded-full border border-border text-[9px] leading-none text-muted-foreground"
+                            title="质检（QC）：对已生成视频做技术自检——能否解码、时长是否达标、画幅比例、黑帧、冻结帧、切镜数是否与分镜一致。不检查人物身份与场景是否画对。"
+                          >
+                            ?
+                          </span>
                           <Button
                             size="xs"
                             variant="outline"
@@ -1208,9 +1517,8 @@ export default function StoryboardPage() {
                         </>
                       ) : null}
                     </span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3">
+                  </div>
+                  <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
                   <SegmentVideo
                     projectId={id}
                     segmentId={preview.id}
@@ -1249,68 +1557,18 @@ export default function StoryboardPage() {
                     </div>
                   )}
 
-                </CardContent>
-              </Card>
+                  </div>
+                </section>
 
-              <SegmentComposer
-                key={`${preview.id}:${currentVendor?.platform ?? "h3"}:${composerReloadKey}`}
-                projectId={id}
-                segment={preview}
-                scene={previewScene}
-                assets={assets}
-                platform={currentVendor?.platform ?? "h3"}
-                aspectRatio={projectAspectRatio}
-                vendorName={currentVendor?.name ?? vendor}
-                isH3={isH3}
-                maxRefs={currentVendor?.maxRefImages ?? 14}
-                minDurationSec={Math.max(
-                  1,
-                  Math.round((currentVendor?.minSegmentMs ?? 4000) / 1000),
-                )}
-                maxDurationSec={Math.max(
-                  1,
-                  Math.round((currentVendor?.maxSegmentMs ?? 15000) / 1000),
-                )}
-                durationStepSec={Math.max(
-                  1,
-                  Math.round((currentVendor?.durationStepMs ?? 1000) / 1000),
-                )}
-                timeRange={previewTimeRange}
-                reloadToken={composerReloadKey}
-                cloudRunning={cloudRunning}
-                onRefresh={refresh}
-                onCloudStart={() => void cloudGenerate()}
-                onRegenerateSegment={(segmentId) =>
-                  void regenerateSegment(segmentId)
-                }
-                onRestoreSegment={(segmentId) => void restoreSegment(segmentId)}
-                onEditBlocking={(scene) => setEditBlocking(scene)}
-                onOpenPreflight={() => setPreflightOpen(true)}
-              />
-            </>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex flex-wrap items-center gap-2">
-                  预览
-                  <span className="text-sm font-normal">
-                    {previewScene.sceneSlug || `第${previewScene.sceneIndex}场`} ·
-                    第{preview.index}段
-                  </span>
-                  <span className="text-xs font-normal text-muted-foreground">
-                    {preview.shots.length} 镜 · {(previewTotal / 1000).toFixed(1)}s
-                  </span>
-                  {!previewEntry?.isFirstOfScene && (
-                    <span className="rounded-full border border-border px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
-                      {preview.hardCut ? "与上一段：硬切" : "与上一段：连续"}
+                <section className="flex h-[420px] min-h-0 min-w-0 flex-col overflow-hidden lg:h-full">
+                  <div className="flex items-center justify-between gap-2 border-b bg-muted/20 px-3 py-2">
+                    <span className="text-sm font-medium">分镜</span>
+                    <span className="text-xs text-muted-foreground">
+                      {preview.shots.length} 镜 ·{" "}
+                      {(previewTotal / 1000).toFixed(1)}s
                     </span>
-                  )}
-                  <span className="ml-auto text-xs font-normal text-muted-foreground">
-                    只读展示 · 逐镜修正可点卡片右上角
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2">
+                  </div>
+                  <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
                 {previewScene.blocking && (
                   <div className="rounded-lg border bg-muted/30 p-2.5 text-xs leading-5 text-muted-foreground">
                     <span className="font-medium text-foreground">本场站位：</span>
@@ -1340,164 +1598,113 @@ export default function StoryboardPage() {
                     onEdit={() => setEditShot({ shot, nodes: previewNodes })}
                   />
                 ))}
-              </CardContent>
-            </Card>
-          )}
-
-          <div className="sticky bottom-0 z-30 -mx-4 border-t bg-background px-4 py-3">
-            <div className="flex flex-wrap items-center gap-2 pb-2">
-              <span className="text-sm font-medium">
-                段落列表（{allSegments.length}）
-              </span>
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span
-                  className={cn(
-                    "size-1.5 rounded-full",
-                    returnedCount === allSegments.length && allSegments.length > 0
-                      ? "bg-emerald-500"
-                      : "bg-muted-foreground/40",
-                  )}
-                />
-                已回传 {returnedCount}/{allSegments.length}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                点击切换段落
-              </span>
-              {cloudRunning && (
-                <span className="flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
-                  <Loader2 className="size-3 animate-spin" />
-                  云端生成中…
-                </span>
-              )}
-              {imageRunning && (
-                <button
-                  type="button"
-                  onClick={cancelImages}
-                  className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive"
-                >
-                  取消起始画面出图
-                </button>
-              )}
-            </div>
-            <div className="flex gap-3 overflow-x-auto pb-1">
-              {allSegments.map(({ scene, segment, isFirstOfScene }) => {
-                const active = segment.id === preview?.id;
-                const total = segment.shots.reduce(
-                  (a, s) => a + s.durationMs,
-                  0,
-                );
-                return (
-                  <div
-                    key={segment.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setPreviewId(segment.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setPreviewId(segment.id);
-                      }
-                    }}
-                    className={cn(
-                      "flex w-44 shrink-0 cursor-pointer flex-col gap-1.5 rounded-lg border p-2 transition-colors",
-                      active
-                        ? "border-foreground/40 bg-muted/50"
-                        : "hover:bg-muted/30",
-                    )}
-                  >
-                    <div className="relative aspect-video w-full overflow-hidden rounded bg-black">
-                      {segment.videoPath ? (
-                        <video
-                          src={`/api/projects/${id}/segments/${segment.id}/video#t=0.1`}
-                          muted
-                          playsInline
-                          preload="metadata"
-                          className="size-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex size-full items-center justify-center text-muted-foreground">
-                          <Film className="size-5" />
-                        </div>
-                      )}
-                      {segment.hardCut && !isFirstOfScene && (
-                        <span className="absolute right-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">
-                          硬切
-                        </span>
-                      )}
-                      {segment.stale && (
-                        <span
-                          className="absolute bottom-1 left-1 rounded bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-medium text-black"
-                          title="分镜改过，已回传的视频已过期"
-                        >
-                          已过期
-                        </span>
-                      )}
-                      {cloudRunning &&
-                        isSegmentGenerating(segment.genStatus) && (
-                          <span className="absolute left-1 top-1 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">
-                            <Loader2 className="size-2.5 animate-spin" />
-                            生成中
-                          </span>
-                        )}
-                    </div>
-                    <span className="truncate text-sm font-medium">
-                      {scene.sceneSlug || `第${scene.sceneIndex}场`} · 第
-                      {segment.index}段
-                    </span>
-                    <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1.5">
-                      <span>
-                        {segment.shots.length} 镜 · {(total / 1000).toFixed(1)}s
-                      </span>
-                      {qcBySegment.get(segment.id) && (
-                        <span
-                          className={cn(
-                            "rounded px-1 py-0.5 text-[10px] font-medium",
-                            qcBySegment.get(segment.id)?.status === "failed"
-                              ? "bg-destructive/10 text-destructive"
-                              : qcBySegment.get(segment.id)?.status === "passed"
-                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                                : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-                          )}
-                          title={qcBySegment
-                            .get(segment.id)
-                            ?.issues.map((issue) => issue.message)
-                            .join("\n")}
-                        >
-                          QC
-                          {qcBySegment.get(segment.id)?.status === "failed"
-                            ? "未过"
-                            : qcBySegment.get(segment.id)?.status === "passed"
-                              ? "过"
-                              : "复核"}
-                        </span>
-                      )}
-                    </span>
-                      <span
-                        className={cn(
-                          "flex items-center gap-1",
-                          segment.videoPath &&
-                            "text-emerald-600 dark:text-emerald-400",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "size-1.5 rounded-full",
-                            segment.videoPath
-                              ? "bg-emerald-500"
-                              : "bg-muted-foreground/40",
-                          )}
-                        />
-                        {segment.videoPath ? "已回传" : "未回传"}
-                      </span>
-                    </span>
                   </div>
-                );
-              })}
+                </section>
+              </div>
+            </div>
+
+            <div className="h-44 shrink-0 overflow-hidden rounded-2xl border bg-background p-3 shadow-sm">
+                <SegmentComposer
+                  key={`${preview.id}:${currentVendor?.platform ?? "h3"}:${composerReloadKey}`}
+                  projectId={id}
+                  segment={preview}
+                  scene={previewScene}
+                  assets={assets}
+                  platform={currentVendor?.platform ?? "h3"}
+                  aspectRatio={projectAspectRatio}
+                  vendorName={currentVendor?.name ?? vendor}
+                  isH3={isH3}
+                  maxRefs={currentVendor?.maxRefImages ?? 14}
+                  minDurationSec={Math.max(
+                    1,
+                    Math.round((currentVendor?.minSegmentMs ?? 4000) / 1000),
+                  )}
+                  maxDurationSec={Math.max(
+                    1,
+                    Math.round((currentVendor?.maxSegmentMs ?? 15000) / 1000),
+                  )}
+                  durationStepSec={Math.max(
+                    1,
+                    Math.round((currentVendor?.durationStepMs ?? 1000) / 1000),
+                  )}
+                  timeRange={previewTimeRange}
+                  reloadToken={composerReloadKey}
+                  cloudRunning={cloudRunning}
+                  onRefresh={refresh}
+                  onCloudStart={() => void cloudGenerate()}
+                  onRegenerateSegment={(segmentId) =>
+                    void regenerateSegment(segmentId)
+                  }
+                  onRestoreSegment={(segmentId) =>
+                    void restoreSegment(segmentId)
+                  }
+                  onEditBlocking={(scene) => setEditBlocking(scene)}
+                  onOpenPreflight={() => setPreflightOpen(true)}
+                />
             </div>
           </div>
         </>
       )}
+
+      <Dialog open={videoBatchOpen} onOpenChange={setVideoBatchOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>顺序生成视频</DialogTitle>
+            <DialogDescription>
+              为所有「未生成视频」的段落逐段生成云端视频，不并发。连续段的尾帧会自动接为下一段起始画面；缺首帧的硬切/场首默认不带关键帧直接生成。
+            </DialogDescription>
+          </DialogHeader>
+          <label
+            className={cn(
+              "flex items-start gap-2 rounded-lg border border-border p-3 text-sm",
+              missingHardCutFrames === 0 && "opacity-60",
+            )}
+          >
+            <input
+              type="checkbox"
+              checked={autoStartFrames}
+              disabled={missingHardCutFrames === 0}
+              onChange={(e) => setAutoStartFrames(e.target.checked)}
+              className="mt-0.5 size-4 accent-primary"
+            />
+            <span>
+              自动补硬切/场首首帧
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                {missingHardCutFrames > 0
+                  ? `开启后为 ${missingHardCutFrames} 段自动生成 AI 首帧（产生额外出图费用）；关闭则这些段落不带首帧直接生成。`
+                  : "当前硬切/场首段落都已有起始画面，无需补帧。"}
+              </span>
+            </span>
+          </label>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVideoBatchOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={() => void genAllVideos(autoStartFrames)}>
+              开始生成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={sourceOpen} onOpenChange={setSourceOpen}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>分镜原文</DialogTitle>
+            <DialogDescription>
+              按当前分镜内容只读展示；如需修改，请在生成页逐镜编辑或在预览页逐镜修正。
+            </DialogDescription>
+          </DialogHeader>
+          <pre className="max-h-[62vh] overflow-y-auto whitespace-pre-wrap rounded-lg border bg-muted/30 p-3 text-xs leading-6">
+            {formatStoryboardText(scenes)}
+          </pre>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSourceOpen(false)}>
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={preflightOpen} onOpenChange={setPreflightOpen}>
         <DialogContent className="sm:max-w-lg">

@@ -193,8 +193,8 @@ export default function ScriptPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 pb-6">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl bg-block-lime p-5">
+    <div className="flex h-full min-h-0 flex-col gap-4 pb-4">
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 rounded-2xl bg-block-lime p-5">
         <div>
           <h2 className="text-base font-medium">剧本</h2>
           <p className="text-sm text-muted-foreground">
@@ -225,7 +225,7 @@ export default function ScriptPage() {
       {llmMissing && <LlmKeyNotice />}
 
       {!busy && (
-        <details className="group rounded-lg border border-border bg-muted/20 px-3 py-2">
+        <details className="group shrink-0 rounded-lg border border-border bg-muted/20 px-3 py-2">
           <summary className="flex cursor-pointer list-none select-none items-center justify-between text-sm font-medium [&::-webkit-details-marker]:hidden">
             额外要求（可选，下次生成时生效）
             <span className="flex items-center gap-2">
@@ -259,13 +259,13 @@ export default function ScriptPage() {
       )}
 
       {script && !busy && (
-        <>
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-2 pr-1">
           {script.title && (
             <h3 className="text-lg font-semibold">{script.title}</h3>
           )}
           <div className="grid gap-4">
             {script.scenes.map((scene) => (
-              <Card key={scene.id}>
+              <Card key={scene.id} className="border border-border">
                 <CardHeader>
                   <CardTitle className="flex flex-wrap items-center gap-2">
                     <span>{scene.slug || `第${scene.index}场`}</span>
@@ -310,7 +310,7 @@ export default function ScriptPage() {
               </Card>
             ))}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

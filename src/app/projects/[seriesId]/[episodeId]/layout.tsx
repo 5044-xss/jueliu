@@ -1,9 +1,15 @@
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
-import { getProject, getSeries, listEpisodes } from "@core/server/projects";
+import {
+  getProject,
+  getSeries,
+  listEpisodes,
+  listSeries,
+} from "@core/server/projects";
 import { getAssets } from "@core/server/assets";
 import { countSegmentVideos } from "@core/server/storyboard";
 import { EpisodeSwitcher } from "@/components/episode-switcher";
+import { SeriesSwitcher } from "@/components/series-switcher";
 import { GuardedLink } from "@/components/guarded-link";
 import { ProjectTabs } from "@/components/project-tabs";
 import { ProjectJobsBar } from "@/components/project-jobs-bar";
@@ -22,6 +28,7 @@ export default async function EpisodeLayout({
   const project = getProject(episodeId);
   if (!project) notFound();
   const series = getSeries(seriesId);
+  const seriesList = listSeries();
   const episodes = listEpisodes(seriesId);
   // 一旦按剧本生成了资产，风格即锁定，避免素材与提示词风格串味。
   const assets = getAssets(episodeId);
@@ -29,7 +36,7 @@ export default async function EpisodeLayout({
   const videoCount = countSegmentVideos(episodeId);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex h-[calc(100dvh-5rem)] flex-col gap-4 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
           <GuardedLink
@@ -42,12 +49,7 @@ export default async function EpisodeLayout({
           {series && (
             <>
               <span className="text-muted-foreground/50">/</span>
-              <GuardedLink
-                href={`/projects/${seriesId}`}
-                className="truncate hover:text-foreground"
-              >
-                {series.name}
-              </GuardedLink>
+              <SeriesSwitcher currentId={seriesId} series={seriesList} />
             </>
           )}
           <span className="text-muted-foreground/50">/</span>
@@ -76,13 +78,13 @@ export default async function EpisodeLayout({
         </div>
       </div>
       {/* 顶部导航已固定，这里让标签与任务条一起吸顶，滚动时不跟着走。 */}
-      <div className="sticky top-14 z-40 -mx-4 bg-background px-4 pt-2">
+      <div className="shrink-0 sticky top-14 z-40 -mx-4 bg-background px-4 pt-2">
         <ProjectTabs seriesId={seriesId} episodeId={episodeId} />
         <div className="pt-2">
           <ProjectJobsBar projectId={episodeId} />
         </div>
       </div>
-      {children}
+      <div className="min-h-0 flex-1">{children}</div>
     </div>
   );
 }

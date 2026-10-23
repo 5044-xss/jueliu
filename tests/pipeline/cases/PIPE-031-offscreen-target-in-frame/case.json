@@ -1,0 +1,38 @@
+{
+  "id": "PIPE-031",
+  "title": "台词对象实际在画面内时，offscreen 标记必须被忽略",
+  "stage": "h3-render",
+  "tags": ["h3", "dialogue", "offscreen", "in-frame", "regression"],
+  "input": {
+    "mode": "reference",
+    "aspectRatio": "16:9",
+    "subjects": [
+      { "id": "n_he", "name": "何文成", "kind": "character", "sourcePictures": [2] },
+      { "id": "n_chen", "name": "陈平生", "kind": "character", "sourcePictures": [3] },
+      { "id": "scene", "name": "广场", "kind": "scene", "sourcePictures": [1] }
+    ],
+    "shots": [
+      {
+        "index": 1,
+        "durationMs": 3000,
+        "visual": "He Wencheng answers over his shoulder.",
+        "sound": "wind",
+        "subjectIds": ["n_he", "n_chen"],
+        "dialogue": [
+          {
+            "character": "何文成",
+            "text": "我还以为他躲在房里呢。",
+            "target": "陈平生",
+            "offscreen": true
+          }
+        ]
+      }
+    ],
+    "soundscape": "mountain wind",
+    "music": "N/A"
+  },
+  "expect": {
+    "contains": ["says, addressing <Subject 2>:"],
+    "notContains": ["who is off-screen", "addressee is not visible"]
+  }
+}

@@ -10,7 +10,8 @@ import {
   assertImageGenerationConfigured,
   type GenerationSettings,
 } from "./settings";
-import { ToApiClient, extFromUrl, type CreateImageTaskInput } from "./toapi";
+import { createImageClient, type ImageClient } from "./image-client";
+import { extFromUrl, type CreateImageTaskInput } from "./toapi";
 import { Semaphore, mapLimit, sleep } from "./concurrency";
 import type {
   StoredAsset,
@@ -164,11 +165,12 @@ async function ensureBaseSlotImage(
   await generateAssetViewImage(projectId, baseView.id, ctx);
 }
 
-function makeClient(settings: GenerationSettings): ToApiClient {
-  return new ToApiClient({
+function makeClient(settings: GenerationSettings): ImageClient {
+  return createImageClient({
     baseUrl: settings.baseUrl,
     apiKey: settings.apiKey,
     timeoutMs: settings.timeoutMs,
+    protocol: settings.imageProtocol,
   });
 }
 

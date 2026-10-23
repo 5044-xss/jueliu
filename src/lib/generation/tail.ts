@@ -17,7 +17,7 @@ function findContinuousNext(
   segmentId: string,
 ): {
   id: string;
-  firstFrameOrigin: "manual" | "auto" | null;
+  firstFrameOrigin: "manual" | "auto" | "generated" | null;
   hasVideo: boolean;
 } | null {
   for (const scene of getStoryboard(projectId)) {
@@ -48,10 +48,10 @@ export async function captureAndAdoptTail(
   if (!next) {
     return { captured: false, reason: "下一段为硬切/场尾或不存在，不截尾帧" };
   }
-  if (next.firstFrameOrigin === "manual") {
+  if (next.firstFrameOrigin === "manual" || next.firstFrameOrigin === "generated") {
     return {
       captured: false,
-      reason: "下一段起始画面为人工指定，不自动覆盖",
+      reason: "下一段起始画面为人工/AI 指定，不自动覆盖",
     };
   }
   if (next.hasVideo) {

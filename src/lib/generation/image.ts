@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { buildKeyframePrompt, saveFirstFrameImage } from "@core/server/keyframe";
 import type { StoredFrame } from "@core/server/frames";
 import { buildManifest } from "@core/server/render";
+import { getStoryboard } from "@core/server/storyboard";
 import { startJob, finishJob } from "@core/server/jobs";
 import { getProject } from "@core/server/projects";
 import { getProjectDb, nowIso } from "@core/server/db";
@@ -10,8 +11,8 @@ import {
   assertImageGenerationConfigured,
   type GenerationSettings,
 } from "./settings";
+import { createImageClient, type ImageClient } from "./image-client";
 import {
-  ToApiClient,
   extFromUrl,
   type CreateImageTaskInput,
   type ToApiTask,
@@ -150,17 +151,27 @@ function updateSegmentGen(
   }
 }
 
-/** 收集本段可用作参考图的本地文件（角色/场景/道具视图，按 manifest 顺序），排除起始画面本身。 */
+/** 收集首帧可用作参考图的本地文件，按首帧 prompt 的图号顺序过滤，排除起始画面本身。 */
 function collectRefImages(
   projectId: string,
   segmentId: string,
   max: number,
+  allowedViewIds?: string[],
 ): { imagePath: string; label: string }[] {
   const built = buildManifest(projectId, segmentId);
   if (!built) return [];
+  const order = allowedViewIds
+    ? new Map(allowedViewIds.map((id, index) => [id, index]))
+    : null;
   return built.manifest
     .filter((m) => m.role !== "start" && !!m.imagePath)
+    .filter((m) => !order || (!!m.viewId && order.has(m.viewId)))
     .filter((m) => fs.existsSync(m.imagePath as string))
+    .sort((a, b) =>
+      order && a.viewId && b.viewId
+        ? (order.get(a.viewId) ?? 0) - (order.get(b.viewId) ?? 0)
+        : 0,
+    )
     .slice(0, max)
     .map((m) => ({ imagePath: m.imagePath as string, label: m.label }));
 }
@@ -174,17 +185,18 @@ function assertSegmentExists(projectId: string, segmentId: string): void {
   if (!row) throw new Error("段落已被删除或重新编排，已丢弃本次生成结果");
 }
 
-function makeClient(settings: GenerationSettings): ToApiClient {
-  return new ToApiClient({
+function makeClient(settings: GenerationSettings): ImageClient {
+  return createImageClient({
     baseUrl: settings.baseUrl,
     apiKey: settings.apiKey,
     timeoutMs: settings.timeoutMs,
+    protocol: settings.imageProtocol,
   });
 }
 
 /** 建任务；上游繁忙/限流时退避重试，避免一次抖动就让整段失败。 */
 async function createImageTaskWithRetry(
-  client: ToApiClient,
+  client: ImageClient,
   input: CreateImageTaskInput,
   signal: AbortSignal,
 ): Promise<ToApiTask> {
@@ -248,7 +260,15 @@ async function submitSegmentImageOnce(
     const aspect =
       kf.aspect || getProject(projectId)?.aspectRatio || "1:1";
 
-    const refs = collectRefImages(projectId, segmentId, settings.maxRefImages);
+    const allowedViewIds = kf.refs
+      .map((ref) => ref.viewId)
+      .filter((id): id is string => Boolean(id));
+    const refs = collectRefImages(
+      projectId,
+      segmentId,
+      settings.maxRefImages,
+      allowedViewIds,
+    );
     const refUrls: string[] = [];
     for (const ref of refs) {
       if (run.signal.aborted) throw new Error("已取消");
@@ -337,6 +357,7 @@ async function runImageJob(
           segmentId,
           buf,
           extFromUrl(imageUrl),
+          "generated",
         );
         updateSegmentGen(projectId, segmentId, { taskId, status: "completed" });
         finishJob(projectId, jobId, "succeeded", `已生成起始画面（frame ${frame.id}）`);
@@ -384,7 +405,15 @@ export async function generateSegmentStartFrame(
     const kf = buildKeyframePrompt(projectId, segmentId);
     if (!kf) throw new Error("无法编译起始画面提示词（段落不存在或无分镜）");
     const aspect = kf.aspect || getProject(projectId)?.aspectRatio || "1:1";
-    const refs = collectRefImages(projectId, segmentId, settings.maxRefImages);
+    const allowedViewIds = kf.refs
+      .map((ref) => ref.viewId)
+      .filter((id): id is string => Boolean(id));
+    const refs = collectRefImages(
+      projectId,
+      segmentId,
+      settings.maxRefImages,
+      allowedViewIds,
+    );
     const refUrls: string[] = [];
     for (const ref of refs) {
       refUrls.push(await client.uploadImage(ref.imagePath));
@@ -408,6 +437,7 @@ export async function generateSegmentStartFrame(
       segmentId,
       buf,
       extFromUrl(imageUrl),
+      "generated",
     );
     updateSegmentGen(projectId, segmentId, { taskId: task.id, status: "completed" });
     finishJob(projectId, jobId, "succeeded", `已生成起始画面（frame ${frame.id}）`);
@@ -416,4 +446,93 @@ export async function generateSegmentStartFrame(
     finishJob(projectId, jobId, "failed", (error as Error).message);
     throw error;
   }
+}
+
+const BATCH_START_FRAME_JOB_KIND = "gen-start-frames";
+
+export interface StartFrameBatchResult {
+  jobId: string;
+  total: number;
+}
+
+function batchJobStatus(projectId: string, jobId: string): string | null {
+  try {
+    const db = getProjectDb(projectId);
+    const row = db
+      .prepare("SELECT status FROM job WHERE id = ?")
+      .get(jobId) as { status: string } | undefined;
+    return row?.status ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 批量补齐「硬切/场首」的 AI 起始画面。
+ * 连续段不在这里出图：它们会在顺序生成视频时直接采用上一段尾帧。
+ */
+export async function startSequentialStartFrameRun(
+  projectId: string,
+): Promise<StartFrameBatchResult> {
+  assertImageGenerationConfigured();
+  const targets: { id: string; label: string }[] = [];
+  for (const scene of getStoryboard(projectId)) {
+    scene.segments.forEach((segment, index) => {
+      const isFirstOfScene = index === 0;
+      if (segment.firstFrameId) return;
+      if (!isFirstOfScene && !segment.hardCut) return;
+      targets.push({
+        id: segment.id,
+        label: `${scene.sceneSlug || `第${scene.sceneIndex}场`} · 第${segment.index}段`,
+      });
+    });
+  }
+  if (targets.length === 0) {
+    throw new Error("没有需要补首帧的硬切段（连续段会直接采用上一段尾帧）。");
+  }
+  const jobId = startJob(projectId, BATCH_START_FRAME_JOB_KIND);
+  void runSequentialStartFrameJob(projectId, jobId, targets);
+  return { jobId, total: targets.length };
+}
+
+async function runSequentialStartFrameJob(
+  projectId: string,
+  jobId: string,
+  targets: { id: string; label: string }[],
+): Promise<void> {
+  let done = 0;
+  let failed = 0;
+  let firstError: string | null = null;
+  for (const target of targets) {
+    if (batchJobStatus(projectId, jobId) !== "running") {
+      finishJob(projectId, jobId, "failed", "已取消");
+      return;
+    }
+    try {
+      // 生成期间可能被人工补过首帧，避免覆盖。
+      const db = getProjectDb(projectId);
+      const current = db
+        .prepare("SELECT first_frame_id FROM segment WHERE id = ?")
+        .get(target.id) as { first_frame_id: string | null } | undefined;
+      if (current?.first_frame_id) continue;
+      await generateSegmentStartFrame(projectId, target.id);
+      done += 1;
+    } catch (error) {
+      if (batchJobStatus(projectId, jobId) !== "running") {
+        finishJob(projectId, jobId, "failed", "已取消");
+        return;
+      }
+      failed += 1;
+      if (!firstError) firstError = (error as Error).message;
+    }
+  }
+  const summary = `补首帧完成：成功 ${done} 段${failed ? `，失败 ${failed} 段` : ""}${
+    firstError ? `（首个错误：${firstError}）` : ""
+  }`;
+  finishJob(
+    projectId,
+    jobId,
+    done > 0 || failed === 0 ? "succeeded" : "failed",
+    summary,
+  );
 }

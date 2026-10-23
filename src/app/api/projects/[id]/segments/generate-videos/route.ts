@@ -6,16 +6,24 @@ import { startSequentialVideoRun } from "@/lib/generation/video";
 type Ctx = { params: Promise<{ id: string }> };
 
 // 顺序生成视频：整批一个任务，按场次/段顺序逐段生成（不并发）。
-// 每段出片后，连续段的尾帧自动接为下一段起始画面。body: { onlyMissing? }
+// 每段出片后，连续段的尾帧自动接为下一段起始画面。
+// body: { onlyMissing?, autoStartFrames? }；autoStartFrames=true 时硬切/场首缺首帧会自动补图；
+// false 时缺首帧的段落不带关键帧直接生成（不阻塞、不出图）。
 export async function POST(request: Request, { params }: Ctx) {
   ensureCore();
   const { id } = await params;
   if (!projectExists(id)) {
     return NextResponse.json({ error: "项目不存在" }, { status: 404 });
   }
-  const body = (await request.json().catch(() => ({}))) as { onlyMissing?: boolean };
+  const body = (await request.json().catch(() => ({}))) as {
+    onlyMissing?: boolean;
+    autoStartFrames?: boolean;
+  };
   try {
-    const result = await startSequentialVideoRun(id, { onlyMissing: body.onlyMissing });
+    const result = await startSequentialVideoRun(id, {
+      onlyMissing: body.onlyMissing,
+      autoStartFrames: body.autoStartFrames,
+    });
     return NextResponse.json({ started: true, ...result });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });

@@ -48,6 +48,6 @@
   },
   "expect": {
     "errors": [],
-    "warnings": []
+    "warnings": ["expression-missing", "lighting-generic"]
   }
 }
