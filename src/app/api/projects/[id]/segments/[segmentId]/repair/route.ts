@@ -136,6 +136,7 @@ export async function POST(_request: Request, { params }: Ctx) {
 
   const currentShots = segment.shots.map((s) => ({
     beatIds: s.beatIds,
+    intent: s.intent ?? "action",
     durationMs: s.durationMs,
     continuesPrev: s.continuesPrev,
     camera: s.camera,

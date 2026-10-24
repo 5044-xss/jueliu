@@ -1,0 +1,82 @@
+{
+  "id": "PIPE-070",
+  "title": "意图切镜：多 beat 一镜、全覆盖且保序时通过",
+  "stage": "coverage",
+  "tags": ["coverage", "intent-cut", "B"],
+  "input": {
+    "scenes": [
+      {
+        "index": "1-1",
+        "beats": [
+          {
+            "type": "action",
+            "character": "",
+            "text": "苏婉站在殿门外，雨水顺着伞骨往下淌。"
+          },
+          { "type": "dialogue", "character": "苏婉", "text": "你当真要退婚？" },
+          {
+            "type": "action",
+            "character": "",
+            "text": "陆沉舟背对着她，没有回头。"
+          },
+          { "type": "dialogue", "character": "陆沉舟", "text": "婚书我已经签了。" },
+          {
+            "type": "action",
+            "character": "",
+            "text": "苏婉手指猛地收紧，伞柄发出轻响。"
+          }
+        ]
+      }
+    ],
+    "draft": {
+      "scenes": [
+        {
+          "sceneIndex": "1-1",
+          "shots": [
+            {
+              "beatIds": ["1-1-b1", "1-1-b2"],
+              "intent": "dialogue",
+              "durationMs": 0,
+              "camera": {},
+              "lighting": "",
+              "action": "苏婉立在殿门外，抬眼看向殿内。",
+              "dialogue": [{ "character": "苏婉", "text": "你当真要退婚？" }],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            },
+            {
+              "beatIds": ["1-1-b3", "1-1-b4"],
+              "intent": "relation",
+              "durationMs": 0,
+              "camera": {},
+              "lighting": "",
+              "action": "越过苏婉的肩，陆沉舟背对殿门，没有回头。",
+              "dialogue": [
+                { "character": "陆沉舟", "text": "婚书我已经签了。" }
+              ],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            },
+            {
+              "beatIds": ["1-1-b5"],
+              "intent": "insert",
+              "durationMs": 0,
+              "camera": {},
+              "lighting": "",
+              "action": "指节收紧，伞柄发出一声轻响。",
+              "dialogue": [],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "valid": true
+  }
+}

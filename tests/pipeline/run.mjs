@@ -19,6 +19,13 @@ import {
   decideSeam,
 } from "../../packages/core/src/shared/continuity-engine.ts";
 import { assembleStoryboard } from "../../packages/core/src/server/storyboard/assemble-shots.ts";
+import { shotBudgetFromBeats } from "../../packages/core/src/shared/shot-budget.ts";
+import {
+  buildBeatSlots,
+  hydrateStoryboardDraft,
+  repairStoryboardCoverage,
+  validateStoryboardCoverage,
+} from "../../packages/core/src/shared/storyboard-coverage.ts";
 import {
   STANDARD_STORYBOARD_PRESET_CONFIG,
   mergeStoryboardPresetConfig,
@@ -588,6 +595,86 @@ async function runContinuityBriefCase(item) {
   }
 }
 
+async function runShotBudgetCase(item) {
+  const budget = shotBudgetFromBeats(item.input.beats);
+  const { expect } = item;
+  for (const key of ["minMs", "idealMs", "maxMs", "speechChars"]) {
+    if (typeof expect[key] === "number") {
+      assert.equal(budget[key], expect[key], key);
+    }
+  }
+  if (typeof expect.minAtLeast === "number") {
+    assert.ok(
+      budget.minMs >= expect.minAtLeast,
+      `minMs ${budget.minMs} < ${expect.minAtLeast}`,
+    );
+  }
+}
+
+async function runCoverageCase(item) {
+  const slotsByScene = buildBeatSlots(
+    (item.input.scenes ?? []).map((scene) => ({
+      index: scene.index,
+      beats: scene.beats,
+    })),
+  );
+  let draft = item.input.generated
+    ? hydrateStoryboardDraft(item.input.generated, slotsByScene).draft
+    : item.input.draft;
+  let repairs = [];
+  if (item.input.repair === true) {
+    const repaired = repairStoryboardCoverage(draft, slotsByScene);
+    draft = repaired.draft;
+    repairs = repaired.repairs;
+  }
+  const errors = validateStoryboardCoverage(
+    draft,
+    slotsByScene,
+    item.input.options ?? {},
+  );
+  const { expect } = item;
+  if (typeof expect.repairCount === "number") {
+    assert.equal(repairs.length, expect.repairCount, "repair count");
+  }
+  if (Array.isArray(expect.beatIdsByShot)) {
+    assert.deepEqual(
+      draft.scenes[0].shots.map((shot) => shot.beatIds),
+      expect.beatIdsByShot,
+      "beatIds",
+    );
+  }
+  if (Array.isArray(expect.dialogueTextsByShot)) {
+    assert.deepEqual(
+      draft.scenes[0].shots.map((shot) => shot.dialogue.map((line) => line.text)),
+      expect.dialogueTextsByShot,
+      "dialogue texts",
+    );
+  }
+  if (Array.isArray(expect.dialogueTargetsByShot)) {
+    assert.deepEqual(
+      draft.scenes[0].shots.map((shot) =>
+        shot.dialogue.map((line) => line.target ?? ""),
+      ),
+      expect.dialogueTargetsByShot,
+      "dialogue targets",
+    );
+  }
+  if (expect.valid) {
+    assert.deepEqual(errors, [], "expected valid coverage");
+  } else {
+    assert.ok(errors.length > 0, "expected coverage errors");
+  }
+  if (typeof expect.errorCount === "number") {
+    assert.equal(errors.length, expect.errorCount, "coverage error count");
+  }
+  for (const fragment of expect.errorIncludes ?? []) {
+    assert.ok(
+      errors.some((message) => message.includes(fragment)),
+      `missing error fragment ${fragment}: ${errors.join(" | ")}`,
+    );
+  }
+}
+
 async function runAssembleCase(item) {
   const config = mergeStoryboardPresetConfig(
     STANDARD_STORYBOARD_PRESET_CONFIG,
@@ -632,6 +719,8 @@ async function runAssembleCase(item) {
 
 const handlers = {
   preflight: runPreflightCase,
+  "shot-budget": runShotBudgetCase,
+  coverage: runCoverageCase,
   "continuity-seam": runContinuitySeamCase,
   "continuity-brief": runContinuityBriefCase,
   assemble: runAssembleCase,

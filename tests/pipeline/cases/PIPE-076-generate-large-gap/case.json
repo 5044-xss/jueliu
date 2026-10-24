@@ -1,0 +1,64 @@
+{
+  "id": "PIPE-076",
+  "title": "生成契约：大段 beat 缺失不自动补写，保留给重试",
+  "stage": "coverage",
+  "tags": ["coverage", "generation", "hydrate", "guard", "B"],
+  "input": {
+    "scenes": [
+      {
+        "index": "1-1",
+        "beats": [
+          { "type": "action", "character": "", "text": "beat 1" },
+          { "type": "action", "character": "", "text": "beat 2" },
+          { "type": "action", "character": "", "text": "beat 3" },
+          { "type": "action", "character": "", "text": "beat 4" },
+          { "type": "action", "character": "", "text": "beat 5" },
+          { "type": "action", "character": "", "text": "beat 6" }
+        ]
+      }
+    ],
+    "generated": {
+      "scenes": [
+        {
+          "sceneIndex": "1-1",
+          "blocking": {
+            "axis": { "from": "n_a", "to": "n_b" },
+            "cameraSide": "left",
+            "nodes": [],
+            "paths": []
+          },
+          "shots": [
+            {
+              "beats": [1, 2],
+              "intent": "action",
+              "durationMs": 0,
+              "camera": {},
+              "lighting": "",
+              "action": "动作一。",
+              "dialogue": [],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            },
+            {
+              "beats": [6],
+              "intent": "action",
+              "durationMs": 0,
+              "camera": {},
+              "lighting": "",
+              "action": "动作二。",
+              "dialogue": [],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "valid": false,
+    "errorIncludes": ["漏掉的 beat"]
+  }
+}

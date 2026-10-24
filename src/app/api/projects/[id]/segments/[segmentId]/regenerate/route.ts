@@ -131,6 +131,7 @@ export async function POST(_request: Request, { params }: Ctx) {
 
   const currentShots = segment.shots.map((shot) => ({
     beatIds: shot.beatIds,
+    intent: shot.intent ?? "action",
     durationMs: shot.durationMs,
     continuesPrev: shot.continuesPrev,
     camera: shot.camera,
@@ -164,7 +165,7 @@ export async function POST(_request: Request, { params }: Ctx) {
       `【画面比例】${project.aspectRatio}`,
       `【本场】${scene.sceneIndex} ${scene.location}｜${scene.timeOfDay}｜${scene.interiorExterior}`,
       `【本场 blocking】${scene.blocking ? JSON.stringify(scene.blocking) : "（缺失，请依据分镜内容保持合理站位与轴线）"}`,
-      `【本段】第${segment.index}段，必须保持 ${segment.shots.length} 个镜位与 beatIds 不变；时长由编排层计算；${continuityNote}`,
+      `【本段】第${segment.index}段，必须保持 ${segment.shots.length} 个镜位、beatIds 与 intent 不变；时长由编排层计算；${continuityNote}`,
       "",
       "【资产清单】",
       assetsText || "（暂无资产）",
@@ -257,6 +258,7 @@ export async function POST(_request: Request, { params }: Ctx) {
           JSON.stringify(shot.subjectNodeIds ?? []),
           JSON.stringify({
             beatIds: shot.beatIds ?? [],
+            intent: shot.intent,
             durationMs,
             idealMs: budgets[index]?.idealMs ?? durationMs,
             continuesPrev,

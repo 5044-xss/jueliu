@@ -3,7 +3,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { FormData } from "undici";
-import { serverFetch } from "@/lib/server-fetch";
+import { serverFetch } from "../server-fetch.ts";
 
 // ComfyUI（MiniMax H3 极速版镜像）客户端 + H3 工作流构建。
 // 生产逻辑移植自 jueying/backend/jueman/engine（workflows.make_workflow + cloud_http）：

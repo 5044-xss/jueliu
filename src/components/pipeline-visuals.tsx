@@ -259,9 +259,19 @@ export function ScriptVisual({ script }: { script: StoredScript }) {
 
 /* ---------------- 分镜 ---------------- */
 
+const SHOT_INTENT_LABELS: Record<string, string> = {
+  establish: "环境",
+  relation: "关系",
+  dialogue: "对白",
+  reaction: "反应",
+  action: "动作",
+  insert: "插入",
+};
+
 export interface VisualShot {
   index: number;
   beatIds?: string[];
+  intent?: string;
   durationMs?: number;
   continuesPrev?: boolean;
   camera?: {
@@ -322,6 +332,11 @@ function ShotCard({ shot }: { shot: VisualShot }) {
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-sm font-medium">镜 {shot.index}</span>
         <Chip tone="dark">{ms(shot.durationMs)}</Chip>
+        {shot.intent && (
+          <Chip tone="blue">
+            {SHOT_INTENT_LABELS[shot.intent] ?? shot.intent}
+          </Chip>
+        )}
         {shot.continuesPrev && <Chip tone="blue">延续上一镜</Chip>}
         {(shot.beatIds ?? []).map((beatId) => (
           <Chip key={beatId}>{beatId}</Chip>

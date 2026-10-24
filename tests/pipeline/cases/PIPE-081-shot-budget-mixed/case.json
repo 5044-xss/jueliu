@@ -1,0 +1,18 @@
+{
+  "id": "PIPE-081",
+  "title": "时长预算：台词 + 动作合并进一镜时，两部分时长都要计入",
+  "stage": "shot-budget",
+  "tags": ["budget", "duration", "B"],
+  "input": {
+    "beats": [
+      { "type": "dialogue", "text": "你当真要退婚" },
+      { "type": "action", "text": "推门进屋。" }
+    ]
+  },
+  "expect": {
+    "minMs": 2800,
+    "idealMs": 3200,
+    "maxMs": 5800,
+    "speechChars": 6
+  }
+}

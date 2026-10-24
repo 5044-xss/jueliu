@@ -1,0 +1,71 @@
+{
+  "id": "PIPE-071",
+  "title": "意图切镜：beat 顺序被打乱时必须报错",
+  "stage": "coverage",
+  "tags": ["coverage", "intent-cut", "B"],
+  "input": {
+    "scenes": [
+      {
+        "index": "1-1",
+        "beats": [
+          {
+            "type": "action",
+            "character": "",
+            "text": "苏婉站在殿门外，雨水顺着伞骨往下淌。"
+          },
+          { "type": "dialogue", "character": "苏婉", "text": "你当真要退婚？" },
+          { "type": "action", "character": "", "text": "陆沉舟背对着她。" }
+        ]
+      }
+    ],
+    "draft": {
+      "scenes": [
+        {
+          "sceneIndex": "1-1",
+          "shots": [
+            {
+              "beatIds": ["1-1-b2"],
+              "intent": "dialogue",
+              "durationMs": 0,
+              "camera": {},
+              "lighting": "",
+              "action": "苏婉抬眼看向殿内。",
+              "dialogue": [{ "character": "苏婉", "text": "你当真要退婚？" }],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            },
+            {
+              "beatIds": ["1-1-b1"],
+              "intent": "establish",
+              "durationMs": 0,
+              "camera": {},
+              "lighting": "",
+              "action": "雨水顺着伞骨往下淌。",
+              "dialogue": [],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            },
+            {
+              "beatIds": ["1-1-b3"],
+              "intent": "relation",
+              "durationMs": 0,
+              "camera": {},
+              "lighting": "",
+              "action": "陆沉舟背对殿门。",
+              "dialogue": [],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "valid": false,
+    "errorIncludes": ["顺序"]
+  }
+}

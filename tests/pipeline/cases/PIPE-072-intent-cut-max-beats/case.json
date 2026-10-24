@@ -1,0 +1,61 @@
+{
+  "id": "PIPE-072",
+  "title": "意图切镜：单镜 beat 数超过上限时必须报错",
+  "stage": "coverage",
+  "tags": ["coverage", "intent-cut", "B"],
+  "input": {
+    "options": { "maxBeatsPerShot": 3 },
+    "scenes": [
+      {
+        "index": "1-1",
+        "beats": [
+          { "type": "action", "character": "", "text": "苏婉站在殿门外。" },
+          { "type": "dialogue", "character": "苏婉", "text": "你当真要退婚？" },
+          { "type": "action", "character": "", "text": "陆沉舟背对着她。" },
+          { "type": "dialogue", "character": "陆沉舟", "text": "婚书我已经签了。" },
+          { "type": "action", "character": "", "text": "苏婉手指收紧。" }
+        ]
+      }
+    ],
+    "draft": {
+      "scenes": [
+        {
+          "sceneIndex": "1-1",
+          "shots": [
+            {
+              "beatIds": ["1-1-b1", "1-1-b2", "1-1-b3", "1-1-b4"],
+              "intent": "dialogue",
+              "durationMs": 0,
+              "camera": {},
+              "lighting": "",
+              "action": "苏婉立在殿门外，越过她的肩看到陆沉舟背对殿门。",
+              "dialogue": [
+                { "character": "苏婉", "text": "你当真要退婚？" },
+                { "character": "陆沉舟", "text": "婚书我已经签了。" }
+              ],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            },
+            {
+              "beatIds": ["1-1-b5"],
+              "intent": "insert",
+              "durationMs": 0,
+              "camera": {},
+              "lighting": "",
+              "action": "指节收紧。",
+              "dialogue": [],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "valid": false,
+    "errorIncludes": ["超过单镜上限"]
+  }
+}

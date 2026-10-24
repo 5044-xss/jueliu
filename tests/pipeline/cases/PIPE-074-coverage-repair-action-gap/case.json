@@ -1,0 +1,58 @@
+{
+  "id": "PIPE-074",
+  "title": "覆盖修复：单个动作 beat 漏写时按前后缺口补写",
+  "stage": "coverage",
+  "tags": ["coverage", "intent-cut", "repair", "B"],
+  "input": {
+    "repair": true,
+    "scenes": [
+      {
+        "index": "1-1",
+        "beats": [
+          { "type": "action", "character": "", "text": "苏婉站在殿门外。" },
+          { "type": "dialogue", "character": "苏婉", "text": "你当真要退婚？" },
+          { "type": "action", "character": "", "text": "陆沉舟背对着她，没有回头。" },
+          { "type": "action", "character": "", "text": "苏婉手指收紧，伞柄发出轻响。" }
+        ]
+      }
+    ],
+    "draft": {
+      "scenes": [
+        {
+          "sceneIndex": "1-1",
+          "shots": [
+            {
+              "beatIds": ["1-1-b1", "1-1-b2"],
+              "intent": "dialogue",
+              "durationMs": 0,
+              "camera": {},
+              "lighting": "",
+              "action": "苏婉立在殿门外，抬眼看向殿内。",
+              "dialogue": [{ "character": "苏婉", "text": "你当真要退婚？" }],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            },
+            {
+              "beatIds": ["1-1-b4"],
+              "intent": "insert",
+              "durationMs": 0,
+              "camera": {},
+              "lighting": "",
+              "action": "指节收紧，伞柄发出轻响。",
+              "dialogue": [],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "valid": true,
+    "repairCount": 1,
+    "beatIdsByShot": [["1-1-b1", "1-1-b2", "1-1-b3"], ["1-1-b4"]]
+  }
+}

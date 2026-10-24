@@ -1,0 +1,60 @@
+{
+  "id": "PIPE-073",
+  "title": "覆盖修复：台词已写进 dialogue、beatId 漏写时自动补写",
+  "stage": "coverage",
+  "tags": ["coverage", "intent-cut", "repair", "B"],
+  "input": {
+    "repair": true,
+    "scenes": [
+      {
+        "index": "1-1",
+        "beats": [
+          { "type": "dialogue", "character": "苏婉", "text": "你当真要退婚？" },
+          { "type": "dialogue", "character": "陆沉舟", "text": "婚书我已经签了。" },
+          { "type": "action", "character": "", "text": "苏婉手指收紧，伞柄发出轻响。" }
+        ]
+      }
+    ],
+    "draft": {
+      "scenes": [
+        {
+          "sceneIndex": "1-1",
+          "shots": [
+            {
+              "beatIds": ["1-1-b1"],
+              "intent": "dialogue",
+              "durationMs": 0,
+              "camera": {},
+              "lighting": "",
+              "action": "苏婉站在殿门外，抬眼看向陆沉舟。",
+              "dialogue": [
+                { "character": "苏婉", "text": "你当真要退婚？" },
+                { "character": "陆沉舟", "text": "婚书我已经签了。" }
+              ],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            },
+            {
+              "beatIds": ["1-1-b3"],
+              "intent": "insert",
+              "durationMs": 0,
+              "camera": {},
+              "lighting": "",
+              "action": "指节收紧，伞柄发出轻响。",
+              "dialogue": [],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "valid": true,
+    "repairCount": 1,
+    "beatIdsByShot": [["1-1-b1", "1-1-b2"], ["1-1-b3"]]
+  }
+}

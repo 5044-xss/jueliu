@@ -1,0 +1,85 @@
+{
+  "id": "PIPE-075",
+  "title": "生成契约：只给 beat 序号，漏号/重号时由代码补全 beatIds 与台词",
+  "stage": "coverage",
+  "tags": ["coverage", "generation", "hydrate", "B"],
+  "input": {
+    "scenes": [
+      {
+        "index": "1-1",
+        "beats": [
+          { "type": "action", "character": "", "text": "苏婉站在殿门外。" },
+          { "type": "dialogue", "character": "苏婉", "text": "你当真要退婚？" },
+          { "type": "action", "character": "", "text": "陆沉舟背对着她。" },
+          { "type": "dialogue", "character": "陆沉舟", "text": "婚书我已经签了。" },
+          { "type": "action", "character": "", "text": "苏婉手指收紧。" }
+        ]
+      }
+    ],
+    "generated": {
+      "scenes": [
+        {
+          "sceneIndex": "1-1",
+          "blocking": {
+            "axis": { "from": "n_a", "to": "n_b" },
+            "cameraSide": "left",
+            "nodes": [],
+            "paths": []
+          },
+          "shots": [
+            {
+              "beats": [1, 2],
+              "intent": "dialogue",
+              "durationMs": 0,
+              "camera": { "shotSize": "近景", "focal": "50mm" },
+              "lighting": "",
+              "action": "苏婉立在殿门外，抬眼看向殿内。",
+              "dialogue": [{ "character": "", "text": "", "target": "陆沉舟" }],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            },
+            {
+              "beats": [4, 4],
+              "intent": "relation",
+              "durationMs": 0,
+              "camera": { "shotSize": "中景", "focal": "35mm" },
+              "lighting": "",
+              "action": "越过苏婉的肩，陆沉舟背对殿门。",
+              "dialogue": [],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            },
+            {
+              "beats": [5],
+              "intent": "action",
+              "durationMs": 0,
+              "camera": { "shotSize": "特写", "focal": "85mm" },
+              "lighting": "",
+              "action": "指节收紧，伞柄发出轻响。",
+              "dialogue": [],
+              "expression": "",
+              "subjectNodeIds": [],
+              "refs": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "valid": true,
+    "beatIdsByShot": [
+      ["1-1-b1", "1-1-b2", "1-1-b3"],
+      ["1-1-b4"],
+      ["1-1-b5"]
+    ],
+    "dialogueTextsByShot": [
+      ["你当真要退婚？"],
+      ["婚书我已经签了。"],
+      []
+    ],
+    "dialogueTargetsByShot": [["陆沉舟"], [""], []]
+  }
+}

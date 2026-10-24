@@ -1,0 +1,19 @@
+{
+  "id": "PIPE-080",
+  "title": "时长预算：一镜合并 3 个动作 beat 时，时长必须累加而不是封顶 3s",
+  "stage": "shot-budget",
+  "tags": ["budget", "duration", "B"],
+  "input": {
+    "beats": [
+      { "type": "action", "text": "推门进屋。" },
+      { "type": "action", "text": "环顾四周。" },
+      { "type": "action", "text": "走到桌边。" }
+    ]
+  },
+  "expect": {
+    "minMs": 3600,
+    "idealMs": 4200,
+    "maxMs": 8100,
+    "speechChars": 0
+  }
+}
