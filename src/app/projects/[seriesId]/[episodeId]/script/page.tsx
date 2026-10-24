@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ExtraRequirementsDialog } from "@/components/extra-requirements-dialog";
+import { EmptyState } from "@/components/empty-state";
 import { LoadErrorState, LoadingState } from "@/components/load-state";
 import { useProjectJobs, isJobRunning } from "@core/client/use-jobs";
 import { Elapsed } from "@/components/elapsed";
@@ -241,6 +242,21 @@ export default function ScriptPage() {
             <Elapsed startedAt={runningJob?.startedAt} />
           </CardContent>
         </Card>
+      )}
+
+      {!script && !busy && (
+        <EmptyState
+          icon={FileText}
+          tone="lime"
+          title="还没有剧本"
+          description="先写好故事，再点击右上角「生成剧本」，系统会据此产出结构化分场剧本。"
+          action={
+            <Button onClick={generate} disabled={busy || llmMissing}>
+              <Sparkles className="size-4" />
+              生成剧本
+            </Button>
+          }
+        />
       )}
 
       {script && !busy && (

@@ -8,6 +8,7 @@ import {
   Loader2,
   RotateCcw,
   Sparkles,
+  Square,
   Stethoscope,
   Upload,
   Wand2,
@@ -91,10 +92,10 @@ export function SegmentComposer({
   durationStepSec,
   timeRange,
   reloadToken,
-  cloudRunning,
   segmentGenerating = false,
   onRefresh,
   onCloudStart,
+  onCancelSegment,
   onRegenerateSegment,
   onRestoreSegment,
   onEditBlocking,
@@ -114,10 +115,10 @@ export function SegmentComposer({
   durationStepSec: number;
   timeRange: string;
   reloadToken: number;
-  cloudRunning: boolean;
   segmentGenerating?: boolean;
   onRefresh: () => Promise<void> | void;
   onCloudStart: () => void;
+  onCancelSegment: (segmentId: string) => void;
   onRegenerateSegment: (segmentId: string) => void;
   onRestoreSegment: (segmentId: string) => void;
   onEditBlocking: (scene: StoredSceneStoryboard) => void;
@@ -314,7 +315,7 @@ export function SegmentComposer({
       toast.error("提示词为空，无法提交");
       return;
     }
-    if (sending || cloudRunning) return;
+    if (sending || segmentGenerating) return;
     setSending(true);
     try {
       if (durationDraft !== Math.round(segment.targetMs / 1000)) {
@@ -525,7 +526,8 @@ export function SegmentComposer({
     durationDraft,
   ]);
   const dirty = prompt !== baseline;
-  const busy = sending || saving || promptBusy || cloudRunning;
+  // 只看本段是否在生成：其它段落批量生成时，本段仍可编辑/重新提交。
+  const busy = sending || saving || promptBusy || segmentGenerating;
 
   if (loading) {
     return (
@@ -783,6 +785,17 @@ export function SegmentComposer({
             <RotateCcw className="size-3.5" />
             还原
           </Button>
+          {segmentGenerating && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onCancelSegment(segment.id)}
+              title="取消本段正在排队/生成的视频"
+            >
+              <Square className="size-3.5" />
+              取消本段
+            </Button>
+          )}
           <Button
             onClick={() => void send()}
             disabled={busy || !prompt.trim()}

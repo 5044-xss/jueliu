@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Loader2,
   RefreshCw,
+  Square,
   Stethoscope,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -117,6 +118,7 @@ export function StoryboardVideoPanel({
   busy,
   onRefresh,
   onRunQc,
+  onCancelSegment,
   onOpenPreflight,
 }: {
   projectId: string;
@@ -128,6 +130,7 @@ export function StoryboardVideoPanel({
   busy: boolean;
   onRefresh: () => Promise<void> | void;
   onRunQc: (segmentId: string) => void;
+  onCancelSegment: (segmentId: string) => void;
   onOpenPreflight: () => void;
 }) {
   const { scene, segment } = entry;
@@ -148,15 +151,28 @@ export function StoryboardVideoPanel({
             <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
           )}
         </div>
-        <Button
-          size="icon-xs"
-          variant="ghost"
-          onClick={onOpenPreflight}
-          title="本段体检与修复"
-          className="shrink-0"
-        >
-          <Stethoscope className="size-3.5" />
-        </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          {phase && (
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => onCancelSegment(segment.id)}
+              title="取消本段正在排队/生成的视频"
+            >
+              <Square className="size-3" />
+              取消本段
+            </Button>
+          )}
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            onClick={onOpenPreflight}
+            title="本段体检与修复"
+            className="shrink-0"
+          >
+            <Stethoscope className="size-3.5" />
+          </Button>
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col p-4">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { useProjectJobs, isJobRunning } from "@core/client/use-jobs";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/empty-state";
 import { LoadErrorState, LoadingState } from "@/components/load-state";
 import {
   Card,
@@ -71,7 +73,7 @@ function clock(ms: number): string {
 }
 
 export default function ComposePage() {
-  const { episodeId: id } = useParams<{
+  const { seriesId, episodeId: id } = useParams<{
     seriesId: string;
     episodeId: string;
   }>();
@@ -367,7 +369,26 @@ export default function ComposePage() {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-0.5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-visible xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)]">
+      {segments.length === 0 ? (
+        <EmptyState
+          icon={Film}
+          tone="pink"
+          title="还没有可合成的段落"
+          description="在「分镜」页生成分镜并回传视频后，段落会出现在这里，可自由排序后合成导出。"
+          action={
+            <Button
+              nativeButton={false}
+              render={
+                <Link href={`/projects/${seriesId}/${id}/storyboard`} />
+              }
+            >
+              <Film className="size-4" />
+              去生成分镜
+            </Button>
+          }
+        />
+      ) : (
+        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-0.5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-visible xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <Card
           size="sm"
           className="flex h-[360px] min-h-0 flex-col border border-border lg:h-full"
@@ -588,7 +609,8 @@ export default function ComposePage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+        </div>
+      )}
 
       {segments.length > 0 && (
         <div className="shrink-0 border-t bg-background pt-3">

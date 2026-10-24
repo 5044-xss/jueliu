@@ -68,7 +68,7 @@ export function AdvancedPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      <Card size="sm">
+      <Card size="sm" className="max-w-2xl">
         <CardHeader>
           <CardTitle>文本</CardTitle>
         </CardHeader>
@@ -98,14 +98,14 @@ export function AdvancedPanel({
         </CardContent>
       </Card>
 
-      <Card size="sm">
+      <Card size="sm" className="max-w-2xl">
         <CardHeader>
           <CardTitle>图片</CardTitle>
           {!imageConn && (
             <CardDescription>尚未在「能力路由」里选择图片服务商。</CardDescription>
           )}
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="grid gap-4 sm:grid-cols-3">
           <div className="grid gap-2">
             <Label>分辨率</Label>
             <SelectField
@@ -183,7 +183,7 @@ export function AdvancedPanel({
         </CardContent>
       </Card>
 
-      <Card size="sm">
+      <Card size="sm" className="max-w-2xl">
         <CardHeader>
           <CardTitle>视频</CardTitle>
           <CardDescription>自建 ComfyUI · MiniMax H3</CardDescription>

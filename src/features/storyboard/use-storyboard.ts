@@ -516,6 +516,23 @@ export function useStoryboard(projectId: string) {
     }
   }
 
+  async function cancelSegmentVideo(segmentId: string) {
+    try {
+      const res = await fetch(
+        `/api/projects/${projectId}/segments/${segmentId}/cancel-video`,
+        { method: "POST" },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "取消失败");
+      toast.success(
+        data?.cancelled ? "已取消本段生成" : "本段当前没有正在生成的视频",
+      );
+      await refresh();
+    } catch (error) {
+      toast.error((error as Error).message || "取消失败");
+    }
+  }
+
   async function runOrchestrate(nextVendor: string): Promise<boolean> {
     setOrchestrating(true);
     try {
@@ -770,6 +787,7 @@ export function useStoryboard(projectId: string) {
     generateAllVideos,
     generateStartFrames,
     cancelVideos,
+    cancelSegmentVideo,
     changeVendor,
     reorchestrate,
     clearStoryboard,

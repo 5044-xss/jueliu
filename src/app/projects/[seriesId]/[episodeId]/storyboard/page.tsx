@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Sparkles, Stethoscope } from "lucide-react";
+import { FileText, Loader2, Sparkles, Stethoscope } from "lucide-react";
 import { BlockingEditDialog } from "@/components/blocking-edit-dialog";
 import { Elapsed } from "@/components/elapsed";
+import { EmptyState } from "@/components/empty-state";
 import { LoadErrorState, LoadingState } from "@/components/load-state";
 import { LlmKeyNotice, useLlmConfigured } from "@/components/llm-notice";
 import { SegmentComposer } from "@/components/segment-composer";
@@ -88,7 +90,7 @@ function fixActionLabel(action: PreflightIssue["fixAction"]): string {
 }
 
 export default function StoryboardPage() {
-  const { episodeId: id } = useParams<{
+  const { seriesId, episodeId: id } = useParams<{
     seriesId: string;
     episodeId: string;
   }>();
@@ -268,27 +270,36 @@ export default function StoryboardPage() {
       )}
 
       {!sb.busyGenerate && !sb.hasScript && (
-        <div className="rounded-2xl border bg-card px-5 py-12 text-center text-sm text-muted-foreground">
-          请先在「剧本」页生成剧本。
-        </div>
+        <EmptyState
+          icon={FileText}
+          tone="mint"
+          title="还没有剧本"
+          description="分镜根据剧本生成，请先在「剧本」页生成剧本。"
+          action={
+            <Button
+              nativeButton={false}
+              render={<Link href={`/projects/${seriesId}/${id}/script`} />}
+            >
+              <FileText className="size-4" />
+              去生成剧本
+            </Button>
+          }
+        />
       )}
 
       {!sb.busyGenerate && sb.hasScript && !sb.hasStoryboard && (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border bg-card px-5 py-16 text-center">
-          <div className="flex size-12 items-center justify-center rounded-full bg-block-lilac">
-            <Sparkles className="size-5" />
-          </div>
-          <div>
-            <p className="font-medium">还没有分镜</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              厂商与预设已按默认值准备好，点击「生成分镜」即可。
-            </p>
-          </div>
-          <Button onClick={() => void sb.generateStoryboard()}>
-            <Sparkles className="size-4" />
-            生成分镜
-          </Button>
-        </div>
+        <EmptyState
+          icon={Sparkles}
+          tone="lilac"
+          title="还没有分镜"
+          description="厂商与预设已按默认值准备好，点击「生成分镜」即可。"
+          action={
+            <Button onClick={() => void sb.generateStoryboard()}>
+              <Sparkles className="size-4" />
+              生成分镜
+            </Button>
+          }
+        />
       )}
 
       {!sb.busyGenerate && sb.hasStoryboard && previewEntry && previewScene && preview && (
@@ -304,15 +315,18 @@ export default function StoryboardPage() {
               busy={qcBusy}
               onRefresh={sb.refresh}
               onRunQc={(segmentId) => void runQc(segmentId)}
+              onCancelSegment={(segmentId) =>
+                void sb.cancelSegmentVideo(segmentId)
+              }
               onOpenPreflight={() => setPreflightOpen(true)}
             />
 
             <section className="flex min-h-0 flex-col rounded-2xl border bg-card p-4">
-              <Tabs defaultValue="storyboard" className="min-h-0 flex-1">
+              <Tabs defaultValue="prompt" className="min-h-0 flex-1">
                 <div className="flex items-center justify-between gap-2 pb-2">
                   <TabsList variant="line" className="h-8">
-                    <TabsTrigger value="storyboard">分镜</TabsTrigger>
                     <TabsTrigger value="prompt">提示词</TabsTrigger>
+                    <TabsTrigger value="storyboard">分镜</TabsTrigger>
                   </TabsList>
                   {issueCount > 0 && (
                     <Button
@@ -364,10 +378,12 @@ export default function StoryboardPage() {
                     )}
                     timeRange={`${String(Math.floor(previewEntry.startMs / 60000)).padStart(2, "0")}:${String(Math.floor((previewEntry.startMs % 60000) / 1000)).padStart(2, "0")}–${String(Math.floor((previewEntry.startMs + preview.targetMs) / 60000)).padStart(2, "0")}:${String(Math.floor(((previewEntry.startMs + preview.targetMs) % 60000) / 1000)).padStart(2, "0")}`}
                     reloadToken={composerReloadKey + sb.promptRevision}
-                    cloudRunning={sb.cloudRunning}
-                    segmentGenerating={previewPhase === "running"}
+                    segmentGenerating={previewPhase !== null}
                     onRefresh={sb.refresh}
                     onCloudStart={() => void cloudGenerateStartFrame()}
+                    onCancelSegment={(segmentId) =>
+                      void sb.cancelSegmentVideo(segmentId)
+                    }
                     onRegenerateSegment={(segmentId) =>
                       void sb.regenerateSegment(segmentId)
                     }

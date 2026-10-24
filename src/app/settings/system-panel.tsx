@@ -108,7 +108,7 @@ export function SystemPanel({
         <OpenWorkspaceButton />
       </div>
 
-      <Card size="sm">
+      <Card size="sm" className="max-w-2xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShieldCheck className="size-4" />
@@ -135,7 +135,7 @@ export function SystemPanel({
 
           <div className="grid gap-2">
             <Label>本机机器码</Label>
-            <div className="flex gap-2">
+            <div className="flex gap-2 sm:max-w-md">
               <Input readOnly value={machine?.display ?? "—"} />
               <Button
                 type="button"
@@ -214,7 +214,7 @@ export function SystemPanel({
         </CardContent>
       </Card>
 
-      <Card size="sm">
+      <Card size="sm" className="max-w-2xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Terminal className="size-4" />
@@ -227,7 +227,7 @@ export function SystemPanel({
         <CardContent className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="ffmpeg-path">ffmpeg 路径</Label>
-            <div className="flex gap-2">
+            <div className="flex gap-2 sm:max-w-xl">
               <Input
                 id="ffmpeg-path"
                 value={ffmpegPath}

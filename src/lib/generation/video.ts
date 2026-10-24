@@ -619,6 +619,7 @@ async function runSequentialJob(
 
   let done = 0;
   let skipped = 0;
+  let cancelledCount = 0;
   let failed = 0;
   let qcFailedCount = 0;
   let frameWarnings = 0;
@@ -629,6 +630,11 @@ async function runSequentialJob(
     if (stopped()) {
       finishJob(projectId, jobId, "failed", "已取消");
       return;
+    }
+    // 用户单独取消了某段：跳过它，整批继续跑其余段落。
+    if (segmentGenStatus(projectId, segment.id) === "cancelled") {
+      cancelledCount += 1;
+      continue;
     }
     if (onlyMissing && segment.videoPath && !segment.stale) {
       skipped += 1;
@@ -647,10 +653,15 @@ async function runSequentialJob(
 
     // 单段失败自动重试一次（手动取消不重试）。
     let lastError: Error | null = null;
+    let segmentCancelled = false;
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       if (stopped()) {
         finishJob(projectId, jobId, "failed", "已取消");
         return;
+      }
+      if (segmentGenStatus(projectId, segment.id) === "cancelled") {
+        segmentCancelled = true;
+        break;
       }
       try {
         const prep = await prepare(projectId, segment.id, settings);
@@ -694,12 +705,17 @@ async function runSequentialJob(
         }
         break;
       } catch (error) {
-        const cancelled =
-          stopped() || segmentGenStatus(projectId, segment.id) === "cancelled";
-        if (cancelled) {
+        if (stopped()) {
           updateSegmentGen(projectId, segment.id, { status: "cancelled" });
           finishJob(projectId, jobId, "failed", "已取消");
           return;
+        }
+        // 只取消了本段：记下来并继续下一段，不要终止整批任务。
+        if (segmentGenStatus(projectId, segment.id) === "cancelled") {
+          updateSegmentGen(projectId, segment.id, { status: "cancelled" });
+          segmentCancelled = true;
+          lastError = null;
+          break;
         }
         lastError = error as Error;
         if (attempt < 2) {
@@ -707,6 +723,10 @@ async function runSequentialJob(
           await new Promise((r) => setTimeout(r, 3_000));
         }
       }
+    }
+    if (segmentCancelled) {
+      cancelledCount += 1;
+      continue;
     }
     if (lastError) {
       updateSegmentGen(projectId, segment.id, { status: "failed" });
@@ -717,10 +737,57 @@ async function runSequentialJob(
 
   const summary = `顺序生成完成：成功 ${done} 段${
     qcFailedCount ? `（QC 未通过 ${qcFailedCount} 段）` : ""
-  }，跳过 ${skipped} 段${failed ? `，失败 ${failed} 段` : ""}${
+  }，跳过 ${skipped} 段${
+    cancelledCount ? `，手动取消 ${cancelledCount} 段` : ""
+  }${failed ? `，失败 ${failed} 段` : ""}${
     frameWarnings ? `，${frameWarnings} 段未补到首帧` : ""
   }${firstError ? `（首个错误：${firstError}）` : ""}`;
   finishJob(projectId, jobId, done > 0 ? "succeeded" : "failed", summary);
+}
+
+/**
+ * 取消单个段落正在排队/执行的视频生成。
+ * 只处理本段：标记 cancelled → 删掉本段在云端队列里的任务；仅当本段正在
+ * 执行时才中断实例，避免误伤其它段落。一键批量任务会跳到下一段继续。
+ */
+export async function cancelSegmentVideo(
+  projectId: string,
+  segmentId: string,
+): Promise<{ cancelled: boolean }> {
+  const db = getProjectDb(projectId);
+  const row = db
+    .prepare(
+      "SELECT gen_task_id, gen_status FROM segment WHERE project_id = ? AND id = ?",
+    )
+    .get(projectId, segmentId) as
+    | { gen_task_id: string | null; gen_status: string | null }
+    | undefined;
+  if (!row) throw new Error("段落不存在");
+
+  const active =
+    row.gen_status === "queued" ||
+    row.gen_status === "running" ||
+    row.gen_status === "retrying";
+  if (!active) return { cancelled: false };
+
+  const wasRunning = row.gen_status === "running";
+  updateSegmentGen(projectId, segmentId, {
+    taskId: row.gen_task_id,
+    status: "cancelled",
+  });
+
+  try {
+    const settings = getGenerationSettings();
+    if (settings.comfyUrl.trim()) {
+      const client = makeClient(settings);
+      if (row.gen_task_id) await client.queueDelete([row.gen_task_id]);
+      if (wasRunning) await client.interrupt();
+    }
+  } catch {
+    // 实例不可达不影响取消结果：段状态与任务条已经停止。
+  }
+
+  return { cancelled: true };
 }
 
 /**

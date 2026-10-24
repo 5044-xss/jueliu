@@ -56,10 +56,12 @@ export function ThreeLayers({
   input,
   process,
   output,
+  scroll = false,
 }: {
   input: ReactNode;
   process: ReactNode;
   output: ReactNode;
+  scroll?: boolean;
 }) {
   const layers: { title: string; className: string; node: ReactNode }[] = [
     {
@@ -79,19 +81,33 @@ export function ThreeLayers({
     },
   ];
   return (
-    <div className="grid gap-3 xl:grid-cols-3">
+    <div
+      className={cn(
+        "grid gap-3",
+        scroll ? "xl:h-full xl:min-h-0 xl:grid-cols-3" : "xl:grid-cols-3",
+      )}
+    >
       {layers.map((layer) => (
         <section
           key={layer.title}
           className={cn(
             "flex min-w-0 flex-col gap-3 rounded-xl border p-3",
+            scroll &&
+              "h-[60vh] min-h-0 overflow-hidden xl:h-auto xl:min-h-0",
             layer.className,
           )}
         >
-          <h3 className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+          <h3 className="shrink-0 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
             {layer.title}
           </h3>
-          {layer.node}
+          <div
+            className={cn(
+              "min-w-0",
+              scroll && "min-h-0 flex-1 overflow-y-auto pr-1",
+            )}
+          >
+            {layer.node}
+          </div>
         </section>
       ))}
     </div>
@@ -311,8 +327,15 @@ export interface VisualScene {
 }
 
 function shotsOf(scene: VisualScene): VisualShot[] {
-  if (Array.isArray(scene.shots)) return scene.shots;
-  return (scene.segments ?? []).flatMap((segment) => segment.shots ?? []);
+  if (Array.isArray(scene.shots)) {
+    return scene.shots.filter((shot): shot is VisualShot => Boolean(shot));
+  }
+  return (Array.isArray(scene.segments) ? scene.segments : []).flatMap(
+    (segment) =>
+      Array.isArray(segment?.shots)
+        ? segment.shots.filter((shot): shot is VisualShot => Boolean(shot))
+        : [],
+  );
 }
 
 function ShotCard({ shot }: { shot: VisualShot }) {
@@ -324,9 +347,17 @@ function ShotCard({ shot }: { shot: VisualShot }) {
     camera.movement,
     camera.side ? `轴线${camera.side === "left" ? "左" : "右"}侧` : "",
   ].filter(Boolean);
-  const dialogue = (shot.dialogue ?? []).filter((line) => line.text?.trim());
-  const refs = shot.refs ?? [];
-  const issues = (shot.stateIssues ?? []).filter((item) => item.message);
+  const dialogue = Array.isArray(shot.dialogue)
+    ? shot.dialogue.filter((line) => line?.text?.trim())
+    : [];
+  const refs = Array.isArray(shot.refs) ? shot.refs : [];
+  const issues = Array.isArray(shot.stateIssues)
+    ? shot.stateIssues.filter((item) => item?.message)
+    : [];
+  const beatIds = Array.isArray(shot.beatIds) ? shot.beatIds : [];
+  const subjectNodeIds = Array.isArray(shot.subjectNodeIds)
+    ? shot.subjectNodeIds
+    : [];
   return (
     <div className="flex min-w-0 flex-col gap-2 rounded-lg border bg-background p-3">
       <div className="flex flex-wrap items-center gap-1.5">
@@ -338,7 +369,7 @@ function ShotCard({ shot }: { shot: VisualShot }) {
           </Chip>
         )}
         {shot.continuesPrev && <Chip tone="blue">延续上一镜</Chip>}
-        {(shot.beatIds ?? []).map((beatId) => (
+        {beatIds.map((beatId) => (
           <Chip key={beatId}>{beatId}</Chip>
         ))}
       </div>
@@ -380,10 +411,10 @@ function ShotCard({ shot }: { shot: VisualShot }) {
           光线：{shot.lighting}
         </p>
       )}
-      {(shot.subjectNodeIds ?? []).length > 0 && (
+      {subjectNodeIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-1">
           <span className="text-[10px] text-muted-foreground">人物</span>
-          {(shot.subjectNodeIds ?? []).map((id) => (
+          {subjectNodeIds.map((id) => (
             <Chip key={id}>{id}</Chip>
           ))}
         </div>
@@ -432,8 +463,11 @@ export function StoryboardVisual({ scenes }: { scenes: VisualScene[] }) {
               <EmptyHint>本场没有镜。</EmptyHint>
             ) : (
               <div className="grid gap-2 md:grid-cols-2">
-                {shots.map((shot) => (
-                  <ShotCard key={shot.index} shot={shot} />
+                {shots.map((shot, index) => (
+                  <ShotCard
+                    key={`${scene.sceneIndex}-${shot.index ?? index}-${index}`}
+                    shot={shot}
+                  />
                 ))}
               </div>
             )}

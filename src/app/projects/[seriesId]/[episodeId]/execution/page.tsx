@@ -1,14 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/empty-state";
 import {
   Select,
   SelectContent,
@@ -121,7 +124,7 @@ function cleanPrompt(text: string, placeholder: string): string {
 }
 
 export default function ExecutionPage() {
-  const { episodeId: id } = useParams<{
+  const { seriesId, episodeId: id } = useParams<{
     seriesId: string;
     episodeId: string;
   }>();
@@ -279,7 +282,7 @@ export default function ExecutionPage() {
   const beatCount =
     script?.scenes.reduce((sum, scene) => sum + scene.beats.length, 0) ?? 0;
   const hasTrace = Boolean(trace);
-  const hasScenes = (trace?.segments.length ?? 0) > 0;
+  const hasScenes = (trace?.segments?.length ?? 0) > 0;
 
   function statusOfStep(index: number): TraceStageStatus {
     if (index === 0) return script ? "ok" : "empty";
@@ -763,9 +766,53 @@ export default function ExecutionPage() {
   }
 
   const content = renderStep();
+  const currentStage = stageOf(STAGE_IDS[step]);
+
+  if (!hasScenes) {
+    return (
+      <div className="flex h-full min-h-0 flex-col gap-4 pb-4">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-cream p-5">
+          <div>
+            <h2 className="text-base font-medium">分镜执行记录</h2>
+            <p className="text-sm text-muted-foreground">
+              按步骤查看本集「剧本 → 分镜 → 编排 → 渲染 → 编译 → 校验 →
+              最终提示词」的实际输入与产物。
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={refresh}
+            disabled={loading || !trace}
+          >
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            刷新记录
+          </Button>
+        </div>
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        <EmptyState
+          icon={ClipboardList}
+          tone="cream"
+          title="还没有执行记录"
+          description="在「分镜」页生成分镜并编译提示词后，这里会按步骤展示剧本、分镜、编排、渲染、编译、校验与最终提示词的实际输入和产物。"
+          action={
+            <Button
+              nativeButton={false}
+              render={<Link href={`/projects/${seriesId}/${id}/storyboard`} />}
+            >
+              <ClipboardList className="size-4" />
+              去生成分镜
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto pb-4">
+    <div className="flex h-full min-h-0 flex-col gap-4 pb-4">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-cream p-5">
         <div>
           <h2 className="text-base font-medium">分镜执行记录</h2>
@@ -787,8 +834,8 @@ export default function ExecutionPage() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {hasTrace && segmentItems.length > 0 && (
-        <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-xl border bg-background px-4 py-2">
+      {segmentItems.length > 0 && (
+        <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-2xl border bg-card px-4 py-2.5">
           <span className="text-xs text-muted-foreground">当前段落</span>
           <Select
             value={trace?.segmentId ?? undefined}
@@ -796,7 +843,7 @@ export default function ExecutionPage() {
             items={segmentItems}
             disabled={loading}
           >
-            <SelectTrigger className="w-72">
+            <SelectTrigger className="w-64">
               <SelectValue placeholder="选择段落" />
             </SelectTrigger>
             <SelectContent>
@@ -815,89 +862,114 @@ export default function ExecutionPage() {
         </div>
       )}
 
-      <div className="flex shrink-0 flex-wrap gap-1 rounded-xl bg-muted p-1">
-        {STEPS.map((item, index) => {
-          const status = statusOfStep(index);
-          const active = step === index;
-          return (
-            <button
-              key={item.title}
-              type="button"
-              onClick={() => setStep(index)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors",
-                active
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <span className="font-mono text-[10px] opacity-60">
-                {index}
-              </span>
-              {item.title}
-              <span
-                className={cn("size-1.5 rounded-full", STATUS_DOT[status])}
-                title={status}
-              />
-            </button>
-          );
-        })}
-      </div>
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <aside className="flex shrink-0 items-stretch gap-1 overflow-x-auto rounded-2xl border bg-card p-2 lg:min-h-0 lg:flex-col lg:overflow-y-auto">
+          {STEPS.map((item, index) => {
+            const status = statusOfStep(index);
+            const active = step === index;
+            return (
+              <button
+                key={item.title}
+                type="button"
+                onClick={() => setStep(index)}
+                className={cn(
+                  "flex shrink-0 items-center gap-2 rounded-xl border px-2.5 py-2 text-left transition-colors lg:w-full",
+                  active
+                    ? "border-foreground/15 bg-muted text-foreground"
+                    : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold",
+                    active
+                      ? "bg-foreground text-background"
+                      : "bg-muted-foreground/10",
+                  )}
+                >
+                  {index + 1}
+                </span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-xs font-medium">
+                    {item.title}
+                  </span>
+                  <span className="hidden truncate text-[10px] lg:block">
+                    {item.hint}
+                  </span>
+                </span>
+                <span
+                  className={cn(
+                    "ml-auto size-1.5 shrink-0 rounded-full",
+                    STATUS_DOT[status],
+                  )}
+                  title={status}
+                />
+              </button>
+            );
+          })}
+        </aside>
 
-      <div className="rounded-2xl border bg-background p-3">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 className="text-sm font-medium">
-              {step}. {STEPS[step].title}
-              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                {STEPS[step].hint}
-              </span>
-            </h3>
-            {stageOf(STAGE_IDS[step]) && (
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {stageOf(STAGE_IDS[step])?.summary}
-              </p>
+        <section className="flex min-h-0 flex-col gap-3">
+          <div className="shrink-0 rounded-2xl border bg-card p-4">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="text-sm font-medium">
+                  {STEPS[step].title}
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    {STEPS[step].hint}
+                  </span>
+                </h3>
+                {currentStage?.summary && (
+                  <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
+                    {currentStage.summary}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-1">
+                {(currentStage?.meta ?? []).map((item) => (
+                  <Chip key={item.label}>
+                    {item.label} {item.value}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border bg-card">
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3 xl:overflow-hidden">
+              <ThreeLayers
+                scroll
+                input={content.input}
+                process={content.process}
+                output={content.output}
+              />
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center justify-between gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setStep((value) => Math.max(0, value - 1))}
+              disabled={step === 0}
+            >
+              <ChevronLeft className="size-4" />
+              上一步
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              第 {step + 1} / {STEPS.length} 步 · {STEPS[step].title}
+            </span>
+            {step < STEPS.length - 1 ? (
+              <Button onClick={() => setStep((value) => value + 1)}>
+                下一步
+                <ChevronRight className="size-4" />
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={() => setStep(0)}>
+                回到开头
+              </Button>
             )}
           </div>
-          {stageOf(STAGE_IDS[step]) && (
-            <div className="flex flex-wrap items-center gap-1">
-              {stageOf(STAGE_IDS[step])?.meta.map((item) => (
-                <Chip key={item.label}>
-                  {item.label} {item.value}
-                </Chip>
-              ))}
-            </div>
-          )}
-        </div>
-        <ThreeLayers
-          input={content.input}
-          process={content.process}
-          output={content.output}
-        />
-      </div>
-
-      <div className="flex shrink-0 items-center justify-between gap-3">
-        <Button
-          variant="outline"
-          onClick={() => setStep((value) => Math.max(0, value - 1))}
-          disabled={step === 0}
-        >
-          <ChevronLeft className="size-4" />
-          上一步
-        </Button>
-        <span className="text-xs text-muted-foreground">
-          第 {step + 1} / {STEPS.length} 步 · {STEPS[step].title}
-        </span>
-        {step < STEPS.length - 1 ? (
-          <Button onClick={() => setStep((value) => value + 1)}>
-            下一步
-            <ChevronRight className="size-4" />
-          </Button>
-        ) : (
-          <Button variant="outline" onClick={() => setStep(0)}>
-            回到开头
-          </Button>
-        )}
+        </section>
       </div>
     </div>
   );

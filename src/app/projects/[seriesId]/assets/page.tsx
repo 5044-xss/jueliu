@@ -29,8 +29,8 @@ export default function ProjectAssetsPage() {
   }, [seriesId]);
 
   return (
-    <div className="flex flex-col gap-6 pb-6">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="flex h-full min-h-0 flex-col gap-6 pb-6">
+      <div className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
         <Link
           href="/projects"
           className="flex items-center gap-1 hover:text-foreground"
@@ -56,7 +56,7 @@ export default function ProjectAssetsPage() {
         description="本剧（系列）内所有子集共享的角色 / 场景 / 道具 / 妆造参考图。"
       />
 
-      <AssetLibraryBrowser scope="project" seriesId={seriesId} />
+      <AssetLibraryBrowser scope="project" seriesId={seriesId} fill />
     </div>
   );
 }

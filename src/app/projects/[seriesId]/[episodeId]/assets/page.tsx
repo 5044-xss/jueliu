@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -52,6 +53,7 @@ import { composeAssetViewPrompt } from "@core/shared/asset-prompt";
 import { cn } from "cn";
 import { useProjectJobs, isJobRunning } from "@core/client/use-jobs";
 import { Elapsed } from "@/components/elapsed";
+import { EmptyState } from "@/components/empty-state";
 import { LoadErrorState, LoadingState } from "@/components/load-state";
 import { LlmKeyNotice, useLlmConfigured } from "@/components/llm-notice";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -1431,12 +1433,22 @@ export default function AssetsPage() {
 
       {llmMissing && <LlmKeyNotice />}
 
-      {!hasScript && (
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            请先在「剧本」页生成剧本，再生成资产。
-          </CardContent>
-        </Card>
+      {!hasScript && !busy && (
+        <EmptyState
+          icon={FileText}
+          tone="cream"
+          title="还没有剧本"
+          description="资产由剧本中的角色、场景和道具提取而来，请先生成剧本。"
+          action={
+            <Button
+              nativeButton={false}
+              render={<Link href={`/projects/${seriesId}/${id}/script`} />}
+            >
+              <FileText className="size-4" />
+              去生成剧本
+            </Button>
+          }
+        />
       )}
 
       {busy && (
@@ -1449,7 +1461,22 @@ export default function AssetsPage() {
         </Card>
       )}
 
-      {!busy && (
+      {!busy && hasScript && assets.length === 0 && (
+        <EmptyState
+          icon={Sparkles}
+          tone="cream"
+          title="还没有资产"
+          description="从剧本里自动提取角色、场景、道具，并生成对应的参考图提示词。"
+          action={
+            <Button onClick={generate} disabled={busy || llmMissing}>
+              <Sparkles className="size-4" />
+              生成资产
+            </Button>
+          }
+        />
+      )}
+
+      {!busy && assets.length > 0 && (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           <div className="flex shrink-0 items-center gap-1 border-b">
             {(["character", "scene", "prop"] as const).map((type) => {
@@ -1474,11 +1501,10 @@ export default function AssetsPage() {
 
           <div className="min-h-0 flex-1 overflow-y-auto pb-3 pr-1">
           {assets.filter((a) => a.type === activeType).length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                暂无{TYPE_LABEL[activeType]}资产。
-              </CardContent>
-            </Card>
+            <div className="flex flex-col items-center gap-1 py-16 text-center text-sm text-muted-foreground">
+              <p>暂无{TYPE_LABEL[activeType]}资产。</p>
+              <p className="text-xs">重新生成资产或切换到其它分类查看。</p>
+            </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {assets

@@ -93,11 +93,6 @@ export function StoryboardHeader({
             云端视频生成仅适配 MiniMax H3；当前厂商请手动回传视频。
           </p>
         )}
-        {!hasScript && (
-          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-            还没有剧本，请先在「剧本」页生成剧本。
-          </p>
-        )}
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-1.5">
