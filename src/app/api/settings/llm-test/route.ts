@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { readGlobalSettings, maskApiKey } from "@core/server/settings";
 import { createLlmClient } from "@core/server/llm/client";
+import { serverFetch } from "@/lib/server-fetch";
 
 const bodySchema = z.object({
   baseURL: z.string().optional(),
@@ -44,16 +45,20 @@ export async function POST(request: Request) {
 
   const started = Date.now();
   try {
-    const client = createLlmClient({
-      provider: saved.llm.provider,
-      baseURL,
-      apiKey,
-      model,
-      temperature: parsed.data.temperature ?? saved.llm.temperature,
-    });
+    const client = createLlmClient(
+      {
+        provider: saved.llm.provider,
+        baseURL,
+        apiKey,
+        model,
+        temperature: parsed.data.temperature ?? saved.llm.temperature,
+      },
+      { fetch: serverFetch as unknown as typeof fetch },
+    );
     const response = await client.chat.completions.create({
       model,
       max_tokens: 16,
+      stream: false,
       messages: [{ role: "user", content: "ping，只回复 pong" }],
     });
     const latencyMs = Date.now() - started;

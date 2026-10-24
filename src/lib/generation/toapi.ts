@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { FormData } from "undici";
+import { serverFetch } from "@/lib/server-fetch";
 
 // Toapi（ToAPIs）异步图像接口的最小 Node 客户端。
 // 链路：上传参考图 → 提交图像任务 → 轮询 → 取结果 URL → 下载。
@@ -117,7 +119,7 @@ export class ToApiClient {
       ? AbortSignal.any([controller.signal, external])
       : controller.signal;
     try {
-      return await fetch(joinUrl(this.baseUrl, p), { ...init, signal });
+      return await serverFetch(joinUrl(this.baseUrl, p), { ...init, signal });
     } finally {
       clearTimeout(timer);
     }
@@ -137,7 +139,7 @@ export class ToApiClient {
     const res = await this.request("/uploads/images", {
       method: "POST",
       headers: this.authHeaders(),
-      body: form,
+      body: form as unknown as BodyInit,
     });
     const body = (await res.json().catch(() => null)) as {
       success?: boolean;
@@ -215,7 +217,7 @@ export class ToApiClient {
   /** 下载结果图到内存。结果 URL 在对象存储/CDN 上，无需鉴权。 */
   async downloadImage(url: string, signal?: AbortSignal): Promise<Buffer> {
     const timeout = AbortSignal.timeout(this.timeoutMs);
-    const res = await fetch(url, {
+    const res = await serverFetch(url, {
       signal: signal ? AbortSignal.any([timeout, signal]) : timeout,
     });
     if (!res.ok) {
@@ -232,7 +234,13 @@ export class ToApiClient {
         { method: "GET", headers: this.authHeaders() },
         20_000,
       );
-      return { ok: res.ok, status: res.status };
+      if (res.ok) return { ok: true, status: res.status };
+      const body = (await res.json().catch(() => null)) as unknown;
+      return {
+        ok: false,
+        status: res.status,
+        detail: `HTTP ${res.status}：${errorText(body)}`,
+      };
     } catch (error) {
       return { ok: false, status: 0, detail: (error as Error).message };
     }

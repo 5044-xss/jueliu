@@ -374,11 +374,13 @@ export function ProvidersPanel({
           `连接正常 · ${active.map(([cap]) => CAPABILITY_LABELS[cap]).join(" / ")}`,
         );
       } else {
-        toast.error(
-          failed
-            .map(([cap, result]) => `${CAPABILITY_LABELS[cap]}：${result.message}`)
-            .join("；"),
-        );
+        const summary = active
+          .map(
+            ([cap, result]) =>
+              `${CAPABILITY_LABELS[cap]}：${result.ok ? "通过" : result.message}`,
+          )
+          .join("；");
+        toast.warning(`部分能力未通过 · ${summary}`, { duration: 10_000 });
       }
     } catch (error) {
       toast.error((error as Error).message || "测试失败");

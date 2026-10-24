@@ -92,6 +92,7 @@ export function SegmentComposer({
   timeRange,
   reloadToken,
   cloudRunning,
+  segmentGenerating = false,
   onRefresh,
   onCloudStart,
   onRegenerateSegment,
@@ -114,6 +115,7 @@ export function SegmentComposer({
   timeRange: string;
   reloadToken: number;
   cloudRunning: boolean;
+  segmentGenerating?: boolean;
   onRefresh: () => Promise<void> | void;
   onCloudStart: () => void;
   onRegenerateSegment: (segmentId: string) => void;
@@ -790,7 +792,7 @@ export function SegmentComposer({
                 : undefined
             }
           >
-            {sending || promptBusy ? (
+            {sending || promptBusy || segmentGenerating ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <ArrowUp className="size-4" />
@@ -799,9 +801,11 @@ export function SegmentComposer({
               ? "提交中"
               : promptBusy
                 ? "编译中"
-                : segment.videoPath
-                  ? "重新生成"
-                  : "发送"}
+                : segmentGenerating
+                  ? "生成中"
+                  : segment.videoPath
+                    ? "重新生成"
+                    : "发送"}
           </Button>
         </div>
       </div>
@@ -1006,8 +1010,7 @@ function ReferencePicker({
                       key={item.uploadId}
                       className="flex items-center gap-2 rounded-lg border bg-background p-1.5"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <PreviewImage
                         src={item.viewUrl ?? ""}
                         alt={item.label}
                         title={item.label}

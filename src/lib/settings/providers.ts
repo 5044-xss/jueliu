@@ -287,7 +287,29 @@ export function defaultModelOf(
 ): string {
   const options = modelsOf(conn, cap);
   const preset = presetOf(conn.type, cap)?.models ?? [];
-  return options.find((model) => preset.includes(model)) ?? options[0] ?? "";
+  const matched = options.find((model) => preset.includes(model));
+  if (matched) return matched;
+  // 用户手填的模型列表可能跨能力混排（例如图片模型排在前面），
+  // 默认模型应避开明确属于其它能力的模型。
+  const otherPresetModels = new Set(
+    capabilitiesOf(conn.type)
+      .filter((item) => item !== cap)
+      .flatMap((item) => presetOf(conn.type, item)?.models ?? []),
+  );
+  const candidates = options.filter((model) => !otherPresetModels.has(model));
+  const imageHint = /image|imagen|dall-?e|seedream|flux|midjourney/i;
+  const videoHint =
+    /seedance|sora|veo\d|kling|wan2|hailuo|video|t2v|i2v/i;
+  const chatHint = /gpt|claude|deepseek|gemini|qwen|glm|kimi|llama|mistral|grok|doubao/i;
+  const byCapability =
+    cap === "image"
+      ? candidates.find((model) => imageHint.test(model))
+      : cap === "video"
+        ? candidates.find(
+            (model) => videoHint.test(model) && !imageHint.test(model),
+          )
+        : candidates.find((model) => chatHint.test(model));
+  return byCapability ?? candidates[0] ?? options[0] ?? "";
 }
 
 export function presetOf(

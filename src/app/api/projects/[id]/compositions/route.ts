@@ -43,6 +43,7 @@ export async function POST(request: Request, { params }: Ctx) {
       transitionMs:
         typeof body?.transitionMs === "number" ? body.transitionMs : undefined,
       name: typeof body?.name === "string" ? body.name : undefined,
+      subtitles: body?.subtitles === true,
     });
     finishJob(id, jobId, "succeeded");
     return NextResponse.json({

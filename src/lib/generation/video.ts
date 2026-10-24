@@ -25,7 +25,6 @@ import { generateSegmentStartFrame } from "./image";
 import {
   getGenerationSettings,
   assertVideoGenerationConfigured,
-  assertImageGenerationConfigured,
   type GenerationSettings,
 } from "./settings";
 import {
@@ -62,6 +61,23 @@ function updateSegmentGen(projectId: string, segmentId: string, patch: { taskId?
     db.prepare("UPDATE segment SET gen_task_id = ?, gen_status = ?, updated_at = ? WHERE id = ?").run(patch.taskId ?? null, patch.status ?? null, nowIso(), segmentId);
   } catch {
     // 生成状态是附加信息，失败不影响主流程。
+  }
+}
+
+function markSegmentsQueued(projectId: string, segmentIds: string[]): void {
+  if (segmentIds.length === 0) return;
+  try {
+    const db = getProjectDb(projectId);
+    const now = nowIso();
+    const update = db.prepare(
+      "UPDATE segment SET gen_task_id = NULL, gen_status = 'queued', updated_at = ? WHERE id = ?",
+    );
+    const runAll = db.transaction((ids: string[]) => {
+      for (const id of ids) update.run(now, id);
+    });
+    runAll(segmentIds);
+  } catch {
+    // 排队状态是附加信息，失败不影响主流程。
   }
 }
 
@@ -519,7 +535,29 @@ async function ensureSegmentStartFrame(
   entry: StoryboardEntry,
   autoStartFrames: boolean,
 ): Promise<void> {
-  if (entry.segment.firstFrameId) return;
+  if (entry.segment.firstFrameId) {
+    if (!entry.segment.stale) return;
+    // 人工指定的起始画面永远不覆盖。
+    if (entry.segment.firstFrameOrigin === "manual") return;
+    const previous = entry.previous;
+    const continuous =
+      !entry.isFirstOfScene && !entry.segment.hardCut && Boolean(previous);
+    // 自动来源的尾帧可以重新接上一段的新尾帧；这不算“补首帧”，
+    // 即使关闭自动补帧也应生效。
+    if (entry.segment.firstFrameOrigin === "auto" && continuous && previous) {
+      const last = getFrames(projectId, previous.id).find(
+        (frame) => frame.kind === "last",
+      );
+      if (last) {
+        setSegmentFirstFrame(projectId, entry.segment.id, last.id, "auto");
+        return;
+      }
+    }
+    // 用户没有勾选自动补帧时，保留旧起始画面，避免静默删除锚点；
+    // 勾选后才清掉过期画面并重新生成。
+    if (!autoStartFrames) return;
+    setSegmentFirstFrame(projectId, entry.segment.id, null, null);
+  }
   if (!entry.isFirstOfScene && !entry.segment.hardCut && entry.previous) {
     const last = getFrames(projectId, entry.previous.id).find(
       (frame) => frame.kind === "last",
@@ -545,24 +583,25 @@ export async function startSequentialVideoRun(
   assertH3Project(projectId);
   assertVideoGenerationConfigured();
   const onlyMissing = opts?.onlyMissing !== false;
-  // 默认不自动补关键帧，缺首帧的段落直接无关键帧生成，避免静默产生出图费用。
+  // 一键生成默认不自动补关键帧，避免静默产生出图费用；
+  // 用户在分镜设置里勾选后，才为硬切/场首缺少起始画面的段落补图。
+  // 连续段仍会直接接上一段尾帧，不产生额外出图费用。
   const autoStartFrames = opts?.autoStartFrames === true;
   const entries = storyboardEntries(projectId);
+  const needsWork = (entry: StoryboardEntry) =>
+    !entry.segment.videoPath || entry.segment.stale;
   const total = onlyMissing
-    ? entries.filter((entry) => !entry.segment.videoPath).length
+    ? entries.filter(needsWork).length
     : entries.length;
   if (total === 0) {
     throw new Error("没有可生成的段落（可能都已有视频）");
   }
-  if (autoStartFrames) {
-    const missingStart = entries.filter(
-      (entry) =>
-        (!onlyMissing || !entry.segment.videoPath) &&
-        !entry.segment.firstFrameId &&
-        (entry.isFirstOfScene || entry.segment.hardCut),
-    );
-    if (missingStart.length > 0) assertImageGenerationConfigured();
-  }
+  const targets = onlyMissing ? entries.filter(needsWork) : entries;
+  // 先把待生成段落标为排队中；后台逐段开始时再置为 running。
+  markSegmentsQueued(
+    projectId,
+    targets.map((entry) => entry.segment.id),
+  );
   const jobId = startJob(projectId, BATCH_JOB_KIND);
   void runSequentialJob(projectId, jobId, onlyMissing, entries, autoStartFrames);
   return { jobId, total };
@@ -582,6 +621,7 @@ async function runSequentialJob(
   let skipped = 0;
   let failed = 0;
   let qcFailedCount = 0;
+  let frameWarnings = 0;
   let firstError: string | null = null;
 
   for (const entry of entries) {
@@ -590,19 +630,19 @@ async function runSequentialJob(
       finishJob(projectId, jobId, "failed", "已取消");
       return;
     }
-    if (onlyMissing && segment.videoPath) {
+    if (onlyMissing && segment.videoPath && !segment.stale) {
       skipped += 1;
       continue;
     }
 
-    // 起始画面：连续段优先接上一段尾帧；未开启自动补帧时允许无首帧直接生成。
+    // 起始画面：连续段优先接上一段尾帧；硬切/场首自动补一张。
+    // 补帧失败不阻断出片——没有关键帧时仍可退化为无首帧生成，
+    // 但会在任务摘要里明确提示。
     try {
       await ensureSegmentStartFrame(projectId, entry, autoStartFrames);
     } catch (error) {
-      updateSegmentGen(projectId, segment.id, { status: "failed" });
-      failed += 1;
-      if (!firstError) firstError = (error as Error).message;
-      continue;
+      frameWarnings += 1;
+      if (!firstError) firstError = `补首帧失败：${(error as Error).message}`;
     }
 
     // 单段失败自动重试一次（手动取消不重试）。
@@ -678,8 +718,8 @@ async function runSequentialJob(
   const summary = `顺序生成完成：成功 ${done} 段${
     qcFailedCount ? `（QC 未通过 ${qcFailedCount} 段）` : ""
   }，跳过 ${skipped} 段${failed ? `，失败 ${failed} 段` : ""}${
-    firstError ? `（首个错误：${firstError}）` : ""
-  }`;
+    frameWarnings ? `，${frameWarnings} 段未补到首帧` : ""
+  }${firstError ? `（首个错误：${firstError}）` : ""}`;
   finishJob(projectId, jobId, done > 0 ? "succeeded" : "failed", summary);
 }
 

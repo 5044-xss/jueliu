@@ -1,20 +1,33 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { toast } from "sonner";
 import {
   CheckCircle2,
   Circle,
   Download,
   Film,
+  Hourglass,
   ImageDown,
   Loader2,
+  Maximize2,
   Trash2,
   Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useConfirm } from "@/components/confirm-dialog";
+import {
+  PREVIEW_CHIP_CLASS,
+  PREVIEW_THUMB_CLASS,
+  PreviewDialog,
+} from "@/components/preview-image";
 import { readError } from "@/lib/http";
 import { downloadImage } from "@core/client/download";
 
@@ -29,6 +42,42 @@ export interface FrameInfo {
   } | null;
 }
 
+const FRAME_ORDER: Record<FrameInfo["kind"], number> = {
+  first: 0,
+  last: 1,
+  start: 2,
+};
+
+function frameTitle(frame: FrameInfo): string {
+  if (frame.kind === "first") return "首帧";
+  if (frame.kind === "start") return "起始画面";
+  return "尾帧";
+}
+
+function frameStatus(
+  frame: FrameInfo,
+  firstFrameId: string | null,
+): { text: string; active: boolean } {
+  if (frame.kind === "last") {
+    const adopted = frame.adoptedBy ?? null;
+    if (!adopted) return { text: "候选尾帧（未采用）", active: false };
+    return {
+      text:
+        adopted.origin === "auto"
+          ? "已自动接续下一段"
+          : "已人工设为下一段起始画面",
+      active: true,
+    };
+  }
+  if (frame.kind === "start") {
+    return { text: "本段起始画面（图1）", active: true };
+  }
+  return {
+    text: firstFrameId === frame.id ? "本段视频首帧（图1）" : "本段视频首帧",
+    active: firstFrameId === frame.id,
+  };
+}
+
 export function SegmentVideo({
   projectId,
   segmentId,
@@ -36,6 +85,8 @@ export function SegmentVideo({
   nextSegmentId,
   refreshKey = 0,
   onChanged,
+  qcPanel,
+  phase = null,
 }: {
   projectId: string;
   segmentId: string;
@@ -43,6 +94,8 @@ export function SegmentVideo({
   nextSegmentId?: string | null;
   refreshKey?: number;
   onChanged?: () => void;
+  qcPanel?: ReactNode;
+  phase?: "running" | "queued" | null;
 }) {
   const [frames, setFrames] = useState<FrameInfo[]>([]);
   const [videoPath, setVideoPath] = useState<string | null>(null);
@@ -50,6 +103,7 @@ export function SegmentVideo({
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
+  const [previewFrameId, setPreviewFrameId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirm();
 
@@ -180,16 +234,10 @@ export function SegmentVideo({
   }
 
   async function download(frame: FrameInfo) {
-    const kindLabel =
-      frame.kind === "first"
-        ? "首帧"
-        : frame.kind === "start"
-          ? "起始画面"
-          : "结尾画面";
     try {
       await downloadImage(
         `/api/projects/${projectId}/frames/${frame.id}/image`,
-        `${segmentLabel ? `${segmentLabel}-` : ""}${kindLabel}`,
+        `${segmentLabel ? `${segmentLabel}-` : ""}${frameTitle(frame)}`,
       );
     } catch {
       toast.error("下载失败");
@@ -215,6 +263,7 @@ export function SegmentVideo({
       );
       if (!res.ok) throw new Error(await readError(res, "删除失败"));
       toast.success("已删除");
+      setPreviewFrameId(null);
       await refresh();
     } catch (error) {
       toast.error((error as Error).message || "删除失败");
@@ -256,175 +305,233 @@ export function SegmentVideo({
     );
   }
 
+  const sortedFrames = [...frames].sort(
+    (a, b) => FRAME_ORDER[a.kind] - FRAME_ORDER[b.kind],
+  );
+  const previewFrame =
+    sortedFrames.find((frame) => frame.id === previewFrameId) ?? null;
+  const previewStatus = previewFrame
+    ? frameStatus(previewFrame, firstFrameId)
+    : null;
+
   return (
-    <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3">
-      <div className="flex items-center gap-2">
-        <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto">
-          <Badge variant={videoPath ? "default" : "secondary"} className="shrink-0">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Badge
+            variant={videoPath ? "default" : "secondary"}
+            className="shrink-0"
+          >
             <Film className="size-3" />
             {videoPath ? "已回传" : "未回传"}
           </Badge>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => fileRef.current?.click()}
-            disabled={busy === "upload"}
-            className="shrink-0"
-          >
-            {busy === "upload" ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <Upload className="size-3.5" />
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => fileRef.current?.click()}
+              disabled={busy === "upload"}
+            >
+              {busy === "upload" ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Upload className="size-3.5" />
+              )}
+              回传视频
+            </Button>
+            {videoPath && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => extract("first")}
+                  disabled={busy !== null}
+                >
+                  {busy === "extract-first" ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <ImageDown className="size-3.5" />
+                  )}
+                  截首帧
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => extract("last")}
+                  disabled={busy !== null}
+                >
+                  {busy === "extract-last" ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <ImageDown className="size-3.5" />
+                  )}
+                  截尾帧
+                </Button>
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  onClick={removeVideo}
+                  disabled={busy !== null}
+                  title="移除视频"
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </>
             )}
-            回传视频
-          </Button>
-          {videoPath && (
+          </div>
+        </div>
+
+        <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl border bg-black lg:aspect-auto lg:min-h-0 lg:flex-1">
+          {videoPath ? (
+            <video
+              key={version}
+              controls
+              src={`/api/projects/${projectId}/segments/${segmentId}/video`}
+              className="size-full object-contain"
+            />
+          ) : (
+            <div className="max-w-[260px] px-4 text-center">
+              <Film className="mx-auto size-6 text-neutral-500" />
+              <p className="mt-2 text-xs font-medium text-neutral-300">
+                本段还没有视频
+              </p>
+              <p className="mt-1 text-[11px] leading-5 text-neutral-500">
+                可以用云端出片，或第三方生成后把视频回传到这里。
+              </p>
+            </div>
+          )}
+          {phase === "running" && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55 text-white backdrop-blur-[1px]">
+              <Loader2 className="size-6 animate-spin" />
+              <span className="text-xs">视频生成中…</span>
+            </div>
+          )}
+          {phase === "queued" && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55 text-white backdrop-blur-[1px]">
+              <Hourglass className="size-5" />
+              <span className="text-xs">排队中…</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-2">
+        {qcPanel}
+
+        <div className="flex flex-col gap-2 rounded-xl border bg-muted/20 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold">首尾帧</span>
+            <span className="text-[11px] text-muted-foreground">
+              点击预览
+            </span>
+          </div>
+          {sortedFrames.length === 0 ? (
+            <div className="flex min-h-14 flex-1 items-center justify-center rounded-lg border border-dashed text-[11px] text-muted-foreground">
+              暂无截帧
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {sortedFrames.map((frame) => {
+                const status = frameStatus(frame, firstFrameId);
+                return (
+                  <button
+                    key={frame.id}
+                    type="button"
+                    onClick={() => setPreviewFrameId(frame.id)}
+                    title={`${frameTitle(frame)} · ${status.text}`}
+                    className={`${PREVIEW_THUMB_CLASS} group text-left outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/api/projects/${projectId}/frames/${frame.id}/image?v=${version}`}
+                      alt={frameTitle(frame)}
+                      className="aspect-video w-full object-cover transition-opacity group-hover:opacity-75"
+                    />
+                    <span
+                      className={`absolute left-1 top-1 ${PREVIEW_CHIP_CLASS}`}
+                    >
+                      {frameTitle(frame)}
+                    </span>
+                    <span className="absolute right-1 top-1">
+                      {status.active ? (
+                        <CheckCircle2 className="size-3 text-emerald-400" />
+                      ) : (
+                        <Circle className="size-3 text-white/70" />
+                      )}
+                    </span>
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+                      <Maximize2 className="size-4 text-white" />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <PreviewDialog
+        open={previewFrame !== null}
+        onOpenChange={(open) => {
+          if (!open) setPreviewFrameId(null);
+        }}
+        title={previewFrame ? `${frameTitle(previewFrame)}预览` : "画面预览"}
+        description={
+          previewFrame && previewStatus
+            ? `${previewStatus.text}${segmentLabel ? ` · ${segmentLabel}` : ""}`
+            : "查看截取画面并执行操作"
+        }
+        footer={
+          previewFrame ? (
             <>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => extract("first")}
-                disabled={busy !== null}
-                className="shrink-0"
+                onClick={() => download(previewFrame)}
               >
-                {busy === "extract-first" ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <ImageDown className="size-3.5" />
-                )}
-                截首帧
+                <Download className="size-3.5" />
+                下载图片
               </Button>
+              {previewFrame.kind === "last" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => anchorToNext(previewFrame)}
+                  disabled={busy !== null}
+                >
+                  {busy === `anchor-${previewFrame.id}` ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : null}
+                  用作下一段起始画面
+                </Button>
+              )}
               <Button
                 size="sm"
-                variant="outline"
-                onClick={() => extract("last")}
+                variant="ghost"
+                onClick={() => removeFrame(previewFrame)}
                 disabled={busy !== null}
-                className="shrink-0"
+                className="ml-auto text-muted-foreground"
               >
-                {busy === "extract-last" ? (
+                {busy === `remove-${previewFrame.id}` ? (
                   <Loader2 className="size-3.5 animate-spin" />
                 ) : (
-                  <ImageDown className="size-3.5" />
+                  <Trash2 className="size-3.5" />
                 )}
-                截尾帧
+                删除
               </Button>
             </>
-          )}
-        </div>
-        {videoPath && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={removeVideo}
-            disabled={busy !== null}
-            className="shrink-0"
-            title="移除视频"
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
-        )}
-      </div>
-
-      {videoPath ? (
-        <video
-          key={version}
-          controls
-          src={`/api/projects/${projectId}/segments/${segmentId}/video`}
-          className="max-h-64 w-full rounded-md bg-black"
-        />
-      ) : (
-        <div className="flex aspect-video w-full items-center justify-center rounded-md bg-black text-muted-foreground">
-          <Film className="size-6" />
-        </div>
-      )}
-
-      {frames.length > 0 && (
-        <div className="grid gap-2 sm:grid-cols-2">
-          {frames.map((frame) => {
-            const isFirstOfThis = firstFrameId === frame.id;
-            const adopted = frame.adoptedBy ?? null;
-            const statusText =
-              frame.kind === "last"
-                ? adopted
-                  ? adopted.origin === "auto"
-                    ? "已自动接续下一段"
-                    : "已人工设为下一段起始画面"
-                  : "候选尾帧（未采用）"
-                : frame.kind === "start"
-                  ? "本段起始画面"
-                  : "本段视频首帧";
-            const statusActive = frame.kind !== "last" || Boolean(adopted);
-            return (
-              <div key={frame.id} className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium">
-                    {frame.kind === "first"
-                      ? "首帧（本段视频）"
-                      : frame.kind === "start"
-                        ? "起始画面（图1）"
-                        : "结尾画面"}
-                  </span>
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    {statusActive ? (
-                      <CheckCircle2 className="size-3.5 text-emerald-500" />
-                    ) : (
-                      <Circle className="size-3.5" />
-                    )}
-                    {statusText}
-                  </span>
-                </div>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/api/projects/${projectId}/frames/${frame.id}/image?v=${version}`}
-                  alt={frame.kind}
-                  className="max-h-48 w-full rounded-md object-contain"
-                />
-                <div className="flex flex-wrap gap-1.5">
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={() => download(frame)}
-                  >
-                    <Download className="size-3.5" />
-                    下载图片
-                  </Button>
-                  {frame.kind === "last" && (
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() => anchorToNext(frame)}
-                      disabled={busy !== null}
-                    >
-                      {busy === `anchor-${frame.id}` ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : null}
-                      用作下一段起始画面
-                    </Button>
-                  )}
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => removeFrame(frame)}
-                    disabled={busy !== null}
-                  >
-                    {busy === `remove-${frame.id}` ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="size-3.5" />
-                    )}
-                    删除
-                  </Button>
-                  {isFirstOfThis && (
-                    <Badge variant="secondary" className="text-[10px]">
-                      本段图1
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+          ) : null
+        }
+      >
+        {previewFrame ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`/api/projects/${projectId}/frames/${previewFrame.id}/image?v=${version}`}
+            alt={frameTitle(previewFrame)}
+            className="max-h-[66vh] w-auto max-w-full rounded-md object-contain shadow-sm ring-1 ring-black/5"
+          />
+        ) : null}
+      </PreviewDialog>
 
       <input
         ref={fileRef}

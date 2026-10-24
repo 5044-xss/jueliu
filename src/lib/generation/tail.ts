@@ -19,6 +19,7 @@ function findContinuousNext(
   id: string;
   firstFrameOrigin: "manual" | "auto" | "generated" | null;
   hasVideo: boolean;
+  stale: boolean;
 } | null {
   for (const scene of getStoryboard(projectId)) {
     const index = scene.segments.findIndex((s) => s.id === segmentId);
@@ -29,6 +30,7 @@ function findContinuousNext(
       id: next.id,
       firstFrameOrigin: next.firstFrameOrigin,
       hasVideo: Boolean(next.videoPath),
+      stale: next.stale,
     };
   }
   return null;
@@ -54,7 +56,7 @@ export async function captureAndAdoptTail(
       reason: "下一段起始画面为人工/AI 指定，不自动覆盖",
     };
   }
-  if (next.hasVideo) {
+  if (next.hasVideo && !next.stale) {
     return {
       captured: false,
       reason: "下一段已生成视频，不再改其起始画面",

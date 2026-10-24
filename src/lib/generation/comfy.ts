@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { FormData } from "undici";
+import { serverFetch } from "@/lib/server-fetch";
 
 // ComfyUI（MiniMax H3 极速版镜像）客户端 + H3 工作流构建。
 // 生产逻辑移植自 jueying/backend/jueman/engine（workflows.make_workflow + cloud_http）：
@@ -547,7 +549,7 @@ export class ComfyClient {
   }
 
   private async request(p: string, init: RequestInit, timeoutMs?: number): Promise<Response> {
-    return fetch(joinUrl(this.baseUrl, p), { ...init, signal: AbortSignal.timeout(timeoutMs ?? this.timeoutMs) });
+    return serverFetch(joinUrl(this.baseUrl, p), { ...init, signal: AbortSignal.timeout(timeoutMs ?? this.timeoutMs) });
   }
 
   async getObjectInfo(): Promise<ObjectInfo | null> {
@@ -582,7 +584,7 @@ export class ComfyClient {
     form.append("image", new Blob([bytes], { type: mime }), filename);
     form.append("type", "input");
     form.append("overwrite", "true");
-    const res = await this.request("/upload/image", { method: "POST", body: form }, 300_000);
+    const res = await this.request("/upload/image", { method: "POST", body: form as unknown as BodyInit }, 300_000);
     if (!res.ok) throw new Error(`上传参考图到 ComfyUI 失败（HTTP ${res.status}）`);
     const body = (await res.json()) as ComfyUploadResult;
     if (!body?.name) throw new Error("ComfyUI 上传返回异常（缺 name）");

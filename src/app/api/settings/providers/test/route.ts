@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createLlmClient } from "@core/server/llm/client";
 import { ensureCore } from "@/lib/bootstrap";
 import { ComfyClient } from "@/lib/generation/comfy";
 import { createImageClient } from "@/lib/generation/image-client";
 import { getProviderSettings } from "@/lib/settings/providers-server";
+import { serverFetch } from "@/lib/server-fetch";
 import {
   CAPABILITIES,
   capabilitiesOf,
@@ -37,6 +37,13 @@ async function testLlm(
   if (!apiKey) {
     return { ok: false, implemented: true, message: "未填写 API Key" };
   }
+  if (/[^\x20-\x7e]/.test(apiKey)) {
+    return {
+      ok: false,
+      implemented: true,
+      message: "API Key 含中文或全角字符，请重新粘贴真实 Key",
+    };
+  }
   const baseURL = resolveEndpoint(conn, "llm");
   if (!baseURL) {
     return { ok: false, implemented: true, message: "未填写接口地址" };
@@ -46,25 +53,54 @@ async function testLlm(
   }
   const started = Date.now();
   try {
-    const client = createLlmClient({
-      provider: "custom",
-      baseURL,
-      apiKey,
-      model,
-      temperature: 0.2,
-    });
-    const res = await client.chat.completions.create({
-      model,
-      max_tokens: 8,
-      messages: [{ role: "user", content: "ping，只回复 pong" }],
-    });
-    const reply = res.choices[0]?.message?.content?.trim() ?? "";
+    // 连接性只验证地址 + Key：走 /models，避免把额度不足、模型权限等
+    // 账号问题误判成“连接失败”。
+    const res = await serverFetch(
+      `${baseURL.replace(/\/+$/, "")}/models`,
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(20_000),
+      },
+    );
+    const body = (await res.json().catch(() => null)) as {
+      data?: { id?: string }[];
+      error?: { message?: string } | string;
+      message?: string;
+    } | null;
+    if (res.status === 404 || res.status === 405) {
+      // 部分网关（如 OpenCode Go）不提供 /models。这里只确认服务可达，
+      // 不再发对话请求，避免连接检测产生任何 token/出图消费。
+      return {
+        ok: true,
+        implemented: true,
+        message: `服务可达 · 该网关不支持 /models（未发起计费请求） · ${Date.now() - started}ms`,
+      };
+    }
+    if (!res.ok) {
+      const detail =
+        typeof body?.error === "string"
+          ? body.error
+          : (body?.error?.message ?? body?.message);
+      return {
+        ok: false,
+        implemented: true,
+        message: `HTTP ${res.status}${detail ? `：${detail}` : ""}`,
+      };
+    }
+    const ids = Array.isArray(body?.data)
+      ? body.data
+          .map((item) => item?.id)
+          .filter((id): id is string => Boolean(id))
+      : [];
+    const modelNote =
+      ids.length > 0 && !ids.includes(model)
+        ? ` · 模型 ${model} 未在可用列表（共 ${ids.length} 个）`
+        : ` · ${model}`;
     return {
       ok: true,
       implemented: true,
-      message: `连通 · ${model} · ${Date.now() - started}ms${
-        reply ? ` · ${reply.slice(0, 20)}` : ""
-      }`,
+      message: `连通${modelNote} · ${Date.now() - started}ms`,
     };
   } catch (error) {
     return {
@@ -82,6 +118,13 @@ async function testImage(conn: ProviderConnection): Promise<CapabilityResult> {
   }
   if (!conn.apiKey.trim()) {
     return { ok: false, implemented: true, message: "未填写 API Key" };
+  }
+  if (/[^\x20-\x7e]/.test(conn.apiKey.trim())) {
+    return {
+      ok: false,
+      implemented: true,
+      message: "API Key 含中文或全角字符，请重新粘贴真实 Key",
+    };
   }
   const client = createImageClient({
     baseUrl,

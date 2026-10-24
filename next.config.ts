@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   // that as a cross-origin request and blocks dev resources (/_next/hmr), which
   // stalls client hydration. Allow it explicitly.
   allowedDevOrigins: ["127.0.0.1"],
-  serverExternalPackages: ["better-sqlite3"],
+  serverExternalPackages: ["better-sqlite3", "undici"],
   // 严禁把本地工作区数据（含 API Key）、密钥、.env 追踪进 standalone 包。
   outputFileTracingExcludes: {
     "/*": [

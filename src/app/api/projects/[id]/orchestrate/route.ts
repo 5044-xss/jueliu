@@ -18,6 +18,7 @@ import { withLock } from "@core/server/lock";
 
 const bodySchema = z.object({
   vendor: z.string(),
+  presetId: z.string().optional(),
   dryRun: z.boolean().optional(),
   maxSegmentMs: z.number().int().min(4000).max(30000).optional(),
   maxShotsPerSegment: z.number().int().min(1).max(20).optional(),
@@ -105,7 +106,7 @@ export async function POST(request: Request, { params }: Ctx) {
       }
       captureOrchestrationState(id, project.vendor);
       const preset = resolveStoryboardPreset(
-        project.storyboardPresetId ?? undefined,
+        parsed.data.presetId ?? project.storyboardPresetId ?? undefined,
       );
       const result =
         preset.preset.id === "standard"

@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { FormData } from "undici";
+import { serverFetch } from "@/lib/server-fetch";
 import type {
   CreateImageTaskInput,
   ToApiTask,
@@ -103,6 +105,9 @@ export class ApimartClient {
     if (!cfg.apiKey || !cfg.apiKey.trim()) {
       throw new Error("缺少 APIMart API Key，请先在设置里填写");
     }
+    if (/[^\x20-\x7e]/.test(cfg.apiKey.trim())) {
+      throw new Error("APIMart API Key 含中文或全角字符，请重新粘贴真实 Key");
+    }
     this.baseUrl = cfg.baseUrl.trim();
     this.apiKey = cfg.apiKey.trim();
     this.timeoutMs = cfg.timeoutMs ?? 600_000;
@@ -127,7 +132,7 @@ export class ApimartClient {
       ? AbortSignal.any([controller.signal, external])
       : controller.signal;
     try {
-      return await fetch(joinUrl(this.baseUrl, p), { ...init, signal });
+      return await serverFetch(joinUrl(this.baseUrl, p), { ...init, signal });
     } finally {
       clearTimeout(timer);
     }
@@ -147,7 +152,7 @@ export class ApimartClient {
     const res = await this.request("/uploads/images", {
       method: "POST",
       headers: this.authHeaders(),
-      body: form,
+      body: form as unknown as BodyInit,
     });
     const body = (await res.json().catch(() => null)) as {
       url?: string;
@@ -280,7 +285,7 @@ export class ApimartClient {
   /** 下载结果图到内存。结果 URL 在对象存储/CDN 上，无需鉴权。 */
   async downloadImage(url: string, signal?: AbortSignal): Promise<Buffer> {
     const timeout = AbortSignal.timeout(this.timeoutMs);
-    const res = await fetch(url, {
+    const res = await serverFetch(url, {
       signal: signal ? AbortSignal.any([timeout, signal]) : timeout,
     });
     if (!res.ok) {
@@ -297,7 +302,13 @@ export class ApimartClient {
         { method: "GET", headers: this.authHeaders() },
         20_000,
       );
-      return { ok: res.ok, status: res.status };
+      if (res.ok) return { ok: true, status: res.status };
+      const body = (await res.json().catch(() => null)) as unknown;
+      return {
+        ok: false,
+        status: res.status,
+        detail: `HTTP ${res.status}：${errorText(body)}`,
+      };
     } catch (error) {
       return { ok: false, status: 0, detail: (error as Error).message };
     }

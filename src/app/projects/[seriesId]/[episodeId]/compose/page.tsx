@@ -84,6 +84,7 @@ export default function ComposePage() {
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [transition, setTransition] = useState(DEFAULT_TRANSITION);
   const [transitionMs, setTransitionMs] = useState(DEFAULT_TRANSITION_MS);
+  const [subtitles, setSubtitles] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -221,7 +222,12 @@ export default function ComposePage() {
       const res = await fetch(`/api/projects/${id}/compositions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ segmentIds: selected, transition, transitionMs }),
+        body: JSON.stringify({
+          segmentIds: selected,
+          transition,
+          transitionMs,
+          subtitles,
+        }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || "合成失败");
@@ -334,6 +340,18 @@ export default function ComposePage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </label>
+              <label
+                className="flex items-center gap-1.5 text-sm"
+                title="按分镜台词生成并烧录字幕；时间按镜头时长估算，可能与实际语速有偏差"
+              >
+                <input
+                  type="checkbox"
+                  className="size-4 accent-foreground"
+                  checked={subtitles}
+                  onChange={(event) => setSubtitles(event.target.checked)}
+                />
+                <span className="text-muted-foreground">台词字幕</span>
               </label>
             </>
           )}
@@ -521,6 +539,7 @@ export default function ComposePage() {
                         {composition.segmentIds.length} 段 ·{" "}
                         {transitionLabel(composition.transition)} ·{" "}
                         {(composition.transitionMs / 1000).toFixed(1)}s
+                        {composition.subtitles ? " · 字幕" : ""}
                       </span>
                       {composition.durationMs != null && (
                         <span className="text-xs text-muted-foreground">
