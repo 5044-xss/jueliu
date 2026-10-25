@@ -1,0 +1,24 @@
+{
+  "id": "PIPE-058b",
+  "title": "承接说明必须带上上一段的持物",
+  "stage": "continuity-brief",
+  "tags": ["continuity", "brief", "props", "R2"],
+  "input": {
+    "previousAction": "陈平生抬手把信递到一半",
+    "previousExpression": "眉心压紧，嘴角绷紧",
+    "previousLighting": "右侧窗光，冷白",
+    "previousSubjects": ["陈平生", "何文成"],
+    "previousDialogue": "拿着",
+    "previousCamera": "中景，50mm",
+    "previousProps": ["信件", "信件", " "],
+    "currentAction": "何文成低头接信",
+    "currentSubjects": ["何文成"]
+  },
+  "expect": {
+    "contains": [
+      "上一段持物：信件（若本段未明确放下或交出，保持同一件）。",
+      "本段起手"
+    ],
+    "notContains": ["信件、信件", "undefined", "null"]
+  }
+}
