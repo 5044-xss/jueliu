@@ -252,6 +252,9 @@ export default function StoryboardPage() {
         busyGenerate={sb.busyGenerate}
         cloudRunning={sb.cloudRunning}
         batchBusy={sb.batchBusy}
+        generatingSegmentLabel={sb.generatingSegmentLabel}
+        generatingProgress={sb.generatingProgress}
+        generatingProgressCurrent={sb.generatingProgressCurrent}
         onGenerateStoryboard={() => void sb.generateStoryboard()}
         onGenerateVideos={() => void sb.generateAllVideos()}
         onCancelVideos={() => void sb.cancelVideos()}
@@ -312,6 +315,8 @@ export default function StoryboardPage() {
               qc={sb.previewQc}
               framesVersion={sb.framesVersion}
               phase={previewPhase}
+              progress={sb.videoProgress}
+              progressCurrent={sb.videoProgressCurrent}
               busy={qcBusy}
               onRefresh={sb.refresh}
               onRunQc={(segmentId) => void runQc(segmentId)}

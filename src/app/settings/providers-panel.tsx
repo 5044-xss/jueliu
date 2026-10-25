@@ -21,11 +21,13 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { readError } from "@/lib/http";
 import {
   CAPABILITY_LABELS,
+  CAPABILITY_MODEL_LABELS,
   CONNECTION_PRESETS,
   CONNECTION_TYPES,
   capabilitiesOf,
   maskApiKeyValue,
-  presetModelsOf,
+  modelsByCapabilityOf,
+  presetModelsByCapability,
   presetOf,
   resolveEndpoint,
   withAutoBindings,
@@ -48,7 +50,8 @@ function blankConnection(type: ConnectionType): ProviderConnection {
     type,
     name: CONNECTION_PRESETS[type].label,
     apiKey: "",
-    models: presetModelsOf(type),
+    models: [],
+    modelsByCapability: presetModelsByCapability(type),
     baseUrls: {},
     imageConcurrency: 2,
     videoConcurrency: 1,
@@ -91,10 +94,12 @@ function ConnectionDialog({
   const [name, setName] = useState(draft.name);
   const [type, setType] = useState<ConnectionType>(draft.type);
   const [apiKey, setApiKey] = useState("");
-  const [models, setModels] = useState<string[]>(
-    draft.models.length > 0 ? draft.models : presetModelsOf(draft.type),
-  );
-  const [modelDraft, setModelDraft] = useState("");
+  const [modelGroups, setModelGroups] = useState<
+    Partial<Record<Capability, string[]>>
+  >(() => modelsByCapabilityOf(draft));
+  const [modelDrafts, setModelDrafts] = useState<
+    Partial<Record<Capability, string>>
+  >({});
   const [endpoint, setEndpoint] = useState(
     draft.type === "comfyui"
       ? draft.baseUrls.video ?? ""
@@ -102,35 +107,57 @@ function ConnectionDialog({
   );
   const preset = CONNECTION_PRESETS[type];
   const showEndpoint = needsEndpoint(type);
+  const caps = capabilitiesOf(type);
 
   function changeType(next: ConnectionType) {
-    const previousPreset = presetModelsOf(type);
+    const previousPreset = presetModelsByCapability(type);
+    const isDefault =
+      caps.every(
+        (cap) =>
+          (modelGroups[cap] ?? []).join("\n") ===
+          (previousPreset[cap] ?? []).join("\n"),
+      ) || caps.every((cap) => (modelGroups[cap] ?? []).length === 0);
     setType(next);
     if (!name.trim() || CONNECTION_TYPES.some((t) => CONNECTION_PRESETS[t].label === name)) {
       setName(CONNECTION_PRESETS[next].label);
     }
-    setModels((current) =>
-      current.length === 0 ||
-      current.join("\n") === previousPreset.join("\n")
-        ? presetModelsOf(next)
-        : current,
+    if (isDefault) {
+      setModelGroups(presetModelsByCapability(next));
+      return;
+    }
+    const nextCaps = capabilitiesOf(next);
+    setModelGroups(
+      Object.fromEntries(
+        nextCaps.map((cap) => [cap, modelGroups[cap] ?? []]),
+      ) as Partial<Record<Capability, string[]>>,
     );
   }
 
-  function addModel() {
-    const entries = modelDraft
+  function addModel(cap: Capability) {
+    const entries = (modelDrafts[cap] ?? "")
       .split(/[\n,，]+/)
       .map((model) => model.trim())
       .filter(Boolean);
     if (entries.length === 0) return;
-    setModels((current) => [...new Set([...current, ...entries])]);
-    setModelDraft("");
+    setModelGroups((current) => ({
+      ...current,
+      [cap]: [...new Set([...(current[cap] ?? []), ...entries])],
+    }));
+    setModelDrafts((current) => ({ ...current, [cap]: "" }));
   }
 
-  function fillPresetModels() {
-    setModels((current) => [
-      ...new Set([...current, ...presetModelsOf(type)]),
-    ]);
+  function removeModel(cap: Capability, model: string) {
+    setModelGroups((current) => ({
+      ...current,
+      [cap]: (current[cap] ?? []).filter((item) => item !== model),
+    }));
+  }
+
+  function fillPresetModels(cap: Capability) {
+    setModelGroups((current) => ({
+      ...current,
+      [cap]: [...new Set([...(current[cap] ?? []), ...(presetModelsByCapability(type)[cap] ?? [])])],
+    }));
   }
 
   function submit() {
@@ -148,30 +175,37 @@ function ConnectionDialog({
       return;
     }
 
-    const caps = capabilitiesOf(type);
     const baseUrls: Record<string, string> = showEndpoint
       ? Object.fromEntries(caps.map((cap) => [cap, endpoint.trim()]))
       : draft.baseUrls;
+    const scopedModels = Object.fromEntries(
+      caps.map((cap) => [
+        cap,
+        [...new Set((modelGroups[cap] ?? []).map((model) => model.trim()).filter(Boolean))],
+      ]),
+    ) as Partial<Record<Capability, string[]>>;
+    const models = [...new Set(caps.flatMap((cap) => scopedModels[cap] ?? []))];
 
     onSubmit({
       ...draft,
       type,
       name: trimmedName,
       apiKey: apiKey.trim() ? apiKey.trim() : draft.apiKey,
-      models: [...new Set(models.map((model) => model.trim()).filter(Boolean))],
+      models,
+      modelsByCapability: scopedModels,
       baseUrls,
     });
   }
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[min(88vh,46rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{isNew ? "添加服务商" : "编辑连接"}</DialogTitle>
           <DialogDescription>
             {isNew
-              ? "填写 API Key 即可，端点和能力自动配置。"
-              : "留空表示保持已保存的 Key 不变。"}
+              ? "填写 API Key 即可；模型按能力分开填写，能力页只显示对应模型。"
+              : "留空表示保持已保存的 Key 不变；模型按能力分开填写。"}
           </DialogDescription>
         </DialogHeader>
 
@@ -228,69 +262,81 @@ function ConnectionDialog({
             </div>
           )}
 
-          <div className="grid gap-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <Label>模型列表</Label>
-              <button
-                type="button"
-                onClick={fillPresetModels}
-                className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-              >
-                填入预设
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <Input
-                value={modelDraft}
-                onChange={(e) => setModelDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addModel();
-                  }
-                }}
-                placeholder="输入模型名，回车添加；可用逗号分隔多个"
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={addModel}
-                className="shrink-0"
-              >
-                <Plus className="size-3.5" />
-                添加
-              </Button>
-            </div>
-            {models.length > 0 ? (
-              <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
-                {models.map((model) => (
-                  <span
-                    key={model}
-                    className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 py-0.5 pl-2.5 pr-1 text-xs"
-                  >
-                    <span className="max-w-48 truncate">{model}</span>
+          <div className="grid gap-3">
+            {caps.map((cap) => {
+              const group = modelGroups[cap] ?? [];
+              const label = CAPABILITY_MODEL_LABELS[cap];
+              return (
+                <div
+                  key={cap}
+                  className="grid gap-1.5 rounded-xl border border-border p-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <Label>{label}</Label>
                     <button
                       type="button"
-                      onClick={() =>
-                        setModels((current) =>
-                          current.filter((item) => item !== model),
-                        )
-                      }
-                      title={`移除 ${model}`}
-                      aria-label={`移除 ${model}`}
-                      className="flex size-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive hover:text-white"
+                      onClick={() => fillPresetModels(cap)}
+                      className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                     >
-                      ×
+                      填入预设
                     </button>
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                未填写时会使用该类型的内置模型，能力页从这里选择。
-              </p>
-            )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={modelDrafts[cap] ?? ""}
+                      onChange={(e) =>
+                        setModelDrafts((current) => ({
+                          ...current,
+                          [cap]: e.target.value,
+                        }))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addModel(cap);
+                        }
+                      }}
+                      placeholder={`添加${label}，回车确认`}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => addModel(cap)}
+                      className="shrink-0"
+                    >
+                      <Plus className="size-3.5" />
+                      添加
+                    </Button>
+                  </div>
+                  {group.length > 0 ? (
+                    <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
+                      {group.map((model) => (
+                        <span
+                          key={model}
+                          className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 py-0.5 pl-2.5 pr-1 text-xs"
+                        >
+                          <span className="max-w-48 truncate">{model}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeModel(cap, model)}
+                            title={`移除 ${model}`}
+                            aria-label={`移除 ${model}`}
+                            className="flex size-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive hover:text-white"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      未填写时会使用该类型的内置{label}。
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 

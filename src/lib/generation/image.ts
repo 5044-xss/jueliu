@@ -3,7 +3,12 @@ import { buildKeyframePrompt, saveFirstFrameImage } from "@core/server/keyframe"
 import type { StoredFrame } from "@core/server/frames";
 import { buildManifest } from "@core/server/render";
 import { getStoryboard } from "@core/server/storyboard";
-import { startJob, finishJob } from "@core/server/jobs";
+import {
+  startJob,
+  finishJob,
+  updateJobProgress,
+  startJobHeartbeat,
+} from "@core/server/jobs";
 import { getProject } from "@core/server/projects";
 import { getProjectDb, nowIso } from "@core/server/db";
 import {
@@ -251,6 +256,7 @@ async function submitSegmentImageOnce(
   const settings = getGenerationSettings();
   const client = makeClient(settings);
   const jobId = startJob(projectId, JOB_KIND, { replaceRunning: false });
+  const stopHeartbeat = startJobHeartbeat(projectId, jobId);
   // 先登记取消信号，让提交阶段的参考图上传/建任务也能被「取消出图」中断。
   const run = beginImageRun(projectId);
 
@@ -311,6 +317,7 @@ async function submitSegmentImageOnce(
       run.done();
     });
 
+    stopHeartbeat();
     return state;
   } catch (error) {
     const cancelled = run.signal.aborted;
@@ -324,6 +331,7 @@ async function submitSegmentImageOnce(
       cancelled ? "已取消" : (error as Error).message,
     );
     run.done();
+    stopHeartbeat();
     throw error;
   }
 }
@@ -341,6 +349,7 @@ async function runImageJob(
 ): Promise<void> {
   const client = makeClient(settings);
   let taskId = initialTaskId;
+  const stopHeartbeat = startJobHeartbeat(projectId, jobId);
   try {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
       try {
@@ -348,6 +357,11 @@ async function runImageJob(
           intervalMs: settings.pollIntervalMs,
           timeoutMs: settings.timeoutMs,
           signal,
+          onProgress: (task) => {
+            if (typeof task.progress === "number") {
+              updateJobProgress(projectId, jobId, task.progress);
+            }
+          },
         });
         const buf = await client.downloadImage(imageUrl, signal);
         if (signal.aborted) throw new Error("已取消生成");
@@ -390,6 +404,8 @@ async function runImageJob(
       "failed",
       cancelled ? "已取消" : (error as Error).message,
     );
+  } finally {
+    stopHeartbeat();
   }
 }
 
@@ -401,6 +417,7 @@ export async function generateSegmentStartFrame(
   const settings = getGenerationSettings();
   const client = makeClient(settings);
   const jobId = startJob(projectId, JOB_KIND, { replaceRunning: false });
+  const stopHeartbeat = startJobHeartbeat(projectId, jobId);
   try {
     const kf = buildKeyframePrompt(projectId, segmentId);
     if (!kf) throw new Error("无法编译起始画面提示词（段落不存在或无分镜）");
@@ -429,6 +446,11 @@ export async function generateSegmentStartFrame(
     const imageUrl = await client.waitForImage(task.id, {
       intervalMs: settings.pollIntervalMs,
       timeoutMs: settings.timeoutMs,
+      onProgress: (current) => {
+        if (typeof current.progress === "number") {
+          updateJobProgress(projectId, jobId, current.progress);
+        }
+      },
     });
     const buf = await client.downloadImage(imageUrl);
     assertSegmentExists(projectId, segmentId);
@@ -445,6 +467,8 @@ export async function generateSegmentStartFrame(
   } catch (error) {
     finishJob(projectId, jobId, "failed", (error as Error).message);
     throw error;
+  } finally {
+    stopHeartbeat();
   }
 }
 
@@ -491,6 +515,7 @@ export async function startSequentialStartFrameRun(
     throw new Error("没有需要补首帧的硬切段（连续段会直接采用上一段尾帧）。");
   }
   const jobId = startJob(projectId, BATCH_START_FRAME_JOB_KIND);
+  updateJobProgress(projectId, jobId, 0);
   void runSequentialStartFrameJob(projectId, jobId, targets);
   return { jobId, total: targets.length };
 }
@@ -500,8 +525,11 @@ async function runSequentialStartFrameJob(
   jobId: string,
   targets: { id: string; label: string }[],
 ): Promise<void> {
+  const stopHeartbeat = startJobHeartbeat(projectId, jobId);
+  try {
   let done = 0;
   let failed = 0;
+  let processed = 0;
   let firstError: string | null = null;
   for (const target of targets) {
     if (batchJobStatus(projectId, jobId) !== "running") {
@@ -514,7 +542,15 @@ async function runSequentialStartFrameJob(
       const current = db
         .prepare("SELECT first_frame_id FROM segment WHERE id = ?")
         .get(target.id) as { first_frame_id: string | null } | undefined;
-      if (current?.first_frame_id) continue;
+      if (current?.first_frame_id) {
+        processed += 1;
+        updateJobProgress(
+          projectId,
+          jobId,
+          Math.round((processed / targets.length) * 100),
+        );
+        continue;
+      }
       await generateSegmentStartFrame(projectId, target.id);
       done += 1;
     } catch (error) {
@@ -525,6 +561,12 @@ async function runSequentialStartFrameJob(
       failed += 1;
       if (!firstError) firstError = (error as Error).message;
     }
+    processed += 1;
+    updateJobProgress(
+      projectId,
+      jobId,
+      Math.round((processed / targets.length) * 100),
+    );
   }
   const summary = `补首帧完成：成功 ${done} 段${failed ? `，失败 ${failed} 段` : ""}${
     firstError ? `（首个错误：${firstError}）` : ""
@@ -535,4 +577,7 @@ async function runSequentialStartFrameJob(
     done > 0 || failed === 0 ? "succeeded" : "failed",
     summary,
   );
+  } finally {
+    stopHeartbeat();
+  }
 }

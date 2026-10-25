@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -13,9 +13,11 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Search,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -49,6 +51,16 @@ export default function SeriesPage() {
   const [editingId, setEditingId] = useState<string | undefined>();
   const [copyTarget, setCopyTarget] = useState<EpisodeSummary | null>(null);
   const [copying, setCopying] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const filteredEpisodes = useMemo(() => {
+    const list = episodes ?? [];
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return list;
+    return list.filter((item) =>
+      item.name.toLowerCase().includes(keyword),
+    );
+  }, [episodes, query]);
 
   const reload = useCallback(async () => {
     const [res, listRes] = await Promise.all([
@@ -203,81 +215,119 @@ export default function SeriesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto pr-3 pb-3">
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-            {episodes.map((e) => (
-              <Card key={e.id} size="sm" className="border border-border gap-0 p-0">
-                {e.thumbnail ? (
-                  <div className="relative aspect-video w-full overflow-hidden bg-black">
-                    <video
-                      src={`/api/projects/${e.id}/segments/${e.thumbnail.segmentId}/video#t=0.1`}
-                      muted
-                      playsInline
-                      preload="metadata"
-                      className="size-full object-cover"
-                    />
-                  </div>
-                ) : (
-                  <div className="flex aspect-video w-full items-center justify-center bg-muted text-muted-foreground/60">
-                    <Film className="size-6" />
-                  </div>
-                )}
-                <CardHeader className="pt-(--card-spacing) pb-1.5">
-                  <div className="flex min-w-0 items-center gap-1">
-                    <CardTitle className="min-w-0 flex-1 truncate">
-                      {e.name}
-                    </CardTitle>
-                    <OpenProjectFolderButton
-                      projectId={e.id}
-                      label=""
-                      size="icon-xs"
-                      variant="ghost"
-                      className="shrink-0"
-                    />
-                  </div>
-                  <CardDescription className="text-xs">
-                    创建于 {new Date(e.createdAt).toLocaleString("zh-CN")}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid grid-cols-4 items-center gap-1.5 pb-(--card-spacing)">
-                  <Button
-                    size="xs"
-                    className="w-full px-1"
-                    onClick={() => router.push(`/projects/${seriesId}/${e.id}`)}
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <div className="relative w-full max-w-xs">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="搜索分集名称"
+                className="h-8 pl-8 text-sm"
+                aria-label="搜索分集名称"
+              />
+            </div>
+            <span className="text-xs text-muted-foreground">
+              共 {episodes.length} 集
+              {query.trim() ? ` · 匹配 ${filteredEpisodes.length} 集` : ""}
+            </span>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto pr-3 pb-3">
+            {filteredEpisodes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-1 rounded-2xl border bg-card py-14 text-center text-sm text-muted-foreground">
+                <p>没有匹配「{query.trim()}」的分集。</p>
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  className="text-xs underline underline-offset-4 hover:text-foreground"
+                >
+                  清空搜索
+                </button>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                {filteredEpisodes.map((e) => (
+                  <Card
+                    key={e.id}
+                    size="sm"
+                    className="border border-border gap-0 p-0"
                   >
-                    <FolderOpen className="size-3.5" />
-                    打开
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    className="w-full px-1"
-                    onClick={() => openEdit(e)}
-                  >
-                    <Pencil className="size-3.5" />
-                    编辑
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    className="w-full px-1"
-                    onClick={() => setCopyTarget(e)}
-                  >
-                    <Copy className="size-3.5" />
-                    复制
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="destructive"
-                    className="w-full px-1"
-                    onClick={() => remove(e.id, e.name)}
-                  >
-                    <Trash2 className="size-3.5" />
-                    删除
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+                    {e.thumbnail ? (
+                      <div className="relative aspect-video w-full overflow-hidden bg-black">
+                        <video
+                          src={`/api/projects/${e.id}/segments/${e.thumbnail.segmentId}/video#t=0.1`}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          className="size-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex aspect-video w-full items-center justify-center bg-muted text-muted-foreground/60">
+                        <Film className="size-6" />
+                      </div>
+                    )}
+                    <CardHeader className="pt-(--card-spacing) pb-1.5">
+                      <div className="flex min-w-0 items-center gap-1">
+                        <CardTitle className="min-w-0 flex-1 truncate">
+                          {e.name}
+                        </CardTitle>
+                        <OpenProjectFolderButton
+                          projectId={e.id}
+                          label=""
+                          size="icon-xs"
+                          variant="ghost"
+                          className="shrink-0"
+                        />
+                      </div>
+                      <CardDescription className="text-xs">
+                        创建于 {new Date(e.createdAt).toLocaleString("zh-CN")}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-4 items-center gap-1.5 pb-(--card-spacing)">
+                      <Button
+                        size="xs"
+                        className="w-full px-1"
+                        onClick={() =>
+                          router.push(`/projects/${seriesId}/${e.id}`)
+                        }
+                      >
+                        <FolderOpen className="size-3.5" />
+                        打开
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="w-full px-1"
+                        onClick={() => openEdit(e)}
+                      >
+                        <Pencil className="size-3.5" />
+                        编辑
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="w-full px-1"
+                        onClick={() => setCopyTarget(e)}
+                      >
+                        <Copy className="size-3.5" />
+                        复制
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="destructive"
+                        className="w-full px-1"
+                        onClick={() => remove(e.id, e.name)}
+                      >
+                        <Trash2 className="size-3.5" />
+                        删除
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -288,6 +338,16 @@ export default function SeriesPage() {
           mode={formMode}
           projectId={editingId}
           seriesId={seriesId}
+          defaults={
+            series
+              ? {
+                  styleId: series.styleId ?? null,
+                  style: series.style ?? "",
+                  videoStyle: series.videoStyle ?? "",
+                  aspectRatio: series.aspectRatio,
+                }
+              : undefined
+          }
           onClose={() => setFormOpen(false)}
           onSaved={handleSaved}
         />

@@ -33,6 +33,18 @@ export function ensureCore(): void {
         },
       },
       {
+        id: "jueman-segment-progress-v1",
+        up: (db: Db) => {
+          ensureColumn(db, "segment", "gen_progress", "gen_progress REAL");
+          ensureColumn(
+            db,
+            "segment",
+            "gen_progress_current",
+            "gen_progress_current REAL",
+          );
+        },
+      },
+      {
         id: "jueman-composition-subtitles-v1",
         up: (db: Db) => {
           ensureColumn(

@@ -115,6 +115,8 @@ export function StoryboardVideoPanel({
   qc,
   framesVersion,
   phase,
+  progress,
+  progressCurrent,
   busy,
   onRefresh,
   onRunQc,
@@ -127,6 +129,8 @@ export function StoryboardVideoPanel({
   qc: SegmentQcRecord | null;
   framesVersion: number;
   phase: "running" | "queued" | null;
+  progress: number | null;
+  progressCurrent: number | null;
   busy: boolean;
   onRefresh: () => Promise<void> | void;
   onRunQc: (segmentId: string) => void;
@@ -174,6 +178,39 @@ export function StoryboardVideoPanel({
           </Button>
         </div>
       </div>
+
+      {phase && (
+        <div className="flex shrink-0 items-center gap-2 border-b px-4 py-2 text-[11px] text-muted-foreground">
+          <span className="relative block h-1 flex-1 overflow-hidden rounded-full bg-muted">
+            {typeof progress === "number" ? (
+              <>
+                {typeof progressCurrent === "number" && (
+                  <span
+                    className="absolute inset-y-0 left-0 rounded-full bg-primary/35 transition-all"
+                    style={{ width: `${progressCurrent}%` }}
+                  />
+                )}
+                <span
+                  className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all"
+                  style={{ width: `${progress}%` }}
+                />
+              </>
+            ) : (
+              <span className="block h-full w-1/3 animate-pulse rounded-full bg-primary/60" />
+            )}
+          </span>
+          <span className="shrink-0 whitespace-nowrap text-right tabular-nums">
+            {phase === "queued"
+              ? "排队中"
+              : typeof progress === "number"
+                ? `总 ${progress}%`
+                : "生成中"}
+            {phase === "running" && typeof progressCurrent === "number"
+              ? ` · 节点 ${progressCurrent}%`
+              : ""}
+          </span>
+        </div>
+      )}
 
       <div className="flex min-h-0 flex-1 flex-col p-4">
         <SegmentVideo

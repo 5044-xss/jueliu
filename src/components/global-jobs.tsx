@@ -17,6 +17,7 @@ import {
   ListChecks,
   Loader2,
   RefreshCw,
+  X,
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -95,13 +96,17 @@ function JobSection({
 function JobRow({
   job,
   cancelling,
+  dismissing,
   onOpen,
   onCancel,
+  onDismiss,
 }: {
   job: GlobalJob;
   cancelling?: boolean;
+  dismissing?: boolean;
   onOpen: (job: GlobalJob) => void;
   onCancel?: (job: GlobalJob) => void;
+  onDismiss?: (job: GlobalJob) => void;
 }) {
   const running = job.status === "running";
   const failed = job.status === "failed";
@@ -133,10 +138,20 @@ function JobRow({
           <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="text-sm font-medium">{jobLabel(job.kind)}</span>
             {running ? (
-              <Elapsed
-                startedAt={job.startedAt}
-                className="text-[11px] font-normal text-muted-foreground"
-              />
+              <>
+                <Elapsed
+                  startedAt={job.startedAt}
+                  className="text-[11px] font-normal text-muted-foreground"
+                />
+                {typeof job.progress === "number" && (
+                  <span className="text-[11px] font-normal text-muted-foreground">
+                    {job.progress}%
+                    {typeof job.progressCurrent === "number"
+                      ? ` · 当前 ${job.progressCurrent}%`
+                      : ""}
+                  </span>
+                )}
+              </>
             ) : (
               <span className="text-[11px] font-normal text-muted-foreground">
                 {formatFinishedAt(job.finishedAt)}
@@ -158,6 +173,26 @@ function JobRow({
               {job.message}
             </span>
           )}
+          {running && (
+            <span className="relative mt-1 block h-1 overflow-hidden rounded-full bg-muted">
+              {typeof job.progress === "number" ? (
+                <>
+                  {typeof job.progressCurrent === "number" && (
+                    <span
+                      className="absolute inset-y-0 left-0 rounded-full bg-primary/35 transition-all"
+                      style={{ width: `${job.progressCurrent}%` }}
+                    />
+                  )}
+                  <span
+                    className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all"
+                    style={{ width: `${job.progress}%` }}
+                  />
+                </>
+              ) : (
+                <span className="block h-full w-1/3 animate-pulse rounded-full bg-primary/60" />
+              )}
+            </span>
+          )}
         </span>
         <ChevronRight className="mt-1 size-3.5 shrink-0 text-muted-foreground/60" />
       </button>
@@ -171,6 +206,20 @@ function JobRow({
           onClick={() => onCancel(job)}
         >
           {cancelling ? "取消中…" : "取消"}
+        </Button>
+      )}
+
+      {failed && onDismiss && (
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          className="mt-0.5 shrink-0 text-muted-foreground"
+          disabled={dismissing}
+          onClick={() => onDismiss(job)}
+          title="清除这条失败记录"
+          aria-label="清除这条失败记录"
+        >
+          <X className="size-3.5" />
         </Button>
       )}
     </div>
@@ -191,6 +240,7 @@ export function GlobalJobsButton({
   const [open, setOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [dismissing, setDismissing] = useState<string | null>(null);
   const [loadedOnce, setLoadedOnce] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const runningRef = useRef<Set<string>>(new Set());
@@ -282,18 +332,40 @@ export function GlobalJobsButton({
     }
   }
 
+  async function dismiss(job: GlobalJob) {
+    setDismissing(jobKey(job));
+    try {
+      const res = await fetch(
+        `/api/projects/${job.projectId}/jobs/${job.id}`,
+        { method: "DELETE" },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "清除失败");
+      setJobs((current) =>
+        current.filter((item) => jobKey(item) !== jobKey(job)),
+      );
+      toast.success("已清除该任务记录");
+    } catch (error) {
+      toast.error((error as Error).message || "清除失败");
+    } finally {
+      setDismissing(null);
+    }
+  }
+
   function go(job: GlobalJob) {
     setOpen(false);
     router.push(jobHref(job));
   }
 
-  const runningJobs = jobs.filter((job) => job.status === "running");
+  const runningJobs = jobs
+    .filter((job) => job.status === "running")
+    .slice(0, 5);
   const failedJobs = jobs
     .filter((job) => job.status === "failed")
     .slice(0, 5);
   const succeededJobs = jobs
     .filter((job) => job.status === "succeeded")
-    .slice(0, 3);
+    .slice(0, 5);
   const hasFailure = failedJobs.length > 0;
 
   return (
@@ -353,41 +425,51 @@ export function GlobalJobsButton({
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
-            {jobs.length === 0 ? (
-              <div className="px-2 py-8 text-center text-sm text-muted-foreground">
-                暂无任务
-              </div>
-            ) : (
-              <>
-                {runningJobs.length > 0 && (
-                  <JobSection title="进行中">
-                    {runningJobs.map((job) => (
-                      <JobRow
-                        key={jobKey(job)}
-                        job={job}
-                        cancelling={cancelling === jobKey(job)}
-                        onOpen={go}
-                        onCancel={cancel}
-                      />
-                    ))}
-                  </JobSection>
-                )}
-                {failedJobs.length > 0 && (
-                  <JobSection title="最近失败">
-                    {failedJobs.map((job) => (
-                      <JobRow key={jobKey(job)} job={job} onOpen={go} />
-                    ))}
-                  </JobSection>
-                )}
-                {succeededJobs.length > 0 && (
-                  <JobSection title="最近完成">
-                    {succeededJobs.map((job) => (
-                      <JobRow key={jobKey(job)} job={job} onOpen={go} />
-                    ))}
-                  </JobSection>
-                )}
-              </>
-            )}
+            <JobSection title={`正在执行 · ${runningJobs.length}`}>
+              {runningJobs.length === 0 ? (
+                <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                  暂无进行中的任务
+                </p>
+              ) : (
+                runningJobs.map((job) => (
+                  <JobRow
+                    key={jobKey(job)}
+                    job={job}
+                    cancelling={cancelling === jobKey(job)}
+                    onOpen={go}
+                    onCancel={cancel}
+                  />
+                ))
+              )}
+            </JobSection>
+            <JobSection title={`最近失败 · ${failedJobs.length}`}>
+              {failedJobs.length === 0 ? (
+                <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                  暂无失败记录
+                </p>
+              ) : (
+                failedJobs.map((job) => (
+                  <JobRow
+                    key={jobKey(job)}
+                    job={job}
+                    dismissing={dismissing === jobKey(job)}
+                    onOpen={go}
+                    onDismiss={dismiss}
+                  />
+                ))
+              )}
+            </JobSection>
+            <JobSection title={`最近成功 · ${succeededJobs.length}`}>
+              {succeededJobs.length === 0 ? (
+                <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                  暂无成功记录
+                </p>
+              ) : (
+                succeededJobs.map((job) => (
+                  <JobRow key={jobKey(job)} job={job} onOpen={go} />
+                ))
+              )}
+            </JobSection>
           </div>
 
           <div className="shrink-0 border-t px-4 py-2 text-[11px] text-muted-foreground">

@@ -289,14 +289,36 @@ export function useStoryboard(projectId: string) {
   // 仅视频任务（含顺序批量）才代表「正在出视频」，避免补首帧时误显示视频生成中。
   const videoRunning =
     isJobRunning(jobs, "gen-video") || isJobRunning(jobs, "gen-videos");
+  // 进度按「当前预览段」取，避免并发/批量时显示到别的段上。
+  // 口径与云端一致：总进度 = 已完成节点/总节点，节点进度 = 当前 sampler 步进。
+  const videoProgress = previewEntry?.segment.genProgress ?? null;
+  const videoProgressCurrent =
+    previewEntry?.segment.genProgressCurrent ?? null;
+  // 正在出视频的那一段（批量时不需要先点选才能看到进度）。
+  const runningEntry =
+    (videoRunning
+      ? allSegments.find(
+          (entry) => segmentGenPhase(entry.segment.genStatus) === "running",
+        )
+      : null) ?? null;
+  const generatingSegmentLabel = runningEntry
+    ? `${runningEntry.scene.sceneSlug || `第${runningEntry.scene.sceneIndex}场`} · 第${runningEntry.segment.index}段（${runningEntry.flatIndex + 1}/${allSegments.length}）`
+    : null;
+  const generatingProgress = runningEntry?.segment.genProgress ?? null;
+  const generatingProgressCurrent =
+    runningEntry?.segment.genProgressCurrent ?? null;
 
   useEffect(() => {
     if (!cloudRunning) return;
-    const timer = setInterval(() => {
-      void refreshStoryboard();
-    }, 4000);
+    // 视频生成时进度变化更快，缩短轮询让分段进度更贴近云端。
+    const timer = setInterval(
+      () => {
+        void refreshStoryboard();
+      },
+      videoRunning ? 2000 : 4000,
+    );
     return () => clearInterval(timer);
-  }, [cloudRunning, refreshStoryboard]);
+  }, [cloudRunning, videoRunning, refreshStoryboard]);
 
   const qcBySegment = useMemo(
     () => new Map(qcList.map((item) => [item.segmentId, item])),
@@ -774,6 +796,11 @@ export function useStoryboard(projectId: string) {
     busyGenerate,
     cloudRunning,
     videoRunning,
+    videoProgress,
+    videoProgressCurrent,
+    generatingSegmentLabel,
+    generatingProgress,
+    generatingProgressCurrent,
     qcBySegment,
     previewIssues,
     previewQc,

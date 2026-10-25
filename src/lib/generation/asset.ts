@@ -3,7 +3,12 @@ import path from "node:path";
 import { getAssets, setViewImage } from "@core/server/assets";
 import { getAssetViewPath } from "@core/server/paths";
 import { composeAssetViewPrompt } from "@core/shared/asset-prompt";
-import { startJob, finishJob } from "@core/server/jobs";
+import {
+  startJob,
+  finishJob,
+  updateJobProgress,
+  startJobHeartbeat,
+} from "@core/server/jobs";
 import { getProject } from "@core/server/projects";
 import {
   getGenerationSettings,
@@ -254,6 +259,7 @@ function taskInput(settings: GenerationSettings, prepared: Prepared): CreateImag
  */
 async function runGeneration(
   projectId: string,
+  jobId: string,
   prepared: Prepared,
   settings: GenerationSettings,
   ctx: RunCtx,
@@ -270,6 +276,11 @@ async function runGeneration(
           intervalMs: settings.pollIntervalMs,
           timeoutMs: settings.timeoutMs,
           signal: ctx.signal,
+          onProgress: (current) => {
+            if (typeof current.progress === "number") {
+              updateJobProgress(projectId, jobId, current.progress);
+            }
+          },
         });
         const buf = await client.downloadImage(imageUrl, ctx.signal);
         const ext = extFromUrl(imageUrl);
@@ -303,9 +314,10 @@ async function runViewJob(
   settings: GenerationSettings,
   ctx: RunCtx,
 ): Promise<void> {
+  const stopHeartbeat = startJobHeartbeat(projectId, jobId);
   try {
     const prepared = await prepareView(projectId, viewId, settings, ctx);
-    await runGeneration(projectId, prepared, settings, ctx);
+    await runGeneration(projectId, jobId, prepared, settings, ctx);
     finishJob(
       projectId,
       jobId,
@@ -314,6 +326,8 @@ async function runViewJob(
     );
   } catch (error) {
     finishJob(projectId, jobId, "failed", (error as Error).message);
+  } finally {
+    stopHeartbeat();
   }
 }
 
@@ -369,10 +383,17 @@ export async function generateAssetViewImage(
     replaceRunning: false,
     targetId: viewId,
   });
+  const stopHeartbeat = startJobHeartbeat(projectId, jobId);
   const job = (async (): Promise<GenerateAssetResult> => {
     try {
       const prepared = await prepareView(projectId, viewId, settings, own);
-      const result = await runGeneration(projectId, prepared, settings, own);
+      const result = await runGeneration(
+        projectId,
+        jobId,
+        prepared,
+        settings,
+        own,
+      );
       finishJob(projectId, jobId, "succeeded", "已生成资产图");
       return {
         viewId,
@@ -387,6 +408,7 @@ export async function generateAssetViewImage(
     }
   })().finally(() => {
     inflightView.delete(viewId);
+    stopHeartbeat();
     if (!ctx) own.done();
   });
   inflightView.set(viewId, job);

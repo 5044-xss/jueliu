@@ -17,6 +17,7 @@ import {
   CONNECTION_PRESETS,
   maskApiKeyValue,
   maskProviderSettings,
+  normalizeBindings,
   presetOf,
   providerSettingsSchema,
   resolveEndpoint,
@@ -52,7 +53,13 @@ function readStored(): ProviderSettings | null {
 /** 读取服务商与能力路由；从未保存过时从旧的 llm/generation 配置迁移。 */
 export function getProviderSettings(): ProviderSettings {
   const stored = readStored();
-  if (stored) return stored;
+  if (stored) {
+    const normalized = normalizeBindings(stored);
+    if (normalized !== stored) {
+      writeSettingsSection<ProviderSettings>(PROVIDERS_SECTION, normalized);
+    }
+    return normalized;
+  }
   const migrated = migrateLegacySettings();
   writeSettingsSection<ProviderSettings>(PROVIDERS_SECTION, migrated);
   return migrated;
@@ -326,11 +333,12 @@ export function saveProviderSettings(
   } = {},
 ): ProviderSettings {
   const current = getProviderSettings();
-  const merged = providerSettingsSchema.parse({
+  const parsed = providerSettingsSchema.parse({
     ...input,
     version: SECTION_VERSION,
     connections: mergeSecrets(input.connections, current.connections),
   });
+  const merged = normalizeBindings(parsed);
   writeSettingsSection<ProviderSettings>(PROVIDERS_SECTION, merged);
   materialize(merged, opts);
   return merged;

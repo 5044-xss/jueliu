@@ -40,6 +40,9 @@ export function StoryboardHeader({
   busyGenerate,
   cloudRunning,
   batchBusy,
+  generatingSegmentLabel,
+  generatingProgress,
+  generatingProgressCurrent,
   onGenerateStoryboard,
   onGenerateVideos,
   onCancelVideos,
@@ -60,6 +63,10 @@ export function StoryboardHeader({
   busyGenerate: boolean;
   cloudRunning: boolean;
   batchBusy: "videos" | "start-frames" | null;
+  /** 正在出视频的段（不需要点选就能看到是哪一段）。 */
+  generatingSegmentLabel: string | null;
+  generatingProgress: number | null;
+  generatingProgressCurrent: number | null;
   onGenerateStoryboard: () => void;
   onGenerateVideos: () => void;
   onCancelVideos: () => void;
@@ -88,6 +95,38 @@ export function StoryboardHeader({
               }`
             : "按剧本生成分镜，再用一键生成视频。厂商与预设默认已选好。"}
         </p>
+        {generatingSegmentLabel && (
+          <div className="mt-2 flex max-w-xl flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-border/60 bg-background/60 px-2.5 py-1.5">
+            <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium">
+              <Loader2 className="size-3 animate-spin text-muted-foreground" />
+              {generatingSegmentLabel}
+            </span>
+            <span className="relative h-1.5 min-w-24 flex-1 overflow-hidden rounded-full bg-muted">
+              {typeof generatingProgressCurrent === "number" && (
+                <span
+                  className="absolute inset-y-0 left-0 rounded-full bg-primary/35 transition-all"
+                  style={{ width: `${generatingProgressCurrent}%` }}
+                />
+              )}
+              {typeof generatingProgress === "number" ? (
+                <span
+                  className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all"
+                  style={{ width: `${generatingProgress}%` }}
+                />
+              ) : (
+                <span className="absolute inset-y-0 left-0 w-1/3 animate-pulse rounded-full bg-primary/60" />
+              )}
+            </span>
+            <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+              {typeof generatingProgress === "number"
+                ? `总 ${generatingProgress}%`
+                : "生成中"}
+              {typeof generatingProgressCurrent === "number"
+                ? ` · 节点 ${generatingProgressCurrent}%`
+                : ""}
+            </span>
+          </div>
+        )}
         {hasStoryboard && !isH3 && (
           <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
             云端视频生成仅适配 MiniMax H3；当前厂商请手动回传视频。

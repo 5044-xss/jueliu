@@ -48,12 +48,13 @@ export function RoutingPanel({
             (conn) => conn.id === binding.connectionId,
           );
           const suggestions = selected ? modelsOf(selected, cap) : [];
-          const modelOptions = [
-            ...new Set([
-              ...suggestions,
-              ...(binding.model ? [binding.model] : []),
-            ]),
-          ];
+          // 只展示该能力下的模型；仅在服务商没有可用模型时保留已保存值。
+          const modelOptions =
+            suggestions.length > 0
+              ? suggestions
+              : binding.model
+                ? [binding.model]
+                : [];
           const options = settings.connections
             .filter((conn) => presetOf(conn.type, cap)?.implemented)
             .map((conn) => ({ value: conn.id, label: conn.name }));
@@ -119,7 +120,7 @@ export function RoutingPanel({
       <p className="text-xs text-muted-foreground">
         {usable.length === 0
           ? "先在「服务商」里添加一个连接，这里会自动选好。"
-          : "默认已自动选好；想换服务商或模型时再改。其余参数在「高级」里。"}
+          : "默认已自动选好；想换服务商或模型时再改。其余参数在「服务商」页的「生成参数」里。"}
       </p>
     </div>
   );

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { FormData } from "undici";
@@ -510,6 +511,12 @@ export interface ComfyUploadResult {
   type: string;
 }
 
+/** 与 ComfyUI 前端一致的双进度：总进度 + 当前节点步进。 */
+export interface ComfyProgress {
+  total: number;
+  current: number | null;
+}
+
 export interface ComfyHistoryItem {
   status?: { status_str?: string; completed?: boolean; messages?: unknown[] };
   outputs?: Record<string, Record<string, unknown>>;
@@ -537,6 +544,12 @@ export async function isComfyUiStat(raw: string): Promise<boolean> {
 export class ComfyClient {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
+  /**
+   * 提交与 WebSocket 必须共用同一个 client_id：
+   * ComfyUI 只把 executing/progress/executed 推给提交方，若提交不带
+   * client_id（None），这些事件不会广播，进度条就只剩 progress_state 可依赖。
+   */
+  private readonly clientId = randomUUID();
   private objectInfoCache: ObjectInfo | null = null;
   private conformed = false;
 
@@ -598,7 +611,7 @@ export class ComfyClient {
   }
 
   private async postPrompt(wf: ComfyWorkflow, objectInfo: ObjectInfo | null, depth: number): Promise<string> {
-    const res = await this.request("/prompt", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: wf }) }, 120_000);
+    const res = await this.request("/prompt", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: wf, client_id: this.clientId }) }, 120_000);
     if (res.status === 400) {
       const raw = await res.text();
       const healed = objectInfo ? healWorkflowFileInputs(wf, raw) : null;
@@ -623,6 +636,141 @@ export class ComfyClient {
     if (res.status === 404) return {};
     if (!res.ok) throw new Error(`查询 ComfyUI history 失败（HTTP ${res.status}）`);
     return (await res.json()) as ComfyHistory;
+  }
+
+  /**
+   * 监听 ComfyUI 的实时执行进度（WebSocket）。实例不支持或环境缺少
+   * WebSocket 时静默降级，不影响原有轮询流程。
+   *
+   * 进度口径与 ComfyUI 前端一致：
+   * - total = 已完成节点数 / 本次工作流节点总数（对应云端「总进度」）；
+   * - current = 正在执行节点的 value/max（对应云端「当前节点」步进）。
+   */
+  watchProgress(
+    promptId: string,
+    opts: { totalNodes: number },
+    onProgress: (progress: ComfyProgress) => void,
+  ): { close: () => void } {
+    const WebSocketCtor = globalThis.WebSocket;
+    if (typeof WebSocketCtor !== "function") return { close: () => {} };
+    const totalNodes = Math.max(1, Math.floor(opts.totalNodes) || 1);
+    const finished = new Set<string>();
+    let current: number | null = null;
+    let done = false;
+    let lastTotal = -1;
+    let lastCurrent: number | null = null;
+    const emit = (force = false) => {
+      if (done) return;
+      // 收尾前最多 99%，成功后由 execution_success 推到 100。
+      const total = Math.min(
+        99,
+        Math.round((finished.size / totalNodes) * 100),
+      );
+      if (!force && total === lastTotal && current === lastCurrent) return;
+      lastTotal = total;
+      lastCurrent = current;
+      onProgress({ total, current });
+    };
+    let closed = false;
+    let socket: WebSocket | null = null;
+    try {
+      const wsUrl = `${this.baseUrl.replace(/^http/i, "ws").replace(/\/+$/, "")}/ws?clientId=${this.clientId}`;
+      socket = new WebSocketCtor(wsUrl);
+      socket.onmessage = (event) => {
+        if (typeof event.data !== "string") return;
+        let message: {
+          type?: string;
+          data?: {
+            prompt_id?: string;
+            value?: number;
+            max?: number;
+            node?: string | null;
+            nodes?:
+              | string[]
+              | Record<
+                  string,
+                  { state?: string; value?: number; max?: number }
+                >;
+          };
+        };
+        try {
+          message = JSON.parse(event.data) as typeof message;
+        } catch {
+          return;
+        }
+        const data = message.data;
+        if (!data || data.prompt_id !== promptId) return;
+        const percent = (value?: number, max?: number) =>
+          typeof value === "number" && typeof max === "number" && max > 0
+            ? Math.max(0, Math.min(100, Math.round((value / max) * 100)))
+            : null;
+
+        switch (message.type) {
+          case "execution_start":
+            finished.clear();
+            current = 0;
+            emit(true);
+            break;
+          case "execution_cached":
+            if (Array.isArray(data.nodes)) {
+              for (const node of data.nodes) {
+                if (typeof node === "string") finished.add(node);
+              }
+              emit();
+            }
+            break;
+          case "executing":
+            // 新节点开始：当前节点进度归零。
+            current = 0;
+            emit();
+            break;
+          case "executed":
+            if (typeof data.node === "string") {
+              finished.add(data.node);
+              emit();
+            }
+            break;
+          case "progress": {
+            const value = percent(data.value, data.max);
+            if (value !== null) {
+              current = value;
+              emit();
+            }
+            break;
+          }
+          case "progress_state":
+            if (data.nodes && !Array.isArray(data.nodes)) {
+              for (const [nodeId, state] of Object.entries(data.nodes)) {
+                if (state?.state === "finished" || state?.state === "error") {
+                  finished.add(nodeId);
+                } else if (state?.state === "running") {
+                  const value = percent(state.value, state.max);
+                  if (value !== null) current = value;
+                }
+              }
+              emit();
+            }
+            break;
+          case "execution_success":
+            done = true;
+            onProgress({ total: 100, current });
+            break;
+        }
+      };
+    } catch {
+      return { close: () => {} };
+    }
+    return {
+      close: () => {
+        if (closed) return;
+        closed = true;
+        try {
+          socket?.close();
+        } catch {
+          // 忽略关闭失败
+        }
+      },
+    };
   }
 
   async interrupt(): Promise<void> {

@@ -19,6 +19,13 @@ export const CAPABILITY_DESCRIPTIONS: Record<Capability, string> = {
   video: "分镜片段生成",
 };
 
+/** 模型分组标题：让用户在添加服务商时一眼分清模型用途。 */
+export const CAPABILITY_MODEL_LABELS: Record<Capability, string> = {
+  llm: "大语言模型",
+  image: "图片模型",
+  video: "视频模型",
+};
+
 export const CONNECTION_TYPES = [
   "aliyun",
   "doubao",
@@ -261,15 +268,101 @@ export function capabilitiesOf(type: ConnectionType): Capability[] {
   return CAPABILITIES.filter((cap) => Boolean(preset.capabilities[cap]));
 }
 
-/** 连接可选的模型：优先用用户填写的列表，否则回退到类型预设。 */
+function normalizeModels(list: string[] | undefined): string[] {
+  return [...new Set((list ?? []).map((model) => model.trim()).filter(Boolean))];
+}
+
+const IMAGE_MODEL_HINT = /image|imagen|dall-?e|seedream|flux|midjourney|t2i/i;
+const VIDEO_MODEL_HINT =
+  /seedance|sora|veo\d|kling|wan2(?:\.\d+)?-(?:t2v|i2v)|hailuo|video|t2v|i2v/i;
+const CHAT_MODEL_HINT =
+  /gpt|claude|deepseek|gemini|qwen|glm|kimi|llama|mistral|grok|doubao|longcat|mimo|step|minimax|hy\d|beam/i;
+
+/** 判断一个模型名更像哪项能力的模型；预设命中优先，其次按名称特征推断。 */
+export function capabilityOfModel(
+  type: ConnectionType,
+  model: string,
+  caps: Capability[] = capabilitiesOf(type),
+): Capability | undefined {
+  const presetMatches = caps.filter((cap) =>
+    (presetOf(type, cap)?.models ?? []).includes(model),
+  );
+  if (presetMatches.length === 1) return presetMatches[0];
+  if (VIDEO_MODEL_HINT.test(model) && caps.includes("video")) return "video";
+  if (IMAGE_MODEL_HINT.test(model) && caps.includes("image")) return "image";
+  if (CHAT_MODEL_HINT.test(model) && caps.includes("llm")) return "llm";
+  if (caps.includes("llm")) return "llm";
+  return caps[0];
+}
+
+/** 把旧的扁平模型列表按能力拆开，用于兼容历史设置。 */
+export function splitModelsByCapability(
+  type: ConnectionType,
+  models: string[] | undefined,
+): Partial<Record<Capability, string[]>> {
+  const caps = capabilitiesOf(type);
+  const result: Partial<Record<Capability, string[]>> = {};
+  for (const cap of caps) result[cap] = [];
+  for (const model of normalizeModels(models)) {
+    const cap = capabilityOfModel(type, model, caps);
+    if (!cap) continue;
+    result[cap] = [...(result[cap] ?? []), model];
+  }
+  return result;
+}
+
+/** 某类型各能力的预设模型。 */
+export function presetModelsByCapability(
+  type: ConnectionType,
+): Partial<Record<Capability, string[]>> {
+  const result: Partial<Record<Capability, string[]>> = {};
+  for (const cap of capabilitiesOf(type)) {
+    result[cap] = [...(presetOf(type, cap)?.models ?? [])];
+  }
+  return result;
+}
+
+/**
+ * 连接按能力分组的模型列表。
+ * 新连接直接读取分组字段；历史连接则把扁平列表按能力拆开。
+ * 分组为空时回退到该能力的预设模型。
+ */
+export function modelsByCapabilityOf(
+  conn: Pick<ProviderConnection, "type" | "models" | "modelsByCapability">,
+): Partial<Record<Capability, string[]>> {
+  const caps = capabilitiesOf(conn.type);
+  const explicit = conn.modelsByCapability ?? {};
+  const legacy = splitModelsByCapability(conn.type, conn.models);
+  const result: Partial<Record<Capability, string[]>> = {};
+  for (const cap of caps) {
+    const scoped = normalizeModels(explicit[cap]);
+    const fallback = Object.prototype.hasOwnProperty.call(explicit, cap)
+      ? []
+      : normalizeModels(legacy[cap]);
+    const list = scoped.length > 0 ? scoped : fallback;
+    result[cap] = list.length > 0 ? list : [...(presetOf(conn.type, cap)?.models ?? [])];
+  }
+  return result;
+}
+
+/** 连接在某项能力下可选的模型；不会混入其它能力的模型。 */
 export function modelsOf(
-  conn: Pick<ProviderConnection, "type" | "models"> | undefined,
+  conn: Pick<ProviderConnection, "type" | "models" | "modelsByCapability"> | undefined,
   cap: Capability,
 ): string[] {
   if (!conn) return [];
-  const custom = (conn.models ?? []).map((model) => model.trim()).filter(Boolean);
-  if (custom.length > 0) return custom;
-  return presetOf(conn.type, cap)?.models ?? [];
+  const explicit = conn.modelsByCapability ?? {};
+  if (Object.prototype.hasOwnProperty.call(explicit, cap)) {
+    const scoped = normalizeModels(explicit[cap]);
+    return scoped.length > 0
+      ? scoped
+      : [...(presetOf(conn.type, cap)?.models ?? [])];
+  }
+  const legacy = normalizeModels(conn.models).filter(
+    (model) => capabilityOfModel(conn.type, model) === cap,
+  );
+  if (legacy.length > 0) return legacy;
+  return [...(presetOf(conn.type, cap)?.models ?? [])];
 }
 
 /** 某类型预设里所有能力的模型建议，去重后用于新建连接时预填。 */
@@ -282,34 +375,12 @@ export function presetModelsOf(type: ConnectionType): string[] {
 
 /** 能力切换服务商时的默认模型：优先该能力的预设模型，否则用列表第一个。 */
 export function defaultModelOf(
-  conn: Pick<ProviderConnection, "type" | "models">,
+  conn: Pick<ProviderConnection, "type" | "models" | "modelsByCapability">,
   cap: Capability,
 ): string {
   const options = modelsOf(conn, cap);
   const preset = presetOf(conn.type, cap)?.models ?? [];
-  const matched = options.find((model) => preset.includes(model));
-  if (matched) return matched;
-  // 用户手填的模型列表可能跨能力混排（例如图片模型排在前面），
-  // 默认模型应避开明确属于其它能力的模型。
-  const otherPresetModels = new Set(
-    capabilitiesOf(conn.type)
-      .filter((item) => item !== cap)
-      .flatMap((item) => presetOf(conn.type, item)?.models ?? []),
-  );
-  const candidates = options.filter((model) => !otherPresetModels.has(model));
-  const imageHint = /image|imagen|dall-?e|seedream|flux|midjourney/i;
-  const videoHint =
-    /seedance|sora|veo\d|kling|wan2|hailuo|video|t2v|i2v/i;
-  const chatHint = /gpt|claude|deepseek|gemini|qwen|glm|kimi|llama|mistral|grok|doubao/i;
-  const byCapability =
-    cap === "image"
-      ? candidates.find((model) => imageHint.test(model))
-      : cap === "video"
-        ? candidates.find(
-            (model) => videoHint.test(model) && !imageHint.test(model),
-          )
-        : candidates.find((model) => chatHint.test(model));
-  return byCapability ?? candidates[0] ?? options[0] ?? "";
+  return options.find((model) => preset.includes(model)) ?? options[0] ?? "";
 }
 
 export function presetOf(
@@ -339,8 +410,15 @@ export const connectionSchema = z.object({
   type: z.enum(CONNECTION_TYPES),
   name: z.string().min(1).max(80),
   apiKey: z.string().default(""),
-  /** 用户手动维护的模型列表；能力绑定从这里选择模型。 */
+  /** 旧的扁平模型列表；仅作兼容，保存时写入各能力模型的并集。 */
   models: z.array(z.string().trim().min(1).max(120)).default([]),
+  /** 按能力分组的模型列表；能力页只显示对应能力的模型。 */
+  modelsByCapability: z
+    .partialRecord(
+      z.enum(CAPABILITIES),
+      z.array(z.string().trim().min(1).max(120)),
+    )
+    .default({}),
   /** 能力级端点覆盖；缺省时用类型预设。 */
   baseUrls: z.record(z.string(), z.string()).default({}),
   imageConcurrency: z.number().int().min(1).max(8).default(2),
@@ -443,6 +521,26 @@ export function connectionLabel(conn: ProviderConnection | undefined): string {
 }
 
 export const DEFAULT_BINDING: CapabilityBinding = capabilityBindingSchema.parse({});
+
+/** 绑定模型必须属于对应能力；失效时回退到该能力的默认模型。 */
+export function normalizeBindings(settings: ProviderSettings): ProviderSettings {
+  const bindings: CapabilityBindings = { ...settings.bindings };
+  let changed = false;
+  for (const cap of CAPABILITIES) {
+    const binding = bindings[cap];
+    if (!binding) continue;
+    const conn = settings.connections.find(
+      (item) => item.id === binding.connectionId,
+    );
+    if (!conn) continue;
+    const options = modelsOf(conn, cap);
+    if (options.length > 0 && !options.includes(binding.model)) {
+      bindings[cap] = { ...binding, model: defaultModelOf(conn, cap) };
+      changed = true;
+    }
+  }
+  return changed ? { ...settings, bindings } : settings;
+}
 
 /** 新连接加入后，把还没有可用路由的能力自动指向它。 */
 export function withAutoBindings(

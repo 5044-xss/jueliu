@@ -52,8 +52,8 @@ function toGenerationView(raw: Partial<GenerationView> | null | undefined): Gene
 
 function resolveTab(hash: string): string {
   const value = hash.replace(/^#/, "");
-  if (value === "llm") return "routing";
-  if (["providers", "routing", "advanced", "system"].includes(value)) return value;
+  if (value === "llm") return "providers";
+  if (["providers", "routing", "system"].includes(value)) return value;
   return "providers";
 }
 
@@ -65,7 +65,6 @@ function subscribeHash(callback: () => void) {
 export default function SettingsPage() {
   const [providers, setProviders] = useState<ProviderSettings | null>(null);
   const [generation, setGeneration] = useState<GenerationView | null>(null);
-  const [autoGenerateAiPrompt, setAutoGenerateAiPrompt] = useState(false);
   const [ffmpegPath, setFfmpegPath] = useState("");
   const [ffmpeg, setFfmpeg] = useState<FfmpegStatus | null>(null);
   const [testingFfmpeg, setTestingFfmpeg] = useState(false);
@@ -96,7 +95,6 @@ export default function SettingsPage() {
         const settingsData = await settingsRes.json();
         setProviders(providersData.settings);
         setGeneration(toGenerationView(providersData.generation));
-        setAutoGenerateAiPrompt(Boolean(providersData.autoGenerateAiPrompt));
         setFfmpegPath(settingsData.settings.ffmpeg.path ?? "");
         setFfmpeg(settingsData.ffmpeg ?? null);
       } catch (error) {
@@ -156,14 +154,12 @@ export default function SettingsPage() {
         body: JSON.stringify({
           settings: providers,
           generation: generationPatch,
-          autoGenerateAiPrompt,
         }),
       });
       if (!res.ok) throw new Error(await readError(res, "保存服务商设置失败"));
       const data = await res.json();
       setProviders(data.settings);
       setGeneration(toGenerationView(data.generation));
-      setAutoGenerateAiPrompt(Boolean(data.autoGenerateAiPrompt));
 
       const ffmpegRes = await fetch("/api/settings", {
         method: "PUT",
@@ -196,7 +192,7 @@ export default function SettingsPage() {
         eyebrow="Settings"
         accent="mint"
         title="设置"
-        description="填 API Key 即可，能力路由会自动选好。"
+        description="填 API Key 即可；模型与生成参数都按服务商配置，能力路由会自动选好。"
         actions={
           <>
             <Button
@@ -223,27 +219,21 @@ export default function SettingsPage() {
         <TabsList variant="line">
           <TabsTrigger value="providers">服务商</TabsTrigger>
           <TabsTrigger value="routing">能力</TabsTrigger>
-          <TabsTrigger value="advanced">高级</TabsTrigger>
           <TabsTrigger value="system">本机</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="providers">
+        <TabsContent value="providers" className="flex flex-col gap-4">
           <ProvidersPanel settings={providers} onChange={setProviders} />
-        </TabsContent>
-
-        <TabsContent value="routing">
-          <RoutingPanel settings={providers} onChange={setProviders} />
-        </TabsContent>
-
-        <TabsContent value="advanced">
           <AdvancedPanel
             settings={providers}
             onChange={setProviders}
             generation={generation}
             onGenerationChange={updateGeneration}
-            autoGenerateAiPrompt={autoGenerateAiPrompt}
-            onAutoGenerateChange={setAutoGenerateAiPrompt}
           />
+        </TabsContent>
+
+        <TabsContent value="routing">
+          <RoutingPanel settings={providers} onChange={setProviders} />
         </TabsContent>
 
         <TabsContent value="system">

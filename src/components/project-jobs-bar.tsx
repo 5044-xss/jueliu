@@ -51,6 +51,14 @@ export function ProjectJobsBar({ projectId }: { projectId: string }) {
           <Loader2 className="size-3.5 animate-spin" />
           {jobLabel(job.kind)}中…
           <Elapsed startedAt={job.startedAt} />
+          {typeof job.progress === "number" && (
+            <span className="text-muted-foreground">
+              {job.progress}%
+              {typeof job.progressCurrent === "number"
+                ? ` · 当前 ${job.progressCurrent}%`
+                : ""}
+            </span>
+          )}
           {CANCEL_ENDPOINT[job.kind] ? (
             <button
               type="button"

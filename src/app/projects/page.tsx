@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Search,
   Trash2,
 } from "lucide-react";
 import { EpisodePickerDialog } from "@/components/episode-picker-dialog";
@@ -32,10 +33,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SelectField } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
 import { CopyDialog } from "@/components/copy-dialog";
 import { useConfirm } from "@/components/confirm-dialog";
+import { ASPECT_OPTIONS, DEFAULT_ASPECT_RATIO } from "@/lib/aspect";
 import { readError } from "@/lib/http";
+import type { LibraryStyle } from "@core/shared/library/types";
 import type { SeriesWithCount } from "@core/shared/projects";
 
 export default function HomePage() {
@@ -46,12 +50,26 @@ export default function HomePage() {
     { mode: "create" | "rename"; id?: string; original?: string } | null
   >(null);
   const [nameDraft, setNameDraft] = useState("");
+  const [styles, setStyles] = useState<LibraryStyle[]>([]);
+  const [styleIdDraft, setStyleIdDraft] = useState("");
+  const [styleDraft, setStyleDraft] = useState("");
+  const [aspectDraft, setAspectDraft] = useState(DEFAULT_ASPECT_RATIO);
   const [saving, setSaving] = useState(false);
   const [copyTarget, setCopyTarget] = useState<SeriesWithCount | null>(null);
   const [copying, setCopying] = useState(false);
   const [episodePicker, setEpisodePicker] = useState<SeriesWithCount | null>(
     null,
   );
+  const [query, setQuery] = useState("");
+
+  const filteredSeries = useMemo(() => {
+    const list = series ?? [];
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return list;
+    return list.filter((item) =>
+      item.name.toLowerCase().includes(keyword),
+    );
+  }, [series, query]);
 
   const reload = useCallback(async () => {
     const res = await fetch("/api/projects");
@@ -80,8 +98,24 @@ export default function HomePage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/library/styles")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setStyles((data.styles ?? []) as LibraryStyle[]);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   function openCreate() {
     setNameDraft("");
+    setStyleIdDraft("");
+    setStyleDraft("");
+    setAspectDraft(DEFAULT_ASPECT_RATIO);
     setDialog({ mode: "create" });
   }
 
@@ -100,10 +134,25 @@ export default function HomePage() {
     setSaving(true);
     try {
       if (dialog.mode === "create") {
+        const chosen = styles.find((item) => item.id === styleIdDraft);
+        const customStyle = styleDraft.trim();
+        const stylePatch = chosen
+          ? {
+              styleId: chosen.id,
+              style: chosen.prompt,
+              videoStyle: chosen.videoStyle ?? "",
+            }
+          : customStyle
+            ? { styleId: null, style: customStyle }
+            : {};
         const res = await fetch("/api/projects", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name }),
+          body: JSON.stringify({
+            name,
+            aspectRatio: aspectDraft,
+            ...stylePatch,
+          }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || "创建失败");
@@ -224,75 +273,107 @@ export default function HomePage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto pr-3 pb-3">
-          <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {series.map((s) => (
-              <Card key={s.id} className="border border-border">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-1">
-                    <span className="truncate">{s.name}</span>
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      className="shrink-0 text-muted-foreground"
-                      aria-label="重命名"
-                      title="重命名"
-                      onClick={() => openRename(s)}
-                    >
-                      <Pencil className="size-3.5" />
-                    </Button>
-                  </CardTitle>
-                  <CardDescription>
-                    创建于 {new Date(s.createdAt).toLocaleString("zh-CN")}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full justify-between gap-2"
-                    disabled={s.episodes.length === 0}
-                    onClick={() => setEpisodePicker(s)}
-                  >
-                    <span className="truncate">
-                      {s.episodes.length > 0
-                        ? `选择分集 · 共 ${s.episodes.length} 集`
-                        : "暂无分集"}
-                    </span>
-                    <ChevronDown className="size-4 shrink-0 opacity-60" />
-                  </Button>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => router.push(`/projects/${s.id}`)}
-                    >
-                      <FolderOpen className="size-4" />
-                      打开
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => setCopyTarget(s)}
-                    >
-                      <Copy className="size-4" />
-                      复制
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="flex-1"
-                      onClick={() => remove(s)}
-                    >
-                      <Trash2 className="size-4" />
-                      删除
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <div className="relative w-full max-w-xs">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="搜索项目名称"
+                className="h-8 pl-8 text-sm"
+                aria-label="搜索项目名称"
+              />
+            </div>
+            <span className="text-xs text-muted-foreground">
+              共 {series.length} 个项目
+              {query.trim() ? ` · 匹配 ${filteredSeries.length} 个` : ""}
+            </span>
           </div>
+
+          {filteredSeries.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-1 rounded-2xl border bg-card py-14 text-center text-sm text-muted-foreground">
+              <p>没有匹配「{query.trim()}」的项目。</p>
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="text-xs underline underline-offset-4 hover:text-foreground"
+              >
+                清空搜索
+              </button>
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto pr-3 pb-3">
+              <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                {filteredSeries.map((s) => (
+                  <Card key={s.id} className="border border-border">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-1">
+                        <span className="truncate">{s.name}</span>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          className="shrink-0 text-muted-foreground"
+                          aria-label="重命名"
+                          title="重命名"
+                          onClick={() => openRename(s)}
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                      </CardTitle>
+                      <CardDescription>
+                        创建于 {new Date(s.createdAt).toLocaleString("zh-CN")}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full justify-between gap-2"
+                        disabled={s.episodes.length === 0}
+                        onClick={() => setEpisodePicker(s)}
+                      >
+                        <span className="truncate">
+                          {s.episodes.length > 0
+                            ? `选择分集 · 共 ${s.episodes.length} 集`
+                            : "暂无分集"}
+                        </span>
+                        <ChevronDown className="size-4 shrink-0 opacity-60" />
+                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => router.push(`/projects/${s.id}`)}
+                        >
+                          <FolderOpen className="size-4" />
+                          打开
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => setCopyTarget(s)}
+                        >
+                          <Copy className="size-4" />
+                          复制
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="flex-1"
+                          onClick={() => remove(s)}
+                        >
+                          <Trash2 className="size-4" />
+                          删除
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -307,7 +388,7 @@ export default function HomePage() {
           if (!open) setDialog(null);
         }}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
               {dialog?.mode === "rename" ? "重命名项目" : "新建项目"}
@@ -326,6 +407,51 @@ export default function HomePage() {
               autoFocus
             />
           </div>
+          {dialog?.mode === "create" && (
+            <>
+              <div className="grid gap-2">
+                <Label htmlFor="series-style">画面风格</Label>
+                <SelectField
+                  id="series-style"
+                  value={styleIdDraft}
+                  onChange={(value) => {
+                    setStyleIdDraft(value);
+                    const chosen = styles.find((item) => item.id === value);
+                    if (chosen) setStyleDraft("");
+                  }}
+                  options={[
+                    { value: "", label: "自定义" },
+                    ...styles.map((item) => ({
+                      value: item.id,
+                      label: item.name,
+                    })),
+                  ]}
+                />
+                {!styleIdDraft && (
+                  <Input
+                    value={styleDraft}
+                    onChange={(e) => setStyleDraft(e.target.value)}
+                    placeholder="自定义风格提示词（可留空）"
+                  />
+                )}
+                <p className="text-xs text-muted-foreground">
+                  新建子集时会默认沿用这里的风格与比例。
+                </p>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="series-aspect">画面比例</Label>
+                <SelectField
+                  id="series-aspect"
+                  value={aspectDraft}
+                  onChange={setAspectDraft}
+                  options={ASPECT_OPTIONS.map((ratio) => ({
+                    value: ratio,
+                    label: ratio,
+                  }))}
+                />
+              </div>
+            </>
+          )}
           <DialogFooter>
             <Button
               variant="outline"

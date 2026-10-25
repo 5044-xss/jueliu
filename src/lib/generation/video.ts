@@ -2,7 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { buildManifest } from "@core/server/render";
-import { startJob, finishJob, cancelRunningJobs } from "@core/server/jobs";
+import {
+  startJob,
+  finishJob,
+  cancelRunningJobs,
+  updateJobProgress,
+  updateJobTarget,
+  updateJobMessage,
+  startJobHeartbeat,
+} from "@core/server/jobs";
 import { getProject } from "@core/server/projects";
 import { getVendor } from "@core/server/library/vendors";
 import { getStoryboard } from "@core/server/storyboard";
@@ -55,10 +63,52 @@ export interface GenerateVideoResult extends SubmitVideoResult {
   videoPath: string;
 }
 
-function updateSegmentGen(projectId: string, segmentId: string, patch: { taskId?: string | null; status?: string | null }): void {
+/**
+ * 局部更新生成状态。只写传入的字段：进度回调很频繁，若每次都把未传字段
+ * 写成 null，会把 gen_task_id 清掉，导致取消时找不到云端 prompt。
+ */
+function updateSegmentGen(
+  projectId: string,
+  segmentId: string,
+  patch: {
+    taskId?: string | null;
+    status?: string | null;
+    progress?: number | null;
+    progressCurrent?: number | null;
+  },
+): void {
+  const sets: string[] = [];
+  const values: (string | number | null)[] = [];
+  if ("taskId" in patch) {
+    sets.push("gen_task_id = ?");
+    values.push(patch.taskId ?? null);
+  }
+  if ("status" in patch) {
+    sets.push("gen_status = ?");
+    values.push(patch.status ?? null);
+  }
+  if ("progress" in patch) {
+    sets.push("gen_progress = ?");
+    values.push(
+      patch.progress === null || patch.progress === undefined
+        ? null
+        : Math.round(patch.progress),
+    );
+  }
+  if ("progressCurrent" in patch) {
+    sets.push("gen_progress_current = ?");
+    values.push(
+      patch.progressCurrent === null || patch.progressCurrent === undefined
+        ? null
+        : Math.round(patch.progressCurrent),
+    );
+  }
+  if (sets.length === 0) return;
   try {
     const db = getProjectDb(projectId);
-    db.prepare("UPDATE segment SET gen_task_id = ?, gen_status = ?, updated_at = ? WHERE id = ?").run(patch.taskId ?? null, patch.status ?? null, nowIso(), segmentId);
+    db.prepare(
+      `UPDATE segment SET ${sets.join(", ")}, updated_at = ? WHERE id = ?`,
+    ).run(...values, nowIso(), segmentId);
   } catch {
     // 生成状态是附加信息，失败不影响主流程。
   }
@@ -70,7 +120,7 @@ function markSegmentsQueued(projectId: string, segmentIds: string[]): void {
     const db = getProjectDb(projectId);
     const now = nowIso();
     const update = db.prepare(
-      "UPDATE segment SET gen_task_id = NULL, gen_status = 'queued', updated_at = ? WHERE id = ?",
+      "UPDATE segment SET gen_task_id = NULL, gen_status = 'queued', gen_progress = 0, gen_progress_current = NULL, updated_at = ? WHERE id = ?",
     );
     const runAll = db.transaction((ids: string[]) => {
       for (const id of ids) update.run(now, id);
@@ -261,12 +311,21 @@ export async function submitSegmentVideo(projectId: string, segmentId: string): 
   assertH3Project(projectId);
   assertVideoGenerationConfigured();
   const settings = getGenerationSettings();
-  const jobId = startJob(projectId, JOB_KIND, { replaceRunning: false });
+  const jobId = startJob(projectId, JOB_KIND, {
+    replaceRunning: false,
+    targetId: segmentId,
+  });
+  const stopHeartbeat = startJobHeartbeat(projectId, jobId);
   try {
     const prep = await prepare(projectId, segmentId, settings);
     const promptId = await prep.client.queuePrompt(prep.workflow, prep.objectInfo);
     recordSnapshot(projectId, segmentId, jobId, prep);
-    updateSegmentGen(projectId, segmentId, { taskId: promptId, status: "queued" });
+    updateSegmentGen(projectId, segmentId, {
+      taskId: promptId,
+      status: "queued",
+      progress: 0,
+      progressCurrent: null,
+    });
     void runVideoJob(
       projectId,
       segmentId,
@@ -275,21 +334,37 @@ export async function submitSegmentVideo(projectId: string, segmentId: string): 
       prep.client,
       settings,
       prep.mediaSig,
+      Object.keys(prep.workflow).length,
     );
+    stopHeartbeat();
     return { jobId, promptId, mode: prep.mode, refCount: prep.refCount };
   } catch (error) {
     updateSegmentGen(projectId, segmentId, { status: "failed" });
     finishJob(projectId, jobId, "failed", (error as Error).message);
+    stopHeartbeat();
     throw error;
   }
 }
 
 /** 后台：轮询 history，下载产物并写入 segment.video_path。 */
-async function runVideoJob(projectId: string, segmentId: string, jobId: string, promptId: string, client: ComfyClient, settings: GenerationSettings, mediaSig: string): Promise<void> {
+async function runVideoJob(projectId: string, segmentId: string, jobId: string, promptId: string, client: ComfyClient, settings: GenerationSettings, mediaSig: string, totalNodes: number): Promise<void> {
   // 段状态被标成 cancelled，或任务条已不在 running（用户取消），都立即停止。
   const stopped = () =>
     segmentGenStatus(projectId, segmentId) === "cancelled" ||
     jobStatus(projectId, jobId) !== "running";
+  const watcher = client.watchProgress(
+    promptId,
+    { totalNodes },
+    ({ total, current }) => {
+      updateJobProgress(projectId, jobId, total, current);
+      updateSegmentGen(projectId, segmentId, {
+        progress: total,
+        progressCurrent: current,
+      });
+    },
+  );
+  const stopHeartbeat = startJobHeartbeat(projectId, jobId);
+  updateJobProgress(projectId, jobId, 0);
   try {
     const item = await waitForVideo(client, promptId, {
       intervalMs: 8_000,
@@ -331,6 +406,9 @@ async function runVideoJob(projectId: string, segmentId: string, jobId: string, 
     const cancelled = stopped();
     updateSegmentGen(projectId, segmentId, { taskId: promptId, status: cancelled ? "cancelled" : "failed" });
     finishJob(projectId, jobId, "failed", cancelled ? "已取消" : (error as Error).message);
+  } finally {
+    watcher.close();
+    stopHeartbeat();
   }
 }
 
@@ -424,12 +502,34 @@ async function finalizeAttempt(
 /** 同步版本：提交 → 轮询 → 落槽，供脚本 / 需要立即拿到结果的场景。 */
 export async function generateSegmentVideo(projectId: string, segmentId: string): Promise<GenerateVideoResult> {
   const settings = getGenerationSettings();
-  const jobId = startJob(projectId, JOB_KIND, { replaceRunning: false });
+  const jobId = startJob(projectId, JOB_KIND, {
+    replaceRunning: false,
+    targetId: segmentId,
+  });
+  const stopHeartbeat = startJobHeartbeat(projectId, jobId);
+  let watcher: { close: () => void } | null = null;
   try {
     const prep = await prepare(projectId, segmentId, settings);
     const promptId = await prep.client.queuePrompt(prep.workflow, prep.objectInfo);
+    watcher = prep.client.watchProgress(
+      promptId,
+      { totalNodes: Object.keys(prep.workflow).length },
+      ({ total, current }) => {
+        updateJobProgress(projectId, jobId, total, current);
+        updateSegmentGen(projectId, segmentId, {
+          progress: total,
+          progressCurrent: current,
+        });
+      },
+    );
+    updateJobProgress(projectId, jobId, 0);
     recordSnapshot(projectId, segmentId, jobId, prep);
-    updateSegmentGen(projectId, segmentId, { taskId: promptId, status: "queued" });
+    updateSegmentGen(projectId, segmentId, {
+      taskId: promptId,
+      status: "queued",
+      progress: 0,
+      progressCurrent: null,
+    });
     const stopped = () =>
       segmentGenStatus(projectId, segmentId) === "cancelled" ||
       jobStatus(projectId, jobId) !== "running";
@@ -483,6 +583,9 @@ export async function generateSegmentVideo(projectId: string, segmentId: string)
     });
     finishJob(projectId, jobId, "failed", cancelled ? "已取消" : (error as Error).message);
     throw error;
+  } finally {
+    watcher?.close();
+    stopHeartbeat();
   }
 }
 
@@ -602,8 +705,19 @@ export async function startSequentialVideoRun(
     projectId,
     targets.map((entry) => entry.segment.id),
   );
-  const jobId = startJob(projectId, BATCH_JOB_KIND);
-  void runSequentialJob(projectId, jobId, onlyMissing, entries, autoStartFrames);
+  const jobId = startJob(projectId, BATCH_JOB_KIND, {
+    targetId: targets[0]?.segment.id ?? null,
+  });
+  updateJobProgress(projectId, jobId, 0);
+  updateJobMessage(projectId, jobId, `准备生成 ${total} 段`);
+  void runSequentialJob(
+    projectId,
+    jobId,
+    onlyMissing,
+    entries,
+    autoStartFrames,
+    total,
+  );
   return { jobId, total };
 }
 
@@ -613,17 +727,26 @@ async function runSequentialJob(
   onlyMissing: boolean,
   entries: StoryboardEntry[],
   autoStartFrames: boolean,
+  total: number,
 ): Promise<void> {
   const settings = getGenerationSettings();
   const stopped = () => jobStatus(projectId, jobId) !== "running";
+  const stopHeartbeat = startJobHeartbeat(projectId, jobId);
 
+  try {
   let done = 0;
   let skipped = 0;
   let cancelledCount = 0;
   let failed = 0;
   let qcFailedCount = 0;
   let frameWarnings = 0;
+  let processed = 0;
   let firstError: string | null = null;
+  // 整批任务条与云端单次生成保持同一刻度：显示当前段的节点总进度，
+  // 段数信息放在 message 里，避免「整批 35% vs 云端 50%」两种刻度混用。
+  const advance = () => {
+    processed += 1;
+  };
 
   for (const entry of entries) {
     const segment = entry.segment;
@@ -634,6 +757,7 @@ async function runSequentialJob(
     // 用户单独取消了某段：跳过它，整批继续跑其余段落。
     if (segmentGenStatus(projectId, segment.id) === "cancelled") {
       cancelledCount += 1;
+      if (!onlyMissing || !segment.videoPath || segment.stale) advance();
       continue;
     }
     if (onlyMissing && segment.videoPath && !segment.stale) {
@@ -663,14 +787,39 @@ async function runSequentialJob(
         segmentCancelled = true;
         break;
       }
+      let watcher: { close: () => void } | null = null;
       try {
         const prep = await prepare(projectId, segment.id, settings);
         const promptId = await prep.client.queuePrompt(
           prep.workflow,
           prep.objectInfo,
         );
+        watcher = prep.client.watchProgress(
+          promptId,
+          { totalNodes: Object.keys(prep.workflow).length },
+          ({ total: nodePercent, current }) => {
+            // 段级进度 + 整批任务条都用云端口径：总进度 = 节点完成数/总节点。
+            updateSegmentGen(projectId, segment.id, {
+              progress: nodePercent,
+              progressCurrent: current,
+            });
+            updateJobProgress(projectId, jobId, nodePercent, current);
+          },
+        );
         recordSnapshot(projectId, segment.id, jobId, prep);
-        updateSegmentGen(projectId, segment.id, { taskId: promptId, status: "running" });
+        updateSegmentGen(projectId, segment.id, {
+          taskId: promptId,
+          status: "running",
+          progress: 0,
+          progressCurrent: null,
+        });
+        updateJobTarget(projectId, jobId, segment.id);
+        updateJobMessage(
+          projectId,
+          jobId,
+          `第 ${Math.min(total, processed + 1)}/${total} 段`,
+        );
+        updateJobProgress(projectId, jobId, 0);
         const item = await waitForVideo(prep.client, promptId, {
           intervalMs: 8_000,
           timeoutMs: settings.videoTimeoutMs,
@@ -722,10 +871,13 @@ async function runSequentialJob(
           updateSegmentGen(projectId, segment.id, { status: "retrying" });
           await new Promise((r) => setTimeout(r, 3_000));
         }
+      } finally {
+        watcher?.close();
       }
     }
     if (segmentCancelled) {
       cancelledCount += 1;
+      advance();
       continue;
     }
     if (lastError) {
@@ -733,6 +885,7 @@ async function runSequentialJob(
       failed += 1;
       if (!firstError) firstError = lastError.message;
     }
+    advance();
   }
 
   const summary = `顺序生成完成：成功 ${done} 段${
@@ -743,6 +896,9 @@ async function runSequentialJob(
     frameWarnings ? `，${frameWarnings} 段未补到首帧` : ""
   }${firstError ? `（首个错误：${firstError}）` : ""}`;
   finishJob(projectId, jobId, done > 0 ? "succeeded" : "failed", summary);
+  } finally {
+    stopHeartbeat();
+  }
 }
 
 /**

@@ -25,15 +25,11 @@ export function AdvancedPanel({
   onChange,
   generation,
   onGenerationChange,
-  autoGenerateAiPrompt,
-  onAutoGenerateChange,
 }: {
   settings: ProviderSettings;
   onChange: (next: ProviderSettings) => void;
   generation: GenerationView;
   onGenerationChange: (patch: Partial<GenerationView>) => void;
-  autoGenerateAiPrompt: boolean;
-  onAutoGenerateChange: (value: boolean) => void;
 }) {
   function bindingOf(cap: Capability): CapabilityBinding {
     return { ...DEFAULT_BINDING, ...(settings.bindings[cap] ?? {}) };
@@ -49,6 +45,9 @@ export function AdvancedPanel({
     });
   }
 
+  const llmConn = settings.connections.find(
+    (conn) => conn.id === bindingOf("llm").connectionId,
+  );
   const imageBinding = bindingOf("image");
   const imageConn = settings.connections.find(
     (conn) => conn.id === imageBinding.connectionId,
@@ -67,10 +66,23 @@ export function AdvancedPanel({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <details className="group max-w-3xl rounded-2xl bg-card p-5 ring-1 ring-foreground/[0.08]">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium">生成参数</span>
+          <span className="text-xs text-muted-foreground">
+            默认值已按能力路由选中的服务商配好；需要微调时再展开。
+          </span>
+        </div>
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+
+      <div className="mt-4 flex flex-col gap-4">
       <Card size="sm" className="max-w-2xl">
         <CardHeader>
-          <CardTitle>文本</CardTitle>
+          <CardTitle>
+            文本 · {llmConn?.name ?? "未选择服务商"}
+          </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:max-w-xs">
           <div className="grid gap-2">
@@ -86,21 +98,14 @@ export function AdvancedPanel({
               }
             />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={autoGenerateAiPrompt}
-              onChange={(e) => onAutoGenerateChange(e.target.checked)}
-              className="size-4 accent-primary"
-            />
-            打开「第三方生成」时自动生成翻译提示词
-          </label>
         </CardContent>
       </Card>
 
       <Card size="sm" className="max-w-2xl">
         <CardHeader>
-          <CardTitle>图片</CardTitle>
+          <CardTitle>
+            图片 · {imageConn?.name ?? "未选择服务商"}
+          </CardTitle>
           {!imageConn && (
             <CardDescription>尚未在「能力路由」里选择图片服务商。</CardDescription>
           )}
@@ -185,8 +190,14 @@ export function AdvancedPanel({
 
       <Card size="sm" className="max-w-2xl">
         <CardHeader>
-          <CardTitle>视频</CardTitle>
-          <CardDescription>自建 ComfyUI · MiniMax H3</CardDescription>
+          <CardTitle>
+            视频 · {videoConn?.name ?? "未选择服务商"}
+          </CardTitle>
+          <CardDescription>
+            {videoConn
+              ? "自建 ComfyUI · MiniMax H3"
+              : "尚未在「能力路由」里选择视频服务商。"}
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -336,6 +347,7 @@ export function AdvancedPanel({
           </details>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </details>
   );
 }

@@ -23,12 +23,20 @@ export function ProjectFormDialog({
   mode,
   projectId,
   seriesId,
+  defaults,
   onClose,
   onSaved,
 }: {
   mode: "create" | "edit";
   projectId?: string;
   seriesId?: string;
+  /** 新建子集时沿用项目级默认风格与比例。 */
+  defaults?: {
+    styleId?: string | null;
+    style?: string;
+    videoStyle?: string;
+    aspectRatio?: string;
+  };
   onClose: () => void;
   onSaved: (project: { id: string }) => void;
 }) {
@@ -36,10 +44,20 @@ export function ProjectFormDialog({
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
-  const [styleId, setStyleId] = useState("");
-  const [style, setStyle] = useState("");
-  const [videoStyle, setVideoStyle] = useState("");
-  const [aspectRatio, setAspectRatio] = useState(DEFAULT_ASPECT_RATIO);
+  const [styleId, setStyleId] = useState(
+    mode === "create" ? (defaults?.styleId ?? "") : "",
+  );
+  const [style, setStyle] = useState(
+    mode === "create" ? (defaults?.style ?? "") : "",
+  );
+  const [videoStyle, setVideoStyle] = useState(
+    mode === "create" ? (defaults?.videoStyle ?? "") : "",
+  );
+  const [aspectRatio, setAspectRatio] = useState(
+    mode === "create"
+      ? (defaults?.aspectRatio ?? DEFAULT_ASPECT_RATIO)
+      : DEFAULT_ASPECT_RATIO,
+  );
   // 打开时的原始风格，用于判断「本次是否真的改了风格」（风格是锁定字段）。
   const [loadedStyle, setLoadedStyle] = useState("");
   const [loadedStyleId, setLoadedStyleId] = useState<string | null>(null);

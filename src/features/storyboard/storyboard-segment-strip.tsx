@@ -137,7 +137,23 @@ export function StoryboardSegmentStrip({
                 {running && (
                   <span className="absolute inset-0 flex items-center justify-center gap-1 bg-black/40 text-[10px] text-white">
                     <Loader2 className="size-3 animate-spin" />
-                    生成中
+                    {typeof segment.genProgress === "number"
+                      ? `${segment.genProgress}%`
+                      : "生成中"}
+                  </span>
+                )}
+                {running && typeof segment.genProgress === "number" && (
+                  <span className="absolute inset-x-0 bottom-0 h-1 bg-black/40">
+                    {typeof segment.genProgressCurrent === "number" && (
+                      <span
+                        className="absolute inset-y-0 left-0 bg-white/50 transition-all"
+                        style={{ width: `${segment.genProgressCurrent}%` }}
+                      />
+                    )}
+                    <span
+                      className="absolute inset-y-0 left-0 bg-emerald-400 transition-all"
+                      style={{ width: `${segment.genProgress}%` }}
+                    />
                   </span>
                 )}
                 {queued && (

@@ -4,6 +4,10 @@ import { createSeries, listSeriesWithCounts } from "@core/server/projects";
 
 const createSchema = z.object({
   name: z.string().min(1, "项目名不能为空"),
+  style: z.string().optional(),
+  videoStyle: z.string().optional(),
+  styleId: z.string().nullable().optional(),
+  aspectRatio: z.string().optional(),
 });
 
 export async function GET() {
@@ -19,6 +23,7 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  const series = createSeries(parsed.data.name);
+  const { name, ...defaults } = parsed.data;
+  const series = createSeries(name, defaults);
   return NextResponse.json({ series }, { status: 201 });
 }
