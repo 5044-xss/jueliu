@@ -1,54 +1,24 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { BookOpen, Loader2, Save } from "lucide-react";
+import {
+  AlertCircle,
+  BookOpen,
+  Loader2,
+  RefreshCw,
+  Save,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { readError } from "@/lib/http";
 import type { FfmpegStatus } from "@core/shared/settings-shared";
-import type { GenerationOverrides, ProviderSettings } from "@/lib/settings/providers";
+import type { ProviderSettings } from "@/lib/settings/providers";
 import { ProvidersPanel } from "./providers-panel";
 import { RoutingPanel } from "./routing-panel";
-import { AdvancedPanel } from "./advanced-panel";
 import { SystemPanel } from "./system-panel";
-import type { GenerationView } from "./types";
-
-const DEFAULT_GENERATION: GenerationView = {
-  pollIntervalMs: 3000,
-  comfyVideoModel: "pruned",
-  videoSteps: 8,
-  videoResolution: "540p",
-  videoAspect: "",
-  sagePreset: "Nvidia-Sage",
-  sageMaxDurationSec: 12,
-  blocksToSwap: 50,
-  videoUpscaleModel: "",
-  videoOutHeight: 0,
-  videoSecondPass: false,
-};
-
-function toGenerationView(raw: Partial<GenerationView> | null | undefined): GenerationView {
-  return {
-    pollIntervalMs: raw?.pollIntervalMs ?? DEFAULT_GENERATION.pollIntervalMs,
-    comfyVideoModel:
-      raw?.comfyVideoModel === "int8" ? "int8" : "pruned",
-    videoSteps: raw?.videoSteps ?? DEFAULT_GENERATION.videoSteps,
-    videoResolution: raw?.videoResolution ?? DEFAULT_GENERATION.videoResolution,
-    videoAspect: raw?.videoAspect ?? DEFAULT_GENERATION.videoAspect,
-    sagePreset: raw?.sagePreset ?? DEFAULT_GENERATION.sagePreset,
-    sageMaxDurationSec:
-      raw?.sageMaxDurationSec ?? DEFAULT_GENERATION.sageMaxDurationSec,
-    blocksToSwap: raw?.blocksToSwap ?? DEFAULT_GENERATION.blocksToSwap,
-    videoUpscaleModel:
-      raw?.videoUpscaleModel ?? DEFAULT_GENERATION.videoUpscaleModel,
-    videoOutHeight: raw?.videoOutHeight ?? DEFAULT_GENERATION.videoOutHeight,
-    videoSecondPass:
-      raw?.videoSecondPass ?? DEFAULT_GENERATION.videoSecondPass,
-  };
-}
 
 function resolveTab(hash: string): string {
   const value = hash.replace(/^#/, "");
@@ -64,22 +34,38 @@ function subscribeHash(callback: () => void) {
 
 export default function SettingsPage() {
   const [providers, setProviders] = useState<ProviderSettings | null>(null);
-  const [generation, setGeneration] = useState<GenerationView | null>(null);
   const [ffmpegPath, setFfmpegPath] = useState("");
   const [ffmpeg, setFfmpeg] = useState<FfmpegStatus | null>(null);
   const [testingFfmpeg, setTestingFfmpeg] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [manualTab, setManualTab] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+  const [savedProviders, setSavedProviders] = useState("");
+  const [savedFfmpegPath, setSavedFfmpegPath] = useState("");
+  const providersRef = useRef<ProviderSettings | null>(null);
+  const ffmpegPathRef = useRef("");
+
+  useEffect(() => {
+    providersRef.current = providers;
+  }, [providers]);
+
+  useEffect(() => {
+    ffmpegPathRef.current = ffmpegPath;
+  }, [ffmpegPath]);
 
   const hash = useSyncExternalStore(
     subscribeHash,
     () => window.location.hash,
     () => "",
   );
-  const tab = manualTab || resolveTab(hash);
+  const tab = resolveTab(hash);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
+      setLoading(true);
+      setLoadError("");
       try {
         const [providersRes, settingsRes] = await Promise.all([
           fetch("/api/settings/providers"),
@@ -93,19 +79,24 @@ export default function SettingsPage() {
         }
         const providersData = await providersRes.json();
         const settingsData = await settingsRes.json();
+        if (cancelled) return;
+        const nextPath = settingsData.settings.ffmpeg.path ?? "";
         setProviders(providersData.settings);
-        setGeneration(toGenerationView(providersData.generation));
-        setFfmpegPath(settingsData.settings.ffmpeg.path ?? "");
+        setFfmpegPath(nextPath);
         setFfmpeg(settingsData.ffmpeg ?? null);
+        setSavedProviders(JSON.stringify(providersData.settings));
+        setSavedFfmpegPath(nextPath);
       } catch (error) {
-        toast.error((error as Error).message || "读取设置失败");
+        if (cancelled) return;
+        setLoadError((error as Error).message || "读取设置失败");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, []);
-
-  function updateGeneration(patch: Partial<GenerationView>) {
-    setGeneration((prev) => (prev ? { ...prev, ...patch } : prev));
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   async function testFfmpeg() {
     setTestingFfmpeg(true);
@@ -131,45 +122,52 @@ export default function SettingsPage() {
   }
 
   async function save() {
-    if (!providers || !generation) return;
+    if (!providers) return;
+    const submittedProviders = providers;
+    const submittedFfmpegPath = ffmpegPath;
+    const nextFfmpegPath = submittedFfmpegPath.trim();
+    const providersChanged =
+      JSON.stringify(submittedProviders) !== savedProviders;
+    const ffmpegChanged = nextFfmpegPath !== savedFfmpegPath;
+    if (!providersChanged && !ffmpegChanged) return;
+
     setSaving(true);
     try {
-      const generationPatch: GenerationOverrides = {
-        pollIntervalMs: generation.pollIntervalMs,
-        comfyVideoModel: generation.comfyVideoModel,
-        videoSteps: generation.videoSteps,
-        videoResolution: generation.videoResolution as GenerationOverrides["videoResolution"],
-        videoAspect: generation.videoAspect,
-        sagePreset: generation.sagePreset,
-        sageMaxDurationSec: generation.sageMaxDurationSec,
-        blocksToSwap: generation.blocksToSwap,
-        videoUpscaleModel: generation.videoUpscaleModel,
-        videoOutHeight: generation.videoOutHeight,
-        videoSecondPass: generation.videoSecondPass,
-      };
+      let nextProviders = submittedProviders;
+      if (providersChanged) {
+        const res = await fetch("/api/settings/providers", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ settings: submittedProviders }),
+        });
+        if (!res.ok) throw new Error(await readError(res, "保存服务商设置失败"));
+        const data = await res.json();
+        nextProviders = data.settings;
+        if (providersRef.current === submittedProviders) {
+          setProviders(nextProviders);
+        }
+      }
 
-      const res = await fetch("/api/settings/providers", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          settings: providers,
-          generation: generationPatch,
-        }),
-      });
-      if (!res.ok) throw new Error(await readError(res, "保存服务商设置失败"));
-      const data = await res.json();
-      setProviders(data.settings);
-      setGeneration(toGenerationView(data.generation));
+      let nextFfmpegPathSaved = savedFfmpegPath;
+      if (ffmpegChanged) {
+        const ffmpegRes = await fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ffmpeg: { path: nextFfmpegPath } }),
+        });
+        if (!ffmpegRes.ok) {
+          throw new Error(await readError(ffmpegRes, "保存 FFmpeg 设置失败"));
+        }
+        const ffmpegData = await ffmpegRes.json();
+        if (ffmpegData.ffmpeg) setFfmpeg(ffmpegData.ffmpeg);
+        if (ffmpegPathRef.current === submittedFfmpegPath) {
+          setFfmpegPath(nextFfmpegPath);
+        }
+        nextFfmpegPathSaved = nextFfmpegPath;
+      }
 
-      const ffmpegRes = await fetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ffmpeg: { path: ffmpegPath } }),
-      });
-      if (!ffmpegRes.ok) throw new Error(await readError(ffmpegRes, "保存 FFmpeg 设置失败"));
-      const ffmpegData = await ffmpegRes.json();
-      if (ffmpegData.ffmpeg) setFfmpeg(ffmpegData.ffmpeg);
-
+      setSavedProviders(JSON.stringify(nextProviders));
+      setSavedFfmpegPath(nextFfmpegPathSaved);
       toast.success("设置已保存");
     } catch (error) {
       toast.error((error as Error).message || "保存失败");
@@ -178,7 +176,31 @@ export default function SettingsPage() {
     }
   }
 
-  if (!providers || !generation) {
+  const providersDirty = providers
+    ? JSON.stringify(providers) !== savedProviders
+    : false;
+  const ffmpegDirty = ffmpegPath !== savedFfmpegPath;
+  const dirty = providersDirty || ffmpegDirty;
+
+  if (loadError) {
+    return (
+      <div className="flex max-w-xl flex-col items-start gap-4 rounded-2xl bg-card p-6 text-sm ring-1 ring-foreground/[0.08]">
+        <div className="flex items-center gap-2 text-destructive">
+          <AlertCircle className="size-4" />
+          {loadError}
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => setReloadKey((value) => value + 1)}
+        >
+          <RefreshCw className="size-4" />
+          重试
+        </Button>
+      </div>
+    );
+  }
+
+  if (loading || !providers) {
     return (
       <div className="flex items-center gap-2 text-muted-foreground">
         <Loader2 className="size-4 animate-spin" /> 加载中…
@@ -192,9 +214,12 @@ export default function SettingsPage() {
         eyebrow="Settings"
         accent="mint"
         title="设置"
-        description="填 API Key 即可；模型与生成参数都按服务商配置，能力路由会自动选好。"
+        description="服务商只管账号与连接；模型、模型参数在「模型路由」里按能力配置。"
         actions={
           <>
+            {dirty && (
+              <span className="text-xs text-muted-foreground">未保存</span>
+            )}
             <Button
               variant="outline"
               nativeButton={false}
@@ -203,7 +228,7 @@ export default function SettingsPage() {
               <BookOpen className="size-4" />
               使用说明
             </Button>
-            <Button onClick={save} disabled={saving}>
+            <Button onClick={save} disabled={saving || !dirty}>
               {saving ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
@@ -215,21 +240,20 @@ export default function SettingsPage() {
         }
       />
 
-      <Tabs value={tab} onValueChange={(value) => setManualTab(String(value))}>
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          window.location.hash = String(value);
+        }}
+      >
         <TabsList variant="line">
           <TabsTrigger value="providers">服务商</TabsTrigger>
-          <TabsTrigger value="routing">能力</TabsTrigger>
+          <TabsTrigger value="routing">模型路由</TabsTrigger>
           <TabsTrigger value="system">本机</TabsTrigger>
         </TabsList>
 
         <TabsContent value="providers" className="flex flex-col gap-4">
           <ProvidersPanel settings={providers} onChange={setProviders} />
-          <AdvancedPanel
-            settings={providers}
-            onChange={setProviders}
-            generation={generation}
-            onGenerationChange={updateGeneration}
-          />
         </TabsContent>
 
         <TabsContent value="routing">

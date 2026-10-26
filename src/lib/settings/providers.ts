@@ -1,4 +1,18 @@
 import { z } from "zod";
+import {
+  DEFAULT_VIDEO_PARAMS,
+  IMAGE_RESOLUTIONS,
+  videoParamsSchema,
+  type VideoParams,
+} from "./model-params";
+
+export {
+  DEFAULT_VIDEO_PARAMS,
+  IMAGE_RESOLUTIONS,
+  VIDEO_ASPECTS,
+  VIDEO_RESOLUTIONS,
+} from "./model-params";
+export type { ImageResolution, VideoParams } from "./model-params";
 
 // 服务商与能力路由：产品侧的设置模型。
 // 设计原则：连接（Connection）只存账号级信息，能力绑定（Binding）只决定“谁干什么”。
@@ -402,9 +416,6 @@ export function distinctBaseUrls(type: ConnectionType): string[] {
   return [...new Set(values)];
 }
 
-export const IMAGE_RESOLUTIONS = ["1k", "2k", "4k"] as const;
-export type ImageResolution = (typeof IMAGE_RESOLUTIONS)[number];
-
 export const connectionSchema = z.object({
   id: z.string().min(1),
   type: z.enum(CONNECTION_TYPES),
@@ -423,6 +434,7 @@ export const connectionSchema = z.object({
   baseUrls: z.record(z.string(), z.string()).default({}),
   imageConcurrency: z.number().int().min(1).max(8).default(2),
   videoConcurrency: z.number().int().min(1).max(4).default(1),
+  imagePollIntervalMs: z.number().int().min(500).max(60_000).default(3_000),
   imageTimeoutMs: z.number().int().min(10_000).max(3_600_000).default(600_000),
   videoTimeoutMs: z
     .number()
@@ -443,6 +455,8 @@ export const capabilityBindingSchema = z.object({
   // 图片
   imageResolution: z.enum(IMAGE_RESOLUTIONS).default("1k"),
   maxRefImages: z.number().int().min(0).max(14).default(14),
+  // 视频
+  video: videoParamsSchema.default(DEFAULT_VIDEO_PARAMS),
 });
 
 export type CapabilityBinding = z.infer<typeof capabilityBindingSchema>;
@@ -522,6 +536,27 @@ export function connectionLabel(conn: ProviderConnection | undefined): string {
 
 export const DEFAULT_BINDING: CapabilityBinding = capabilityBindingSchema.parse({});
 
+export function videoParamsOf(
+  binding: CapabilityBinding | undefined,
+): VideoParams {
+  return binding?.video ?? DEFAULT_VIDEO_PARAMS;
+}
+
+export function defaultParamsFor(
+  cap: Capability,
+): Partial<CapabilityBinding> {
+  if (cap === "llm") {
+    return { temperature: DEFAULT_BINDING.temperature };
+  }
+  if (cap === "image") {
+    return {
+      imageResolution: DEFAULT_BINDING.imageResolution,
+      maxRefImages: DEFAULT_BINDING.maxRefImages,
+    };
+  }
+  return { video: { ...DEFAULT_VIDEO_PARAMS } };
+}
+
 /** 绑定模型必须属于对应能力；失效时回退到该能力的默认模型。 */
 export function normalizeBindings(settings: ProviderSettings): ProviderSettings {
   const bindings: CapabilityBindings = { ...settings.bindings };
@@ -535,7 +570,11 @@ export function normalizeBindings(settings: ProviderSettings): ProviderSettings 
     if (!conn) continue;
     const options = modelsOf(conn, cap);
     if (options.length > 0 && !options.includes(binding.model)) {
-      bindings[cap] = { ...binding, model: defaultModelOf(conn, cap) };
+      bindings[cap] = {
+        ...binding,
+        ...defaultParamsFor(cap),
+        model: defaultModelOf(conn, cap),
+      };
       changed = true;
     }
   }
@@ -561,6 +600,7 @@ export function withAutoBindings(
     if (!usable) {
       bindings[cap] = {
         ...(current ?? DEFAULT_BINDING),
+        ...defaultParamsFor(cap),
         connectionId: conn.id,
         model: current?.model || defaultModelOf(conn, cap) || preset.models[0] || "",
       };
@@ -587,13 +627,14 @@ export function withoutConnection(
       bindings[cap] = replacement
         ? {
             ...binding,
+            ...defaultParamsFor(cap),
             connectionId: replacement.id,
             model:
               defaultModelOf(replacement, cap) ||
               presetOf(replacement.type, cap)?.models[0] ||
               binding.model,
           }
-        : { ...binding, connectionId: "" };
+        : { ...binding, ...defaultParamsFor(cap), connectionId: "" };
     }
     if (binding.fallbackConnectionId === id) {
       bindings[cap] = {

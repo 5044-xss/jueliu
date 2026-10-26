@@ -15,12 +15,14 @@ import {
   capabilityBindingSchema,
   connectionSchema,
   CONNECTION_PRESETS,
+  DEFAULT_VIDEO_PARAMS,
   maskApiKeyValue,
   maskProviderSettings,
   normalizeBindings,
   presetOf,
   providerSettingsSchema,
   resolveEndpoint,
+  videoParamsOf,
   type Capability,
   type CapabilityBinding,
   type CapabilityBindings,
@@ -28,10 +30,12 @@ import {
   type GenerationOverrides,
   type ProviderConnection,
   type ProviderSettings,
+  type VideoParams,
 } from "./providers";
 
 export const PROVIDERS_SECTION = "providers";
-const SECTION_VERSION = 1;
+const SECTION_VERSION = 2;
+const MIN_SUPPORTED_VERSION = 1;
 
 const DEFAULTS: ProviderSettings = providerSettingsSchema.parse({});
 
@@ -47,15 +51,53 @@ export function registerProviderSettings(): void {
 function readStored(): ProviderSettings | null {
   registerProviderSettings();
   const stored = readSettingsSection<ProviderSettings>(PROVIDERS_SECTION);
-  return stored && stored.version >= SECTION_VERSION ? stored : null;
+  return stored && stored.version >= MIN_SUPPORTED_VERSION ? stored : null;
+}
+
+function videoParamsFromGeneration(
+  gen: ReturnType<typeof getGenerationSettings>,
+): VideoParams {
+  return {
+    ...DEFAULT_VIDEO_PARAMS,
+    steps: gen.videoSteps,
+    resolution: gen.videoResolution,
+    aspect: gen.videoAspect,
+    sagePreset: gen.sagePreset,
+    sageMaxDurationSec: gen.sageMaxDurationSec,
+    blocksToSwap: gen.blocksToSwap,
+    secondPass: gen.videoSecondPass,
+  };
+}
+
+function migrateStoredSettings(stored: ProviderSettings): ProviderSettings {
+  if (stored.version >= SECTION_VERSION) return stored;
+  const gen = getGenerationSettings();
+  const connections = stored.connections.map((conn) => ({
+    ...conn,
+    imagePollIntervalMs: gen.pollIntervalMs,
+  }));
+  const bindings: CapabilityBindings = { ...stored.bindings };
+  if (bindings.video) {
+    bindings.video = {
+      ...bindings.video,
+      video: videoParamsFromGeneration(gen),
+    };
+  }
+  return {
+    ...stored,
+    version: SECTION_VERSION,
+    connections,
+    bindings,
+  };
 }
 
 /** 读取服务商与能力路由；从未保存过时从旧的 llm/generation 配置迁移。 */
 export function getProviderSettings(): ProviderSettings {
   const stored = readStored();
   if (stored) {
-    const normalized = normalizeBindings(stored);
-    if (normalized !== stored) {
+    const migrated = migrateStoredSettings(stored);
+    const normalized = normalizeBindings(migrated);
+    if (migrated !== stored || normalized !== migrated) {
       writeSettingsSection<ProviderSettings>(PROVIDERS_SECTION, normalized);
     }
     return normalized;
@@ -117,7 +159,10 @@ interface LegacySeed {
   limits?: Partial<
     Pick<
       ProviderConnection,
-      "imageConcurrency" | "imageTimeoutMs" | "videoTimeoutMs"
+      | "imageConcurrency"
+      | "imagePollIntervalMs"
+      | "imageTimeoutMs"
+      | "videoTimeoutMs"
     >
   >;
 }
@@ -151,6 +196,7 @@ function migrateLegacySettings(): ProviderSettings {
       },
       limits: {
         imageConcurrency: gen.imageConcurrency,
+        imagePollIntervalMs: gen.pollIntervalMs,
         imageTimeoutMs: gen.timeoutMs,
       },
     });
@@ -163,6 +209,7 @@ function migrateLegacySettings(): ProviderSettings {
       apiKey: "",
       endpoint: gen.comfyUrl,
       model: "minimax-h3",
+      binding: { video: videoParamsFromGeneration(gen) },
       limits: { videoTimeoutMs: gen.videoTimeoutMs },
     });
   }
@@ -302,6 +349,7 @@ function materialize(
     imagePreset?.protocol === "toapis-image"
       ? imagePreset.protocol
       : currentGen.imageProtocol;
+  const videoParams = videoParamsOf(settings.bindings.video);
   const genPatch: Partial<GenerationSettings> = {
     ...(opts.generation ?? {}),
     baseUrl: imageConn ? resolveEndpoint(imageConn, "image") : "",
@@ -311,9 +359,18 @@ function materialize(
     imageResolution: imageBinding?.imageResolution ?? currentGen.imageResolution,
     maxRefImages: imageBinding?.maxRefImages ?? currentGen.maxRefImages,
     imageConcurrency: imageConn?.imageConcurrency ?? currentGen.imageConcurrency,
+    pollIntervalMs:
+      imageConn?.imagePollIntervalMs ?? currentGen.pollIntervalMs,
     timeoutMs: imageConn?.imageTimeoutMs ?? currentGen.timeoutMs,
     comfyUrl: videoConn ? resolveEndpoint(videoConn, "video") : "",
     videoTimeoutMs: videoConn?.videoTimeoutMs ?? currentGen.videoTimeoutMs,
+    videoSteps: videoParams.steps,
+    videoResolution: videoParams.resolution,
+    videoAspect: videoParams.aspect,
+    sagePreset: videoParams.sagePreset,
+    sageMaxDurationSec: videoParams.sageMaxDurationSec,
+    blocksToSwap: videoParams.blocksToSwap,
+    videoSecondPass: videoParams.secondPass,
   };
 
   writeGlobalSettings({

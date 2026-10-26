@@ -5,16 +5,20 @@ import {
   writeSettingsSection,
   maskSectionSecrets,
 } from "@core/server/settings";
+import {
+  IMAGE_RESOLUTIONS,
+  VIDEO_RESOLUTIONS,
+} from "../settings/model-params";
 
 // 产品设置段：云端生成（当前走 Toapi 异步图像接口）。
 // core 只认自己注册的段，这里把 jueman 的生成配置单独归档进 settings.json 的 "generation" 键。
 
 export const GENERATION_SECTION = "generation";
 
-export const RESOLUTION_OPTIONS = ["1k", "2k", "4k"] as const;
+export const RESOLUTION_OPTIONS = IMAGE_RESOLUTIONS;
 
 /** 视频一采分辨率档位（按短边 P）。上限 768P = H3 原生上限（约 0.98MP）。 */
-export const VIDEO_RESOLUTION_OPTIONS = ["480p", "540p", "608p", "768p"] as const;
+export const VIDEO_RESOLUTION_OPTIONS = VIDEO_RESOLUTIONS;
 export type VideoResolution = (typeof VIDEO_RESOLUTION_OPTIONS)[number];
 
 /** 解析 P 档位字符串（如 "720p"）为**短边**像素。横屏短边=高，竖屏短边=宽。 */
@@ -153,7 +157,7 @@ export function getMaskedGenerationSettings(): GenerationSettings {
 export function assertImageGenerationConfigured(): void {
   const s = getGenerationSettings();
   if (!s.baseUrl.trim()) {
-    throw new Error("未配置图像接口地址（设置 → 服务商 → 能力路由）");
+    throw new Error("未配置图像接口地址（设置 → 服务商）");
   }
   if (!s.apiKey.trim()) {
     throw new Error("未配置图像 API Key（设置 → 服务商）");
@@ -164,7 +168,7 @@ export function assertImageGenerationConfigured(): void {
 export function assertVideoGenerationConfigured(): void {
   const s = getGenerationSettings();
   if (!s.comfyUrl.trim()) {
-    throw new Error("未配置 ComfyUI 实例地址（设置 → 生视频（自建 ComfyUI））");
+    throw new Error("未配置 ComfyUI 实例地址（设置 → 服务商）");
   }
 }
 

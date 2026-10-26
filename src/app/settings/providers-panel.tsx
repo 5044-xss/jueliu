@@ -1,10 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Pencil, Plus, Trash2, Zap } from "lucide-react";
+import { ChevronDown, Loader2, Pencil, Plus, Trash2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -55,6 +61,7 @@ function blankConnection(type: ConnectionType): ProviderConnection {
     baseUrls: {},
     imageConcurrency: 2,
     videoConcurrency: 1,
+    imagePollIntervalMs: 3_000,
     imageTimeoutMs: 600_000,
     videoTimeoutMs: 1_800_000,
   };
@@ -105,9 +112,26 @@ function ConnectionDialog({
       ? draft.baseUrls.video ?? ""
       : Object.values(draft.baseUrls)[0] ?? "",
   );
+  const [imageConcurrency, setImageConcurrency] = useState(
+    draft.imageConcurrency,
+  );
+  const [imageTimeoutMin, setImageTimeoutMin] = useState(
+    Math.max(1, Math.round(draft.imageTimeoutMs / 60_000)),
+  );
+  const [imagePollSec, setImagePollSec] = useState(
+    Math.max(1, Math.round(draft.imagePollIntervalMs / 1_000)),
+  );
+  const [videoTimeoutMin, setVideoTimeoutMin] = useState(
+    Math.max(1, Math.round(draft.videoTimeoutMs / 60_000)),
+  );
   const preset = CONNECTION_PRESETS[type];
   const showEndpoint = needsEndpoint(type);
   const caps = capabilitiesOf(type);
+  const implementedCaps = caps.filter(
+    (cap) => presetOf(type, cap)?.implemented,
+  );
+  const supportsImage = implementedCaps.includes("image");
+  const supportsVideo = implementedCaps.includes("video");
 
   function changeType(next: ConnectionType) {
     const previousPreset = presetModelsByCapability(type);
@@ -194,6 +218,19 @@ function ConnectionDialog({
       models,
       modelsByCapability: scopedModels,
       baseUrls,
+      imageConcurrency: Math.min(
+        8,
+        Math.max(1, Math.round(Number(imageConcurrency) || 1)),
+      ),
+      imageTimeoutMs:
+        Math.min(60, Math.max(1, Math.round(Number(imageTimeoutMin) || 1))) *
+        60_000,
+      imagePollIntervalMs:
+        Math.min(60, Math.max(1, Math.round(Number(imagePollSec) || 1))) *
+        1_000,
+      videoTimeoutMs:
+        Math.min(360, Math.max(1, Math.round(Number(videoTimeoutMin) || 1))) *
+        60_000,
     });
   }
 
@@ -204,7 +241,7 @@ function ConnectionDialog({
           <DialogTitle>{isNew ? "添加服务商" : "编辑连接"}</DialogTitle>
           <DialogDescription>
             {isNew
-              ? "填写 API Key 即可；模型按能力分开填写，能力页只显示对应模型。"
+              ? "填写 API Key 即可；模型按能力分开填写，模型路由页只显示对应模型。"
               : "留空表示保持已保存的 Key 不变；模型按能力分开填写。"}
           </DialogDescription>
         </DialogHeader>
@@ -221,6 +258,9 @@ function ConnectionDialog({
                   label: CONNECTION_PRESETS[value].label,
                 }))}
               />
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {preset.blurb}
+              </p>
             </div>
           )}
 
@@ -262,17 +302,91 @@ function ConnectionDialog({
             </div>
           )}
 
+          {(supportsImage || supportsVideo) && (
+            <details className="group rounded-xl border border-border bg-muted/20 px-3 py-2">
+              <summary className="flex cursor-pointer list-none select-none items-center justify-between text-sm [&::-webkit-details-marker]:hidden">
+                高级设置（并发 / 超时 / 轮询）
+                <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {supportsImage && (
+                  <>
+                    <div className="grid gap-1.5">
+                      <Label>图片并发</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={8}
+                        value={imageConcurrency}
+                        onChange={(e) =>
+                          setImageConcurrency(Number(e.target.value))
+                        }
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label>单张超时（分钟）</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={60}
+                        value={imageTimeoutMin}
+                        onChange={(e) =>
+                          setImageTimeoutMin(Number(e.target.value))
+                        }
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label>轮询间隔（秒）</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={60}
+                        value={imagePollSec}
+                        onChange={(e) => setImagePollSec(Number(e.target.value))}
+                      />
+                    </div>
+                  </>
+                )}
+                {supportsVideo && (
+                  <div className="grid gap-1.5">
+                    <Label>单段视频超时（分钟）</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={360}
+                      value={videoTimeoutMin}
+                      onChange={(e) =>
+                        setVideoTimeoutMin(Number(e.target.value))
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                这些参数属于连接本身，不随模型变化。
+              </p>
+            </details>
+          )}
+
           <div className="grid gap-3">
             {caps.map((cap) => {
               const group = modelGroups[cap] ?? [];
               const label = CAPABILITY_MODEL_LABELS[cap];
+              const implemented = Boolean(presetOf(type, cap)?.implemented);
               return (
                 <div
                   key={cap}
                   className="grid gap-1.5 rounded-xl border border-border p-3"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <Label>{label}</Label>
+                    <Label>
+                      {label}
+                      {!implemented && (
+                        <span className="text-xs font-normal text-muted-foreground">
+                          （暂未接入）
+                        </span>
+                      )}
+                    </Label>
                     <button
                       type="button"
                       onClick={() => fillPresetModels(cap)}
@@ -449,6 +563,14 @@ export function ProvidersPanel({
                     {configured ? "已配置" : "未配置"}
                   </Badge>
                 </div>
+                <CardDescription className="text-xs">
+                  {CONNECTION_PRESETS[conn.type].label}
+                  {" · "}
+                  {capabilitiesOf(conn.type)
+                    .filter((cap) => presetOf(conn.type, cap)?.implemented)
+                    .map((cap) => CAPABILITY_LABELS[cap])
+                    .join(" / ")}
+                </CardDescription>
               </CardHeader>
               <CardContent className="flex items-center justify-between gap-2">
                 <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">
