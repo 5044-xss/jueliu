@@ -1,20 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   ChevronDown,
   Copy,
+  Download,
   FolderOpen,
   Loader2,
   Pencil,
   Plus,
   Search,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { EpisodePickerDialog } from "@/components/episode-picker-dialog";
+import { ExportDialog, type ExportMode } from "@/components/export-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -42,6 +45,35 @@ import { readError } from "@/lib/http";
 import type { LibraryStyle } from "@core/shared/library/types";
 import type { SeriesWithCount } from "@core/shared/projects";
 
+interface SaveFileHandle {
+  createWritable: () => Promise<WritableStream<Uint8Array>>;
+}
+
+type SaveFilePicker = (options: {
+  suggestedName?: string;
+  types?: { description: string; accept: Record<string, string[]> }[];
+}) => Promise<SaveFileHandle>;
+
+function zipFileName(name: string): string {
+  const cleaned = name
+    .replace(/[\\/:*?"<>|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[. ]+$/g, "");
+  return `${(cleaned || "项目").slice(0, 60)}.zip`;
+}
+
+function saveBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 export default function HomePage() {
   const router = useRouter();
   const confirm = useConfirm();
@@ -57,6 +89,10 @@ export default function HomePage() {
   const [saving, setSaving] = useState(false);
   const [copyTarget, setCopyTarget] = useState<SeriesWithCount | null>(null);
   const [copying, setCopying] = useState(false);
+  const [exportTarget, setExportTarget] = useState<SeriesWithCount | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const [episodePicker, setEpisodePicker] = useState<SeriesWithCount | null>(
     null,
   );
@@ -224,6 +260,89 @@ export default function HomePage() {
     }
   }
 
+  async function doExport(mode: ExportMode) {
+    if (!exportTarget || exporting) return;
+    const target = exportTarget;
+    const fileName = zipFileName(target.name);
+    const picker = (
+      window as unknown as { showSaveFilePicker?: SaveFilePicker }
+    ).showSaveFilePicker;
+    let handle: SaveFileHandle | null = null;
+    if (picker) {
+      try {
+        handle = await picker({
+          suggestedName: fileName,
+          types: [
+            {
+              description: "Zip 压缩包",
+              accept: { "application/zip": [".zip"] },
+            },
+          ],
+        });
+      } catch (error) {
+        if ((error as DOMException)?.name !== "AbortError") {
+          toast.error((error as Error).message || "无法选择保存位置");
+        }
+        return;
+      }
+    }
+
+    setExportTarget(null);
+    setExporting(true);
+    const toastId = toast.loading(`正在打包「${target.name}」…`);
+    try {
+      const res = await fetch(
+        `/api/series/${target.id}/export?mode=${mode}`,
+        { cache: "no-store" },
+      );
+      if (!res.ok) throw new Error(await readError(res, "导出失败"));
+      if (handle && res.body) {
+        await res.body.pipeTo(await handle.createWritable());
+      } else {
+        saveBlob(await res.blob(), fileName);
+      }
+      toast.success(`「${target.name}」已导出`, { id: toastId });
+    } catch (error) {
+      toast.error((error as Error).message || "导出失败", { id: toastId });
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function importArchive(file: File) {
+    if (importing) return;
+    if (!file.name.toLowerCase().endsWith(".zip")) {
+      toast.error("请选择 zip 项目包");
+      return;
+    }
+    setImporting(true);
+    const toastId = toast.loading(`正在导入「${file.name}」…`);
+    try {
+      const res = await fetch("/api/projects/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/zip" },
+        body: file,
+      });
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+        series?: { id?: string; name?: string };
+      } | null;
+      if (!res.ok) throw new Error(data?.error || "导入失败");
+      toast.success(`已导入「${data?.series?.name ?? file.name}」`, {
+        id: toastId,
+      });
+      await reload();
+      if (data?.series?.id) {
+        router.push(`/projects/${data.series.id}`);
+      }
+    } catch (error) {
+      toast.error((error as Error).message || "导入失败", { id: toastId });
+    } finally {
+      setImporting(false);
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-6 pb-6">
       <PageHeader
@@ -231,11 +350,35 @@ export default function HomePage() {
         title="项目"
         description="一部剧对应一个项目，其下按集拆分为子集，本地存储于 workspace/。"
         actions={
-          <Button onClick={openCreate}>
-            <Plus className="size-4" />
-            新建项目
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => importInputRef.current?.click()}
+              disabled={importing}
+            >
+              {importing ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Upload className="size-4" />
+              )}
+              导入项目
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus className="size-4" />
+              新建项目
+            </Button>
+          </div>
         }
+      />
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".zip,application/zip"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void importArchive(file);
+        }}
       />
 
       {series === null ? (
@@ -258,6 +401,18 @@ export default function HomePage() {
                 render={<Link href="/settings#llm" />}
               >
                 去填写 API Key
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => importInputRef.current?.click()}
+                disabled={importing}
+              >
+                {importing ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Upload className="size-4" />
+                )}
+                导入项目
               </Button>
               <Button onClick={openCreate}>
                 <Plus className="size-4" />
@@ -310,6 +465,16 @@ export default function HomePage() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-1">
                         <span className="truncate">{s.name}</span>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          className="shrink-0 text-muted-foreground"
+                          aria-label="导出项目"
+                          title="导出项目"
+                          onClick={() => setExportTarget(s)}
+                        >
+                          <Download className="size-3.5" />
+                        </Button>
                         <Button
                           size="icon-sm"
                           variant="ghost"
@@ -491,6 +656,17 @@ export default function HomePage() {
           saving={copying}
           onClose={() => setCopyTarget(null)}
           onConfirm={doCopy}
+        />
+      )}
+
+      {exportTarget && (
+        <ExportDialog
+          seriesName={exportTarget.name}
+          busy={exporting}
+          onClose={() => {
+            if (!exporting) setExportTarget(null);
+          }}
+          onConfirm={doExport}
         />
       )}
     </div>
