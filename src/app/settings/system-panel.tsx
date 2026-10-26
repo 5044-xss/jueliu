@@ -29,7 +29,7 @@ import { OpenWorkspaceButton } from "@/components/workspace-actions";
 import type { FfmpegStatus } from "@core/shared/settings-shared";
 
 const FALLBACK_DOWNLOAD_URL =
-  "https://my.feishu.cn/drive/folder/BTNnfef6blmndfd4pUtcYySWnSf?from=from_copylink";
+  "https://my.feishu.cn/drive/folder/Z5rGf6KqMlpAgwdqwMBcNU0Aneb";
 
 const noopSubscribe = () => () => {};
 
