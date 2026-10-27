@@ -6,7 +6,7 @@ import { useConfirm } from "@/components/confirm-dialog";
 import type { VendorOption } from "@/components/vendor-switch-dialog";
 import { readError } from "@/lib/http";
 import { useProjectJobs, isJobRunning } from "@core/client/use-jobs";
-import type { LibraryStoryboardPreset } from "@core/shared/library/storyboard-presets";
+import type { LibraryStoryboardStrategy } from "@core/shared/library/storyboard-strategies";
 import type { PreflightIssue } from "@core/shared/preflight";
 import type { SegmentQcRecord } from "@core/shared/qc";
 import type { StoredAsset } from "@core/shared/schemas/assets";
@@ -78,8 +78,8 @@ export function useStoryboard(projectId: string) {
   const [reloadKey, setReloadKey] = useState(0);
   const [vendor, setVendor] = useState("h3");
   const [vendorOptions, setVendorOptions] = useState<VendorOption[]>([]);
-  const [presets, setPresets] = useState<LibraryStoryboardPreset[]>([]);
-  const [presetId, setPresetId] = useState("standard");
+  const [strategies, setStrategies] = useState<LibraryStoryboardStrategy[]>([]);
+  const [strategyId, setStrategyId] = useState("universal");
   const [extra, setExtra] = useState("");
   const [projectAspectRatio, setProjectAspectRatio] = useState("16:9");
   const [generating, setGenerating] = useState(false);
@@ -100,7 +100,7 @@ export function useStoryboard(projectId: string) {
   }
 
   const load = useCallback(async () => {
-    const [sb, script, assetsRes, projectRes, vendorsRes, presetsRes] =
+    const [sb, script, assetsRes, projectRes, vendorsRes, strategiesRes] =
       await Promise.all([
         getJson<{
           scenes?: StoredSceneStoryboard[];
@@ -119,17 +119,17 @@ export function useStoryboard(projectId: string) {
           project?: {
             vendor?: string;
             aspectRatio?: string;
-            storyboardPresetId?: string | null;
+            storyboardStrategyId?: string | null;
           };
         }>(`/api/projects/${projectId}`, "项目"),
         getJson<{ vendors?: VendorOption[] }>("/api/library/vendors", "厂商"),
-        getJson<{ presets?: LibraryStoryboardPreset[] }>(
-          "/api/library/storyboard-presets",
-          "分镜预设",
+        getJson<{ strategies?: LibraryStoryboardStrategy[] }>(
+          "/api/library/storyboard-strategies",
+          "分镜策略包",
         ),
       ]);
     const vendors = (vendorsRes.vendors ?? []) as VendorOption[];
-    const presetList = (presetsRes.presets ?? []) as LibraryStoryboardPreset[];
+    const strategyList = (strategiesRes.strategies ?? []) as LibraryStoryboardStrategy[];
     return {
       scenes: (sb.scenes ?? []) as StoredSceneStoryboard[],
       preflight: (sb.preflight ?? []) as PreflightIssue[],
@@ -142,11 +142,11 @@ export function useStoryboard(projectId: string) {
         "h3",
       aspectRatio: projectRes.project?.aspectRatio || "16:9",
       vendors,
-      presets: presetList,
-      presetId:
-        (projectRes.project?.storyboardPresetId as string | undefined) ||
-        presetList.find((item) => item.isDefault)?.id ||
-        "standard",
+      strategies: strategyList,
+      strategyId:
+        (projectRes.project?.storyboardStrategyId as string | undefined) ||
+        strategyList.find((item) => item.isDefault)?.id ||
+        "universal",
     };
   }, [projectId]);
 
@@ -164,8 +164,8 @@ export function useStoryboard(projectId: string) {
         setVendor(data.vendor);
         setProjectAspectRatio(data.aspectRatio);
         setVendorOptions(data.vendors);
-        setPresets(data.presets);
-        setPresetId(data.presetId);
+        setStrategies(data.strategies);
+        setStrategyId(data.strategyId);
         setLoaded(true);
       } catch (error) {
         if (!cancelled) {
@@ -185,8 +185,8 @@ export function useStoryboard(projectId: string) {
     setQcList(data.qc);
     setAssets(data.assets);
     setProjectAspectRatio(data.aspectRatio);
-    setPresets(data.presets);
-    setPresetId(data.presetId);
+    setStrategies(data.strategies);
+    setStrategyId(data.strategyId);
     setVendorOptions(data.vendors);
     setVendor(data.vendor);
     setFramesVersion((value) => value + 1);
@@ -354,7 +354,7 @@ export function useStoryboard(projectId: string) {
       const ok = await confirm({
         title: "重新生成分镜",
         description:
-          "将按当前厂商与预设重新拆镜、编排，并覆盖现有分镜与已回传视频。此操作不可恢复。",
+          "将按当前厂商与策略包重新拆镜、编排，并覆盖现有分镜与已回传视频。此操作不可恢复。",
         confirmText: "重新生成",
         destructive: true,
       });
@@ -368,7 +368,7 @@ export function useStoryboard(projectId: string) {
         body: JSON.stringify({
           skillId: "script-to-storyboard",
           projectId,
-          input: { extraInstructions: extra, presetId },
+          input: { extraInstructions: extra, strategyId },
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -377,15 +377,15 @@ export function useStoryboard(projectId: string) {
       const assembly = data?.assembly as
         | { outputShots?: number; totalDurationMs?: number }
         | undefined;
-      const presetName =
-        presets.find((item) => item.id === presetId)?.name ?? presetId;
+      const strategyName =
+        strategies.find((item) => item.id === strategyId)?.name ?? strategyId;
       const duration = assembly?.totalDurationMs
         ? ` · ${Math.round(assembly.totalDurationMs / 1000)}s`
         : "";
       toast.success(
         assembly?.outputShots
-          ? `分镜已生成：${presetName} · ${assembly.outputShots} 镜${duration}`
-          : `分镜已生成：${presetName}`,
+          ? `分镜已生成：${strategyName} · ${assembly.outputShots} 镜${duration}`
+          : `分镜已生成：${strategyName}`,
       );
       setPreviewId(null);
     } catch (error) {
@@ -561,7 +561,7 @@ export function useStoryboard(projectId: string) {
       const res = await fetch(`/api/projects/${projectId}/orchestrate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vendor: nextVendor, presetId }),
+        body: JSON.stringify({ vendor: nextVendor }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "编排失败");
@@ -604,7 +604,7 @@ export function useStoryboard(projectId: string) {
     const ok = await confirm({
       title: "重新编排",
       description:
-        "将按当前厂商与预设重新切分段落。已有视频会按段缓存，未变化的部分会尽量保留。",
+        "将按当前厂商重新切分段落。已有视频会按段缓存，未变化的部分会尽量保留。",
       confirmText: "重新编排",
     });
     if (!ok) return;
@@ -766,9 +766,9 @@ export function useStoryboard(projectId: string) {
     reloadKey,
     vendor,
     vendorOptions,
-    presets,
-    presetId,
-    setPresetId,
+    strategies,
+    strategyId,
+    setStrategyId,
     extra,
     setExtra,
     autoStartFrames,

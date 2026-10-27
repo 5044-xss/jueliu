@@ -7,8 +7,6 @@ import {
   planOrchestration,
   type OrchestrationPlan,
 } from "@core/server/orchestration/apply";
-import { applyStoryboardPreset } from "@core/server/orchestration/preset";
-import { resolveStoryboardPreset } from "@core/server/library/storyboard-presets";
 import {
   captureOrchestrationState,
   restoreOrchestrationState,
@@ -18,7 +16,6 @@ import { withLock } from "@core/server/lock";
 
 const bodySchema = z.object({
   vendor: z.string(),
-  presetId: z.string().optional(),
   dryRun: z.boolean().optional(),
   maxSegmentMs: z.number().int().min(4000).max(30000).optional(),
   maxShotsPerSegment: z.number().int().min(1).max(20).optional(),
@@ -105,13 +102,7 @@ export async function POST(request: Request, { params }: Ctx) {
         );
       }
       captureOrchestrationState(id, project.vendor);
-      const preset = resolveStoryboardPreset(
-        parsed.data.presetId ?? project.storyboardPresetId ?? undefined,
-      );
-      const result =
-        preset.preset.id === "standard"
-          ? applyOrchestration(id, parsed.data.vendor, options)
-          : applyStoryboardPreset(id, preset, parsed.data.vendor);
+      const result = applyOrchestration(id, parsed.data.vendor, options);
       const restored = restoreOrchestrationState(id, parsed.data.vendor);
       updateProject(id, { vendor: parsed.data.vendor });
       return NextResponse.json({ ok: true, ...result, restored });

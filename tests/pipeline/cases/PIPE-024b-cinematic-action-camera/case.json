@@ -1,0 +1,25 @@
+{
+  "id": "PIPE-024b",
+  "title": "action 混入摄影语言时给出提示",
+  "stage": "cinematic-audit",
+  "tags": ["cinematic", "shot", "action", "regression"],
+  "input": {
+    "kind": "shot",
+    "action": "镜头横移扫过大厅，宾客们端着酒杯侧过脸来",
+    "expression": "宾客们嘴角挂着看戏的浅笑",
+    "lighting": "暖金顶光，人群头顶形成一片暖亮，背景压暗",
+    "camera": {
+      "shotSize": "全景",
+      "focal": "24mm",
+      "angle": "平视",
+      "movement": "横移",
+      "side": "left"
+    },
+    "dialogue": [],
+    "characterLabels": ["宾客甲", "宾客乙"],
+    "hasPresentCast": true
+  },
+  "expect": {
+    "codes": ["action-camera-language"]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "id": "PIPE-030b",
+  "title": "画外音对在场人物说话时，不能把在场人物写成不可见",
+  "stage": "h3-render",
+  "tags": ["h3", "dialogue", "offscreen", "speaker", "regression"],
+  "input": {
+    "mode": "reference",
+    "aspectRatio": "16:9",
+    "subjects": [
+      { "id": "n_shen", "name": "沈默", "kind": "character", "sourcePictures": [2] },
+      { "id": "n_zhou", "name": "周静", "kind": "character", "sourcePictures": [3] },
+      { "id": "scene", "name": "街道", "kind": "scene", "sourcePictures": [1] }
+    ],
+    "shots": [
+      {
+        "index": 1,
+        "durationMs": 5000,
+        "visual": "Shen Mo stands in the rain with a lit cigarette, eyes still.",
+        "sound": "rain",
+        "subjectIds": ["n_shen"],
+        "dialogue": [
+          {
+            "character": "周静",
+            "text": "你这个废物，给我滚出这个家！",
+            "target": "沈默",
+            "offscreen": true
+          }
+        ]
+      }
+    ],
+    "soundscape": "night rain",
+    "music": "N/A"
+  },
+  "expect": {
+    "contains": [
+      "An off-screen voice of <Subject 2>",
+      "The speaker never appears in frame",
+      "addressing <Subject 1>"
+    ],
+    "notContains": ["also not visible"]
+  }
+}

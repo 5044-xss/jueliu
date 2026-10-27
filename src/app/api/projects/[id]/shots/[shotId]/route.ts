@@ -25,6 +25,7 @@ const patchSchema = z.object({
   action: z.string().optional(),
   dialogue: z.array(dialogueLineSchema).optional(),
   expression: z.string().optional(),
+  cutReason: z.string().optional(),
   subjectNodeIds: z.array(z.string()).optional(),
   continuesPrev: z.boolean().optional(),
   refs: z.array(refSchema).optional(),

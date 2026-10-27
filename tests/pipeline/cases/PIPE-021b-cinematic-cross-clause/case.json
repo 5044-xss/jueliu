@@ -1,0 +1,14 @@
+{
+  "id": "PIPE-021b",
+  "title": "跨分句交替动作不能误报自打",
+  "stage": "cinematic-audit",
+  "tags": ["cinematic", "action", "regression"],
+  "input": {
+    "kind": "self-target",
+    "action": "兰万城举着伞往前追半步，手臂伸出递向沈默的后背；沈默头也不回，肩膀直接穿过伞沿走进雨里",
+    "labels": ["兰万城", "沈默"]
+  },
+  "expect": {
+    "labels": []
+  }
+}

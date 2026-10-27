@@ -244,9 +244,9 @@ export default function StoryboardPage() {
           sb.autoStartFrames ? sb.missingHardCutFrames : 0
         }
         vendorName={sb.currentVendor?.name ?? sb.vendor}
-        presetName={
-          sb.presets.find((item) => item.id === sb.presetId)?.name ??
-          sb.presetId
+        strategyName={
+          sb.strategies.find((item) => item.id === sb.strategyId)?.name ??
+          sb.strategyId
         }
         isH3={sb.isH3}
         busyGenerate={sb.busyGenerate}
@@ -295,7 +295,7 @@ export default function StoryboardPage() {
           icon={Sparkles}
           tone="lilac"
           title="还没有分镜"
-          description="厂商与预设已按默认值准备好，点击「生成分镜」即可。"
+          description="厂商与策略包已按默认值准备好，点击「生成分镜」即可。"
           action={
             <Button onClick={() => void sb.generateStoryboard()}>
               <Sparkles className="size-4" />
@@ -420,15 +420,15 @@ export default function StoryboardPage() {
         onOpenChange={setSettingsOpen}
         vendors={sb.vendorOptions}
         vendor={sb.vendor}
-        presets={sb.presets}
-        presetId={sb.presetId}
+        strategies={sb.strategies}
+        strategyId={sb.strategyId}
         extra={sb.extra}
         autoStartFrames={sb.autoStartFrames}
         hasStoryboard={sb.hasStoryboard}
         orchestrating={sb.orchestrating}
         missingStartFrames={sb.missingHardCutFrames}
         onVendorChange={(vendor) => void sb.changeVendor(vendor)}
-        onPresetChange={sb.setPresetId}
+        onStrategyChange={sb.setStrategyId}
         onExtraChange={sb.setExtra}
         onAutoStartFramesChange={sb.setAutoStartFrames}
         onReorchestrate={() => void sb.reorchestrate()}

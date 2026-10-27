@@ -18,7 +18,6 @@ import {
   buildTransitionBrief,
   decideSeam,
 } from "../../packages/core/src/shared/continuity-engine.ts";
-import { assembleStoryboard } from "../../packages/core/src/server/storyboard/assemble-shots.ts";
 import { shotBudgetFromBeats } from "../../packages/core/src/shared/shot-budget.ts";
 import {
   buildBeatSlots,
@@ -26,10 +25,6 @@ import {
   repairStoryboardCoverage,
   validateStoryboardCoverage,
 } from "../../packages/core/src/shared/storyboard-coverage.ts";
-import {
-  STANDARD_STORYBOARD_PRESET_CONFIG,
-  mergeStoryboardPresetConfig,
-} from "../../packages/core/src/shared/library/storyboard-presets.ts";
 import { checkDialogueCoverage } from "../../packages/core/src/shared/dialogue-coverage.ts";
 import { renderH3Prompt } from "../../packages/core/src/server/compile/h3-render.ts";
 import { buildShotBlockingTextEn } from "../../packages/core/src/shared/blocking-text.ts";
@@ -46,6 +41,13 @@ import {
   isUnfilmableAction,
 } from "../../packages/core/src/shared/cinematic-audit.ts";
 import { buildH3Workflow } from "../../src/lib/generation/comfy.ts";
+import { STORYBOARD_SKELETON_PROMPT } from "../../packages/core/src/server/skills/prompts.ts";
+import { buildStoryboardSystemPrompt } from "../../packages/core/src/server/skills/assemble-storyboard-prompt.ts";
+import {
+  BUILTIN_STORYBOARD_STRATEGIES,
+  UNIVERSAL_STRATEGY,
+} from "../../packages/core/src/shared/library/storyboard-strategies.ts";
+import { actionMentions } from "../../packages/core/src/server/storyboard/normalize-shot-state.ts";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const casesDir = path.join(root, "cases");
@@ -675,55 +677,12 @@ async function runCoverageCase(item) {
   }
 }
 
-async function runAssembleCase(item) {
-  const config = mergeStoryboardPresetConfig(
-    STANDARD_STORYBOARD_PRESET_CONFIG,
-    item.input.config ?? {},
-  );
-  const result = assembleStoryboard(item.input.draft, config.assembly);
-  const { expect } = item;
-  if (typeof expect.outputShots === "number") {
-    assert.equal(result.stats.outputShots, expect.outputShots, "outputShots");
-  }
-  if (typeof expect.minDurationMs === "number") {
-    assert.ok(
-      result.stats.totalDurationMs >= expect.minDurationMs,
-      `totalDurationMs ${result.stats.totalDurationMs} < ${expect.minDurationMs}`,
-    );
-  }
-  if (typeof expect.maxDurationMs === "number") {
-    assert.ok(
-      result.stats.totalDurationMs <= expect.maxDurationMs,
-      `totalDurationMs ${result.stats.totalDurationMs} > ${expect.maxDurationMs}`,
-    );
-  }
-  const inputBeats = item.input.draft.scenes.flatMap((scene) =>
-    scene.shots.flatMap((shot) => shot.beatIds),
-  );
-  const outputBeats = result.draft.scenes.flatMap((scene) =>
-    scene.shots.flatMap((shot) => shot.beatIds),
-  );
-  assert.deepEqual(outputBeats, inputBeats, "beat coverage/order");
-  if (expect.durationsInRange) {
-    const [minMs, maxMs] = expect.durationsInRange;
-    for (const scene of result.draft.scenes) {
-      for (const shot of scene.shots) {
-        assert.ok(
-          shot.durationMs >= minMs && shot.durationMs <= maxMs,
-          `shot duration ${shot.durationMs} outside ${minMs}-${maxMs}`,
-        );
-      }
-    }
-  }
-}
-
 const handlers = {
   preflight: runPreflightCase,
   "shot-budget": runShotBudgetCase,
   coverage: runCoverageCase,
   "continuity-seam": runContinuitySeamCase,
   "continuity-brief": runContinuityBriefCase,
-  assemble: runAssembleCase,
   "camera-jump": runCameraJumpCase,
   "augment-cast": runAugmentCastCase,
   "normalize-action": runNormalizeActionCase,
@@ -779,3 +738,50 @@ if (cases.length === 0) {
     assert.fail("没有匹配的测试用例");
   });
 }
+
+test("PIPE-082 · 策略组装：通用包无占位符残留且契约段完整", () => {
+  const prompt = buildStoryboardSystemPrompt(STORYBOARD_SKELETON_PROMPT, UNIVERSAL_STRATEGY);
+  assert.ok(!/\{\{[^}]+\}\}/.test(prompt), "残留占位符");
+  assertContains(prompt, "切镜契约", "contract");
+  assertContains(prompt, "cutReason", "cut reason rule");
+  assertContains(prompt, "同一角色的连续说话：留在同一镜", "same-speaker default");
+  assertContains(prompt, "对话段：关系镜", "universal coverage");
+  assertContains(prompt, "最多连续 2 镜", "param render");
+  assertContains(prompt, "特效须符合设定", "fx light");
+});
+
+test("PIPE-083 · 策略组装：内置题材包渲染出差异", () => {
+  const render = (id) => {
+    const strategy = BUILTIN_STORYBOARD_STRATEGIES.find((item) => item.id === id);
+    assert.ok(strategy, "missing strategy " + id);
+    return buildStoryboardSystemPrompt(STORYBOARD_SKELETON_PROMPT, {
+      params: strategy.params,
+      texts: strategy.texts,
+    });
+  };
+  for (const strategy of BUILTIN_STORYBOARD_STRATEGIES) {
+    const prompt = buildStoryboardSystemPrompt(STORYBOARD_SKELETON_PROMPT, {
+      params: strategy.params,
+      texts: strategy.texts,
+    });
+    assert.ok(!/\{\{[^}]+\}\}/.test(prompt), strategy.id + " 残留占位符");
+  }
+  const xianxia = render("xianxia");
+  assertContains(xianxia, "本片特效全开", "xianxia fx heavy");
+  assertContains(xianxia, "斗法段", "xianxia coverage");
+  assertContains(xianxia, "同一角色的连续说话可以按情绪升级切镜", "xianxia pacing");
+  const boss = render("urban-boss");
+  assertContains(boss, "本片为现实题材", "boss fx none");
+  assertContains(boss, "谈判/对峙优先双人同框", "boss coverage");
+  const ancient = render("ancient");
+  assertContains(ancient, "情绪克制、镜头含蓄", "ancient pacing");
+  assertContains(ancient, "最多 3 级", "ancient emotion levels");
+});
+
+test("PIPE-084 · 动作点名：角色修饰前缀剥除匹配", () => {
+  assert.equal(actionMentions("弟子丙抱臂冷笑", "路人弟子丙"), true);
+  assert.equal(actionMentions("弟子甲抬下巴", "路人弟子甲"), true);
+  assert.equal(actionMentions("陈平生扫地", "陈平生"), true);
+  assert.equal(actionMentions("陈平生扫地", "何文成"), false);
+  assert.equal(actionMentions("弟子乙撇嘴", "路人弟子丙"), false);
+});

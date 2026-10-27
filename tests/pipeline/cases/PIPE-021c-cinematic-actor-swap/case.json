@@ -1,0 +1,14 @@
+{
+  "id": "PIPE-021c",
+  "title": "多人交替说话不能误报自打",
+  "stage": "cinematic-audit",
+  "tags": ["cinematic", "action", "regression"],
+  "input": {
+    "kind": "self-target",
+    "action": "宾客甲把酒杯往胸前收了收，偏头朝宾客乙低声说，宾客乙抿嘴点头又补一句，第三句宾客甲摇头笑了一声",
+    "labels": ["宾客甲", "宾客乙"]
+  },
+  "expect": {
+    "labels": []
+  }
+}

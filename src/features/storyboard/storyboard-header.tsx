@@ -35,7 +35,7 @@ export function StoryboardHeader({
   pendingVideoCount,
   missingStartFrames,
   vendorName,
-  presetName,
+  strategyName,
   isH3,
   busyGenerate,
   cloudRunning,
@@ -58,7 +58,7 @@ export function StoryboardHeader({
   pendingVideoCount: number;
   missingStartFrames: number;
   vendorName: string;
-  presetName: string;
+  strategyName: string;
   isH3: boolean;
   busyGenerate: boolean;
   cloudRunning: boolean;
@@ -80,7 +80,7 @@ export function StoryboardHeader({
         <div className="flex items-center gap-2">
           <h2 className="text-base font-medium">分镜</h2>
           <span className="rounded-full border border-border bg-background/60 px-2 py-0.5 text-[11px] text-muted-foreground">
-            {vendorName} · {presetName}
+            {vendorName} · {strategyName}
           </span>
           {hasStoryboard && (
             <span className="rounded-full border border-border bg-background/60 px-2 py-0.5 text-[11px] text-muted-foreground">
@@ -93,7 +93,7 @@ export function StoryboardHeader({
             ? `已生成 ${returnedCount}/${storyboardCount} 段视频${
                 staleCount > 0 ? ` · ${staleCount} 段已过期` : ""
               }`
-            : "按剧本生成分镜，再用一键生成视频。厂商与预设默认已选好。"}
+            : "按剧本生成分镜，再用一键生成视频。厂商与策略包默认已选好。"}
         </p>
         {generatingSegmentLabel && (
           <div className="mt-2 flex max-w-xl flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-border/60 bg-background/60 px-2.5 py-1.5">

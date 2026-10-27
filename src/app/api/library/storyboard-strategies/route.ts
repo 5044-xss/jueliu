@@ -1,18 +1,19 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  createStoryboardPreset,
-  getStoryboardPresets,
-} from "@core/server/library/storyboard-presets";
+  createStoryboardStrategy,
+  getStoryboardStrategies,
+} from "@core/server/library/storyboard-strategies";
 
 const createSchema = z.object({
   name: z.string().min(1, "名称不能为空"),
   description: z.string().optional().default(""),
-  config: z.record(z.string(), z.unknown()).optional(),
+  params: z.record(z.string(), z.unknown()).optional(),
+  texts: z.record(z.string(), z.unknown()).optional(),
 });
 
 export async function GET() {
-  return NextResponse.json({ presets: getStoryboardPresets() });
+  return NextResponse.json({ strategies: getStoryboardStrategies() });
 }
 
 export async function POST(request: Request) {
@@ -24,10 +25,11 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  const preset = createStoryboardPreset({
+  const strategy = createStoryboardStrategy({
     name: parsed.data.name,
     description: parsed.data.description,
-    config: parsed.data.config as never,
+    params: parsed.data.params as never,
+    texts: parsed.data.texts as never,
   });
-  return NextResponse.json({ preset }, { status: 201 });
+  return NextResponse.json({ strategy }, { status: 201 });
 }

@@ -53,6 +53,9 @@ function ShotView({
           </Button>
         </span>
       </div>
+      {shot.cutReason && (
+        <p className="text-xs text-muted-foreground">切镜理由：{shot.cutReason}</p>
+      )}
       {shot.lighting && (
         <p className="text-xs text-muted-foreground">光线：{shot.lighting}</p>
       )}

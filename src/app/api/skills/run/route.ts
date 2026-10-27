@@ -11,10 +11,8 @@ import {
   getContinuityRules,
   clearStoryboard,
 } from "@core/server/storyboard";
-import { assembleStoryboard } from "@core/server/storyboard/assemble-shots";
-import { applyStoryboardPreset } from "@core/server/orchestration/preset";
-import { resolveStoryboardPreset } from "@core/server/library/storyboard-presets";
-import type { StoryboardPresetConfigPatch } from "@core/shared/library/storyboard-presets";
+import { applyOrchestration } from "@core/server/orchestration/apply";
+import { resolveStoryboardStrategy } from "@core/server/library/storyboard-strategies";
 import {
   isScript,
   isAssetsDraft,
@@ -62,36 +60,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "技能不存在" }, { status: 404 });
   }
 
-
   const inputParsed = skill.inputSchema.safeParse(input);
   if (!inputParsed.success) {
     return NextResponse.json({ error: "输入不合法" }, { status: 400 });
   }
 
   const jobId = startJob(projectId, skillId);
-  const isStoryboardSkill = skillId === "script-to-storyboard";
-  const presetInput = inputParsed.data as {
-    presetId?: string;
-    overrides?: StoryboardPresetConfigPatch;
-    extraInstructions?: string;
-  };
-  const resolvedPreset = isStoryboardSkill
-    ? resolveStoryboardPreset(presetInput.presetId, presetInput.overrides)
-    : null;
-  const skillInput =
-    resolvedPreset && isStoryboardSkill
-      ? {
-          ...(inputParsed.data as Record<string, unknown>),
-          maxBeatsPerShot: resolvedPreset.config.assembly.maxBeatsPerShot,
-          extraInstructions: [
-            resolvedPreset.config.prompt.extraInstructions,
-            presetInput.extraInstructions ?? "",
-          ]
-            .map((item) => item.trim())
-            .filter(Boolean)
-            .join("\n\n"),
-        }
-      : inputParsed.data;
+  const skillInput = inputParsed.data;
 
   try {
     const story = getStory(projectId).content;
@@ -128,42 +103,46 @@ export async function POST(request: Request) {
     }
 
     if (skillId === "script-to-storyboard" && isStoryboardDraft(output)) {
+      const strategy = resolveStoryboardStrategy(
+        (inputParsed.data as { strategyId?: string }).strategyId ??
+          project.storyboardStrategyId,
+      );
       // 与「重新编排」共用同一把锁：保存分镜 + 编排必须原子，不能被并发编排插队。
-      const preset = resolvedPreset ?? resolveStoryboardPreset(undefined);
-      const assembled = assembleStoryboard(output, preset.config.assembly);
       const appliedResult = await withLock(
         `orchestrate:${projectId}`,
         async () => {
           assertJobActive(projectId, jobId);
           cancelProjectGeneration(projectId);
-          saveStoryboard(projectId, assembled.draft, assets, {
-            useDraftDurations: preset.config.assembly.mode === "merge",
-          });
-          const applied = applyStoryboardPreset(
-            projectId,
-            preset,
-            project.vendor,
-          );
+          saveStoryboard(projectId, output, assets);
+          const applied = applyOrchestration(projectId, project.vendor);
           return { scenes: getStoryboard(projectId), applied };
         },
       );
+      const outputShots = output.scenes.reduce(
+        (sum, scene) => sum + scene.shots.length,
+        0,
+      );
+      const totalDurationMs = appliedResult.scenes.reduce(
+        (sum, scene) =>
+          sum + scene.segments.reduce((inner, segment) => inner + segment.targetMs, 0),
+        0,
+      );
+      const assembly = { outputShots, totalDurationMs };
       updateJobParams(projectId, jobId, {
-        presetId: preset.preset.id,
-        presetVersion: preset.preset.version,
-        effectiveConfig: preset.config,
-        assembly: assembled.stats,
+        strategyId: strategy.strategy.id,
+        strategyVersion: strategy.strategy.version,
+        assembly,
         orchestration: appliedResult.applied,
       });
       finishJob(projectId, jobId, "succeeded");
       return NextResponse.json({
         result: appliedResult.scenes,
-        preset: {
-          id: preset.preset.id,
-          name: preset.preset.name,
-          version: preset.preset.version,
-          config: preset.config,
+        strategy: {
+          id: strategy.strategy.id,
+          name: strategy.strategy.name,
+          version: strategy.strategy.version,
         },
-        assembly: assembled.stats,
+        assembly,
         orchestration: appliedResult.applied,
       });
     }

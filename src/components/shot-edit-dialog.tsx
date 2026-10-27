@@ -61,6 +61,7 @@ export function ShotEditDialog({
   const [action, setAction] = useState(shot.action);
   const [dialogue, setDialogue] = useState<DialogueLine[]>(shot.dialogue);
   const [expression, setExpression] = useState(shot.expression);
+  const [cutReason, setCutReason] = useState(shot.cutReason ?? "");
   const [subjectNodeIds, setSubjectNodeIds] = useState<string[]>(
     shot.subjectNodeIds,
   );
@@ -93,6 +94,7 @@ export function ShotEditDialog({
           action,
           dialogue: dialogue.filter((line) => line.text.trim().length > 0),
           expression,
+          cutReason,
           subjectNodeIds,
           continuesPrev,
           refs,
@@ -255,6 +257,14 @@ export function ShotEditDialog({
             <Textarea
               value={expression}
               onChange={(e) => setExpression(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>切镜理由</Label>
+            <Input
+              value={cutReason}
+              placeholder="为什么在这里切（信息/视线/机位/时空/节奏）；本场首镜写「场次开场」"
+              onChange={(e) => setCutReason(e.target.value)}
             />
           </div>
 

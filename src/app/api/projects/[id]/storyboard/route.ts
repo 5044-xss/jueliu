@@ -4,8 +4,7 @@ import {
   clearStoryboard,
   saveStoryboard,
 } from "@core/server/storyboard";
-import { applyStoryboardPreset } from "@core/server/orchestration/preset";
-import { resolveStoryboardPreset } from "@core/server/library/storyboard-presets";
+import { applyOrchestration } from "@core/server/orchestration/apply";
 import { getAssets } from "@core/server/assets";
 import { getProject, projectExists } from "@core/server/projects";
 import { preflightStoryboard } from "@core/server/preflight";
@@ -51,7 +50,6 @@ export async function POST(request: Request, { params }: Ctx) {
     json && typeof json === "object"
       ? (json as {
           draft?: unknown;
-          presetId?: unknown;
           useDraftDurations?: unknown;
         })
       : null;
@@ -73,26 +71,13 @@ export async function POST(request: Request, { params }: Ctx) {
   }
   return withLock(`orchestrate:${id}`, async () => {
     try {
-      const presetId =
-        typeof body?.presetId === "string"
-          ? body.presetId
-          : project.storyboardPresetId ?? undefined;
-      const preset = resolveStoryboardPreset(presetId);
       saveStoryboard(id, parsed.data, getAssets(id), {
-        useDraftDurations:
-          body?.useDraftDurations === true ||
-          preset.config.assembly.mode === "merge",
+        useDraftDurations: body?.useDraftDurations === true,
       });
-      const result = applyStoryboardPreset(id, preset, project.vendor);
+      const result = applyOrchestration(id, project.vendor);
       return NextResponse.json({
         ok: true,
         scenes: getStoryboard(id),
-        preset: {
-          id: preset.preset.id,
-          name: preset.preset.name,
-          version: preset.preset.version,
-          config: preset.config,
-        },
         orchestration: result,
       });
     } catch (error) {

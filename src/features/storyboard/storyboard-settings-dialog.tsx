@@ -13,22 +13,22 @@ import {
 import { SelectField } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { VendorOption } from "@/components/vendor-switch-dialog";
-import type { LibraryStoryboardPreset } from "@core/shared/library/storyboard-presets";
+import type { LibraryStoryboardStrategy } from "@core/shared/library/storyboard-strategies";
 
 export function StoryboardSettingsDialog({
   open,
   onOpenChange,
   vendors,
   vendor,
-  presets,
-  presetId,
+  strategies,
+  strategyId,
   extra,
   autoStartFrames,
   hasStoryboard,
   orchestrating,
   missingStartFrames,
   onVendorChange,
-  onPresetChange,
+  onStrategyChange,
   onExtraChange,
   onAutoStartFramesChange,
   onReorchestrate,
@@ -39,15 +39,15 @@ export function StoryboardSettingsDialog({
   onOpenChange: (open: boolean) => void;
   vendors: VendorOption[];
   vendor: string;
-  presets: LibraryStoryboardPreset[];
-  presetId: string;
+  strategies: LibraryStoryboardStrategy[];
+  strategyId: string;
   extra: string;
   autoStartFrames: boolean;
   hasStoryboard: boolean;
   orchestrating: boolean;
   missingStartFrames: number;
   onVendorChange: (vendor: string) => void;
-  onPresetChange: (presetId: string) => void;
+  onStrategyChange: (strategyId: string) => void;
   onExtraChange: (extra: string) => void;
   onAutoStartFramesChange: (value: boolean) => void;
   onReorchestrate: () => void;
@@ -55,7 +55,7 @@ export function StoryboardSettingsDialog({
   onClear: () => void;
 }) {
   const selectedVendor = vendors.find((item) => item.id === vendor);
-  const selectedPreset = presets.find((item) => item.id === presetId);
+  const selectedStrategy = strategies.find((item) => item.id === strategyId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -63,7 +63,7 @@ export function StoryboardSettingsDialog({
         <DialogHeader>
           <DialogTitle>分镜设置</DialogTitle>
           <DialogDescription>
-            默认厂商与预设会直接用于「生成分镜」和「一键生成视频」。高级操作只在需要时展开。
+            默认厂商与策略包会直接用于「生成分镜」和「一键生成视频」。高级操作只在需要时展开。
           </DialogDescription>
         </DialogHeader>
 
@@ -91,20 +91,20 @@ export function StoryboardSettingsDialog({
           </section>
 
           <section className="flex flex-col gap-2">
-            <label className="text-sm font-medium">分镜预设</label>
+            <label className="text-sm font-medium">分镜策略包</label>
             <SelectField
-              value={presetId}
-              onChange={onPresetChange}
+              value={strategyId}
+              onChange={onStrategyChange}
               disabled={orchestrating}
-              options={presets.map((item) => ({
+              options={strategies.map((item) => ({
                 value: item.id,
                 label: item.name,
               }))}
             />
             <p className="text-xs leading-5 text-muted-foreground">
-              {selectedPreset?.description || "选择分镜生成与切分策略。"}
+              {selectedStrategy?.description || "选择题材策略：影响切镜节奏、覆盖模式与镜头语言。"}
               <span className="mt-1 block">
-                预设在下一次「生成分镜」或「重新编排」时生效。
+                策略包在下一次「生成分镜」时生效。
               </span>
             </p>
           </section>
@@ -160,7 +160,7 @@ export function StoryboardSettingsDialog({
                 ) : (
                   <Wand2 className="size-3.5" />
                 )}
-                按当前预设重新编排
+                按当前厂商重新编排
               </Button>
               <Button
                 size="sm"
