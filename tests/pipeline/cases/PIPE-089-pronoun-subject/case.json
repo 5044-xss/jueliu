@@ -1,0 +1,45 @@
+{
+  "id": "PIPE-089",
+  "title": "编译层把 he/she/her 等代词换成明确角色名",
+  "stage": "h3-render",
+  "tags": ["h3", "pronoun", "subject", "regression"],
+  "input": {
+    "mode": "reference",
+    "aspectRatio": "16:9",
+    "subjects": [
+      { "id": "n_chen", "name": "陈平", "kind": "character", "sourcePictures": [2] },
+      { "id": "n_wan", "name": "陈婉", "kind": "character", "sourcePictures": [3] },
+      { "id": "scene", "name": "广场", "kind": "scene", "sourcePictures": [1] }
+    ],
+    "shots": [
+      {
+        "index": 1,
+        "durationMs": 2000,
+        "visual": "He turns to her, and she lowers her eyes.",
+        "sound": "his sleeve rustles",
+        "subjectIds": ["n_chen", "n_wan"],
+        "dialogue": []
+      },
+      {
+        "index": 2,
+        "durationMs": 3000,
+        "visual": "She stands alone while he watches her from the doorway.",
+        "sound": "his footsteps fade",
+        "subjectIds": ["n_wan"],
+        "dialogue": []
+      }
+    ],
+    "soundscape": "mountain wind",
+    "music": "N/A"
+  },
+  "expect": {
+    "shotCount": 2,
+    "contains": [
+      "陈平 turns to 陈婉",
+      "陈婉 lowers 陈婉's eyes",
+      "陈婉 stands alone",
+      "陈平's sleeve rustles"
+    ],
+    "notContains": [" He ", " she ", " her ", " his "]
+  }
+}
