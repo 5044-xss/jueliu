@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PreviewImage } from "@/components/preview-image";
+import { PromptRepairDialog } from "@/components/prompt-repair-dialog";
 import {
   Dialog,
   DialogContent,
@@ -141,6 +142,7 @@ export function SegmentComposer({
   );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [bodyOpen, setBodyOpen] = useState(false);
+  const [repairOpen, setRepairOpen] = useState(false);
   const loadSeq = useRef(0);
   const autoTried = useRef<string | null>(null);
   const alive = useRef(true);
@@ -280,13 +282,16 @@ export function SegmentComposer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, segment.id, platform, reloadToken]);
 
-  async function savePrompt(keyframeOnly: boolean): Promise<boolean> {
+  async function savePrompt(
+    promptText: string,
+    keyframeOnly: boolean,
+  ): Promise<boolean> {
     const res = await fetch(
       `/api/projects/${projectId}/segments/${segment.id}/ai-prompt`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, platform, keyframeOnly }),
+        body: JSON.stringify({ prompt: promptText, platform, keyframeOnly }),
       },
     );
     if (!res.ok) throw new Error(await readError(res, "保存提示词失败"));
@@ -301,7 +306,7 @@ export function SegmentComposer({
     }
     setSaving(true);
     try {
-      await savePrompt(isKeyframeOnly(manifest));
+      await savePrompt(prompt, isKeyframeOnly(manifest));
       toast.success("提示词已保存");
     } catch (error) {
       toast.error((error as Error).message);
@@ -331,7 +336,7 @@ export function SegmentComposer({
           throw new Error(await readError(durationRes, "提交时长失败"));
         }
       }
-      await savePrompt(isKeyframeOnly(manifest));
+      await savePrompt(prompt, isKeyframeOnly(manifest));
       if (!isH3) {
         toast.error("提示词已保存", {
           description: `当前厂商「${vendorName}」不支持云端生成，请切换 H3，或在预览里回传视频。`,
@@ -358,6 +363,28 @@ export function SegmentComposer({
   function restorePrompt() {
     setPrompt(baseline);
     toast.success("已还原为打开时的提示词");
+  }
+
+  async function applyRepairedPrompt(promptText: string): Promise<boolean> {
+    if (!promptText.trim()) {
+      toast.error("修改结果为空，未应用");
+      return false;
+    }
+    setSaving(true);
+    try {
+      await savePrompt(promptText, isKeyframeOnly(manifest));
+      setPrompt(promptText);
+      setPromptStale(false);
+      toast.success("提示词已按意见修改", {
+        description: "检查无误后，再点「重新生成」提交视频。",
+      });
+      return true;
+    } catch (error) {
+      toast.error((error as Error).message || "保存提示词失败");
+      return false;
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function persistRefs(next: RefOverrideItem[] | null, message: string) {
@@ -772,6 +799,18 @@ export function SegmentComposer({
         </DropdownMenu>
 
         <div className="ml-auto flex items-center gap-1.5">
+          {prompt.trim() && !segmentGenerating && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRepairOpen(true)}
+              disabled={sending || promptBusy || saving}
+              title="描述问题，让 AI 在当前提示词上做针对性修改"
+            >
+              <Wand2 className="size-3.5" />
+              按意见修改
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -835,6 +874,17 @@ export function SegmentComposer({
         onPick={addRef}
         onUpload={addUploads}
         onRemoveUpload={removeUpload}
+      />
+
+      <PromptRepairDialog
+        open={repairOpen}
+        onOpenChange={setRepairOpen}
+        projectId={projectId}
+        segmentId={segment.id}
+        platform={platform}
+        keyframeOnly={isKeyframeOnly(manifest)}
+        currentPrompt={prompt}
+        onApply={applyRepairedPrompt}
       />
 
       <Dialog open={bodyOpen} onOpenChange={setBodyOpen}>

@@ -11,7 +11,6 @@ const TABS = [
   { key: "assets", label: "资产", next: { key: "storyboard", label: "下一步：生成分镜" } },
   { key: "storyboard", label: "分镜", next: { key: "compose", label: "下一步：合成成片" } },
   { key: "compose", label: "合成" },
-  { key: "execution", label: "分镜执行记录" },
 ] as const;
 
 export function ProjectTabs({
