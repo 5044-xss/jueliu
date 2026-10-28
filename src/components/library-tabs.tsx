@@ -5,10 +5,9 @@ import { usePathname } from "next/navigation";
 import { cn } from "@core/client/utils";
 
 const TABS = [
-  { key: "styles", label: "风格库" },
-  { key: "vendors", label: "厂商库" },
-  { key: "skills", label: "技能库" },
   { key: "assets", label: "资产库" },
+  { key: "styles", label: "风格库" },
+  { key: "skills", label: "技能库" },
 ];
 
 export function LibraryTabs() {

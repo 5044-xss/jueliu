@@ -38,6 +38,10 @@ export function canCancelJob(kind: string): boolean {
   return Boolean(CANCEL_ENDPOINT[kind]);
 }
 
+export function isCancelledMessage(message: string): boolean {
+  return /已取消|被新的同类任务取代/.test(message);
+}
+
 export function jobKey(job: Pick<GlobalJob, "id" | "projectId">): string {
   return `${job.projectId}:${job.id}`;
 }

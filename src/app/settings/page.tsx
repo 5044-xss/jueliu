@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import Link from "next/link";
 import {
   AlertCircle,
   BookOpen,
@@ -10,6 +9,7 @@ import {
   Save,
 } from "lucide-react";
 import { toast } from "sonner";
+import { HelpDialog } from "@/components/help-dialog";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,11 +19,14 @@ import type { ProviderSettings } from "@/lib/settings/providers";
 import { ProvidersPanel } from "./providers-panel";
 import { RoutingPanel } from "./routing-panel";
 import { SystemPanel } from "./system-panel";
+import { VendorsPanel } from "./vendors-panel";
 
 function resolveTab(hash: string): string {
   const value = hash.replace(/^#/, "");
   if (value === "llm") return "providers";
-  if (["providers", "routing", "system"].includes(value)) return value;
+  if (["providers", "routing", "vendors", "system"].includes(value)) {
+    return value;
+  }
   return "providers";
 }
 
@@ -38,6 +41,7 @@ export default function SettingsPage() {
   const [ffmpeg, setFfmpeg] = useState<FfmpegStatus | null>(null);
   const [testingFfmpeg, setTestingFfmpeg] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
@@ -214,28 +218,26 @@ export default function SettingsPage() {
         eyebrow="Settings"
         accent="mint"
         title="设置"
-        description="服务商只管账号与连接；模型、模型参数在「模型路由」里按能力配置。"
+        description="服务商管账号与连接；模型与参数在「模型路由」；平台能力与提示词方言在「厂商」。"
         actions={
           <>
-            {dirty && (
+            {tab !== "vendors" && dirty && (
               <span className="text-xs text-muted-foreground">未保存</span>
             )}
-            <Button
-              variant="outline"
-              nativeButton={false}
-              render={<Link href="/help" />}
-            >
+            <Button variant="outline" onClick={() => setHelpOpen(true)}>
               <BookOpen className="size-4" />
               使用说明
             </Button>
-            <Button onClick={save} disabled={saving || !dirty}>
-              {saving ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Save className="size-4" />
-              )}
-              保存设置
-            </Button>
+            {tab !== "vendors" && (
+              <Button onClick={save} disabled={saving || !dirty}>
+                {saving ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Save className="size-4" />
+                )}
+                保存设置
+              </Button>
+            )}
           </>
         }
       />
@@ -249,6 +251,7 @@ export default function SettingsPage() {
         <TabsList variant="line">
           <TabsTrigger value="providers">服务商</TabsTrigger>
           <TabsTrigger value="routing">模型路由</TabsTrigger>
+          <TabsTrigger value="vendors">厂商</TabsTrigger>
           <TabsTrigger value="system">本机</TabsTrigger>
         </TabsList>
 
@@ -258,6 +261,10 @@ export default function SettingsPage() {
 
         <TabsContent value="routing">
           <RoutingPanel settings={providers} onChange={setProviders} />
+        </TabsContent>
+
+        <TabsContent value="vendors">
+          <VendorsPanel />
         </TabsContent>
 
         <TabsContent value="system">
@@ -270,6 +277,8 @@ export default function SettingsPage() {
           />
         </TabsContent>
       </Tabs>
+
+      <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
     </div>
   );
 }

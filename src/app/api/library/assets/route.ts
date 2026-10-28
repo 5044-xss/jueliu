@@ -7,7 +7,11 @@ import {
   resolveViewSource,
   type AssetLibraryScope,
 } from "@core/server/library/assets";
-import { projectExists } from "@core/server/projects";
+import {
+  getSeries,
+  getSeriesIdForProject,
+  projectExists,
+} from "@core/server/projects";
 
 const addSchema = z.object({
   scope: z.enum(["global", "project"]),
@@ -39,7 +43,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
   return NextResponse.json({
-    assets: listLibraryAssets(parsed.scope, parsed.seriesId),
+    assets: listLibraryAssets(parsed.scope, parsed.seriesId).map((item) =>
+      parsed.scope === "global" && item.sourceSeriesId
+        ? {
+            ...item,
+            sourceSeriesName: getSeries(item.sourceSeriesId)?.name ?? null,
+          }
+        : item,
+    ),
   });
 }
 
@@ -88,6 +99,8 @@ export async function POST(request: Request) {
     prompt: source.prompt,
     sourceImagePath: source.imagePath,
     sourceViewId: viewId,
+    sourceSeriesId:
+      scope === "global" ? getSeriesIdForProject(projectId) : null,
   });
   return NextResponse.json({ item }, { status: 201 });
 }

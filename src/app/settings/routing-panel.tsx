@@ -354,6 +354,19 @@ export function RoutingPanel({
                   )}
                 </div>
 
+                {cap === "video" && (
+                  <p className="text-xs text-muted-foreground">
+                    段时长、镜数、参考图上限与编译方言由项目所选厂商决定，可在
+                    <a
+                      href="#vendors"
+                      className="mx-1 underline underline-offset-4 hover:text-foreground"
+                    >
+                      厂商
+                    </a>
+                    中查看或修改。
+                  </p>
+                )}
+
                 <p className="text-xs text-muted-foreground">
                   {selected
                     ? `参数属于当前「${selected.name} · ${binding.model || "未选择模型"}」；切换服务商或模型会恢复默认。`

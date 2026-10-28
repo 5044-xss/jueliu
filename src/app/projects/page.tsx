@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { EpisodePickerDialog } from "@/components/episode-picker-dialog";
 import { ExportDialog, type ExportMode } from "@/components/export-dialog";
+import { HelpDialog } from "@/components/help-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -97,6 +98,7 @@ export default function HomePage() {
     null,
   );
   const [query, setQuery] = useState("");
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const filteredSeries = useMemo(() => {
     const list = series ?? [];
@@ -419,12 +421,13 @@ export default function HomePage() {
                 新建项目
               </Button>
             </div>
-            <Link
-              href="/help"
+            <button
+              type="button"
+              onClick={() => setHelpOpen(true)}
               className="text-xs text-muted-foreground underline-offset-4 hover:underline"
             >
               查看使用说明
-            </Link>
+            </button>
           </CardContent>
         </Card>
       ) : (
@@ -669,6 +672,8 @@ export default function HomePage() {
           onConfirm={doExport}
         />
       )}
+
+      <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
     </div>
   );
 }

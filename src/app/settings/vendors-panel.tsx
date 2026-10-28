@@ -462,7 +462,7 @@ function VendorDialog({
   );
 }
 
-export default function VendorsPage() {
+export function VendorsPanel() {
   const [vendors, setVendors] = useState<LibraryVendor[]>([]);
   const [templates, setTemplates] = useState<LibraryTemplate[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -554,7 +554,7 @@ export default function VendorsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-lime p-5">
         <p className="text-sm">
-          每个厂商绑定一套提示词模板。点击卡片编辑厂商能力与对应的提示词模板，编排层会按这里的规则打包分镜。星标厂商会作为新建项目的默认厂商。
+          每个厂商绑定一套能力规则与提示词模板。点击卡片编辑；编排层会按这里的规则打包分镜。星标厂商会作为新建项目的默认厂商。此页即时保存，模型接入见「模型路由」。
         </p>
         <Button onClick={create} disabled={creating}>
           {creating ? (

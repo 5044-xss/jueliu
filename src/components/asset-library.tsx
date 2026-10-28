@@ -277,7 +277,9 @@ export function AddToLibraryButton({
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "添加失败");
       toast.success(
-        scope === "project" ? "已加入项目资产库" : "已加入全局资产库",
+        scope === "project"
+          ? "已加入项目资产库（本剧各集共用）"
+          : "已加入全局资产库（所有剧可用）",
       );
       setOpen(false);
     } catch (error) {
@@ -302,7 +304,7 @@ export function AddToLibraryButton({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-1 w-32 rounded-lg border bg-popover p-1 shadow-md">
+          <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border bg-popover p-1 shadow-md">
             <button
               type="button"
               disabled={busy !== null}
@@ -327,7 +329,7 @@ export function AddToLibraryButton({
               ) : (
                 <Library className="size-3.5" />
               )}
-              全局资产库
+              全局资产库（所有剧可见）
             </button>
           </div>
         </>
