@@ -11,10 +11,52 @@ declare global {
     error?: string;
   }
 
+  type LicenseStatus =
+    | "active"
+    | "trial"
+    | "pending"
+    | "expired"
+    | "revoked"
+    | "none"
+    | "invalid"
+    | "error"
+    | null;
+
+  interface LicenseState {
+    phase: "loading" | "ready";
+    status: LicenseStatus;
+    allowed: boolean;
+    machineCode: string | null;
+    machineDisplay: string | null;
+    message: string;
+    offline: boolean;
+    warning: string | null;
+    error: string | null;
+    nbf: number | null;
+    exp: number | null;
+    licenseId: string | null;
+    sn: string | null;
+    trialTotalDays: number | null;
+    trialLeftDays: number | null;
+    trialTotalHours: number | null;
+    trialLeftHours: number | null;
+    serverTime: number | null;
+    graceUntil: number | null;
+    checkedAt: number | null;
+  }
+
   interface LicenseAPI {
     getMachineId(): Promise<{ code: string; display: string }>;
-    activate(code: string): Promise<{ ok: boolean; error?: string }>;
-    resetLicense(): Promise<{ ok: boolean }>;
+    getLicenseState(): Promise<LicenseState>;
+    checkin(): Promise<LicenseState>;
+    activate(code: string): Promise<{
+      ok: boolean;
+      error?: string;
+      state?: LicenseState;
+    }>;
+    enterApp(): Promise<{ ok: boolean; error?: string }>;
+    resetLicense(): Promise<{ ok: boolean; state?: LicenseState }>;
+    onLicenseUpdate(callback: (state: LicenseState) => void): () => void;
     getVersion(): Promise<string>;
     checkUpdate(): Promise<CheckUpdateResult>;
     openExternal(url: string): Promise<{ ok: boolean }>;

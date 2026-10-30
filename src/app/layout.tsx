@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Clapperboard } from "lucide-react";
 import { NavLinks } from "@/components/nav-links";
+import { LicenseStatus } from "@/components/license-status";
 import { GlobalJobsProvider } from "@/components/global-jobs-provider";
 import { ConfirmProvider } from "@/components/confirm-dialog";
 import { Toaster } from "@/components/ui/sonner";
@@ -37,6 +38,7 @@ export default function RootLayout({
                 </div>
                 <div className="shrink-0 border-t p-3">
                   <NavLinks orientation="vertical" group="settings" />
+                  <LicenseStatus />
                 </div>
               </aside>
 

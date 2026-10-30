@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>掘漫 · 激活</title>
+    <title>掘流 · 激活</title>
     <style>
       :root {
         color-scheme: dark;
@@ -19,13 +19,13 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        height: 100vh;
+        min-height: 100vh;
         -webkit-user-select: none;
         user-select: none;
       }
       .card {
         width: 100%;
-        padding: 32px 36px;
+        padding: 28px 36px 32px;
       }
       h1 {
         font-size: 20px;
@@ -33,10 +33,57 @@
         font-weight: 600;
       }
       p.sub {
-        margin: 0 0 22px;
+        margin: 0 0 18px;
         color: #9a9aa5;
         font-size: 13px;
         line-height: 1.6;
+      }
+      .status {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-bottom: 18px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid #26262f;
+        background: #121218;
+        color: #b9b9c3;
+        font-size: 12.5px;
+        line-height: 1.55;
+        -webkit-user-select: text;
+        user-select: text;
+      }
+      .status .dot {
+        flex: 0 0 auto;
+        width: 7px;
+        height: 7px;
+        margin-top: 5px;
+        border-radius: 50%;
+        background: #8b8b97;
+      }
+      .status.ok {
+        border-color: rgba(74, 222, 128, 0.28);
+        background: rgba(74, 222, 128, 0.07);
+        color: #b9f0cb;
+      }
+      .status.ok .dot {
+        background: #4ade80;
+      }
+      .status.warn {
+        border-color: rgba(251, 191, 36, 0.3);
+        background: rgba(251, 191, 36, 0.07);
+        color: #f3d799;
+      }
+      .status.warn .dot {
+        background: #fbbf24;
+      }
+      .status.error {
+        border-color: rgba(255, 107, 107, 0.3);
+        background: rgba(255, 107, 107, 0.07);
+        color: #ffb0b0;
+      }
+      .status.error .dot {
+        background: #ff6b6b;
       }
       label {
         display: block;
@@ -47,7 +94,7 @@
       .machine {
         display: flex;
         gap: 8px;
-        margin-bottom: 18px;
+        margin-bottom: 16px;
       }
       .machine code {
         flex: 1;
@@ -66,6 +113,10 @@
         font-size: 13px;
         font-family: inherit;
       }
+      button:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
       #copyBtn {
         background: #26262f;
         color: #d7d7de;
@@ -81,30 +132,48 @@
         font-size: 13px;
         font-family: "Consolas", monospace;
         resize: none;
-        height: 84px;
+        height: 82px;
         outline: none;
+        -webkit-user-select: text;
+        user-select: text;
       }
       #code:focus {
         border-color: #4f7cff;
       }
+      .actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 14px;
+      }
       #activateBtn {
-        width: 100%;
-        margin-top: 16px;
-        padding: 12px;
+        flex: 1;
+        padding: 11px;
         background: #4f7cff;
         color: #fff;
         font-size: 14px;
         font-weight: 600;
       }
-      #activateBtn:disabled {
-        opacity: 0.6;
-        cursor: default;
+      #checkBtn {
+        flex: 0 0 auto;
+        padding: 0 16px;
+        background: #26262f;
+        color: #d7d7de;
+      }
+      #enterBtn {
+        width: 100%;
+        margin-top: 10px;
+        padding: 11px;
+        background: #1f8f5f;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
       }
       #msg {
-        margin-top: 12px;
+        margin-top: 10px;
         font-size: 12px;
         min-height: 16px;
         text-align: center;
+        line-height: 1.5;
       }
       #msg.error {
         color: #ff6b6b;
@@ -112,36 +181,110 @@
       #msg.ok {
         color: #4ade80;
       }
+      #msg.warn {
+        color: #fbbf24;
+      }
     </style>
   </head>
   <body>
     <div class="card">
-      <h1>激活掘漫</h1>
+      <h1>激活掘流</h1>
       <p class="sub">
-        本机尚未激活。请将下方机器码发送给卖家，获取激活码后粘贴到下方。
+        请将下方机器码发送给卖家开通授权或试用；收到激活码后粘贴到下方激活。
       </p>
+
+      <div id="statusBox" class="status">
+        <span class="dot"></span>
+        <span id="statusText">正在读取授权状态…</span>
+      </div>
+
       <label>本机机器码</label>
       <div class="machine">
         <code id="machineCode">获取中…</code>
         <button id="copyBtn" type="button">复制</button>
       </div>
+
       <label>激活码</label>
       <textarea id="code" placeholder="粘贴激活码…"></textarea>
-      <button id="activateBtn" type="button">激活</button>
-      <div id="msg"></div>
+
+      <div class="actions">
+        <button id="activateBtn" type="button">激活</button>
+        <button id="checkBtn" type="button">检查授权</button>
+      </div>
+      <button id="enterBtn" type="button" hidden>进入主界面</button>
+
+      <div id="msg" role="status"></div>
     </div>
     <script>
       const machineCodeEl = document.getElementById("machineCode");
       const copyBtn = document.getElementById("copyBtn");
       const codeEl = document.getElementById("code");
       const activateBtn = document.getElementById("activateBtn");
+      const checkBtn = document.getElementById("checkBtn");
+      const enterBtn = document.getElementById("enterBtn");
+      const statusBox = document.getElementById("statusBox");
+      const statusText = document.getElementById("statusText");
       const msgEl = document.getElementById("msg");
 
       let rawCode = "";
+      let currentState = null;
 
       function setMsg(text, kind) {
         msgEl.textContent = text || "";
         msgEl.className = kind || "";
+      }
+
+      function formatTime(value) {
+        if (typeof value !== "number" || !Number.isFinite(value)) return "";
+        return new Date(value).toLocaleString("zh-CN", { hour12: false });
+      }
+
+      function describe(state) {
+        if (!state) return "正在读取授权状态…";
+        if (state.phase === "loading") return state.message || "正在校验授权…";
+
+        const parts = [];
+        if (state.status === "trial") {
+          if (Number.isFinite(state.trialLeftHours)) {
+            parts.push("试用剩余约 " + state.trialLeftHours + " 小时");
+          } else if (Number.isFinite(state.trialLeftDays)) {
+            parts.push("试用剩余约 " + state.trialLeftDays + " 天");
+          }
+        } else if (state.status === "active") {
+          parts.push(state.exp ? "有效期至 " + formatTime(state.exp) : "永久授权");
+          if (state.sn) parts.push("编号 " + state.sn);
+        } else if (state.status === "pending" && state.nbf) {
+          parts.push("将于 " + formatTime(state.nbf) + " 生效");
+        } else if (state.status === "expired" && state.exp) {
+          parts.push("已于 " + formatTime(state.exp) + " 到期");
+        }
+
+        let text = state.message || "授权状态未知";
+        if (parts.length) text += " · " + parts.join(" · ");
+        if (state.offline) text += "（离线）";
+        return text;
+      }
+
+      function render(state) {
+        if (!state) return;
+        currentState = state;
+        if (state.machineDisplay) {
+          rawCode = state.machineCode || rawCode;
+          machineCodeEl.textContent = state.machineDisplay;
+        }
+        statusText.textContent = describe(state);
+        const kind = state.allowed
+          ? state.warning || state.offline
+            ? "warn"
+            : "ok"
+          : state.status === "error"
+            ? "error"
+            : state.status === "trial"
+              ? "warn"
+              : "";
+        statusBox.className = "status" + (kind ? " " + kind : "");
+        if (state.warning) setMsg(state.warning, "warn");
+        enterBtn.hidden = !state.allowed;
       }
 
       window.licenseAPI
@@ -154,9 +297,18 @@
           machineCodeEl.textContent = "获取失败";
         });
 
+      window.licenseAPI
+        .getLicenseState()
+        .then(render)
+        .catch(() => undefined);
+
+      if (window.licenseAPI.onLicenseUpdate) {
+        window.licenseAPI.onLicenseUpdate(render);
+      }
+
       copyBtn.addEventListener("click", () => {
         if (rawCode) {
-          navigator.clipboard.writeText(machineCodeEl.textContent);
+          navigator.clipboard.writeText(rawCode);
           setMsg("已复制机器码", "ok");
         }
       });
@@ -168,18 +320,54 @@
           return;
         }
         activateBtn.disabled = true;
+        checkBtn.disabled = true;
         setMsg("校验中…");
         try {
           const result = await window.licenseAPI.activate(value);
+          if (result.state) render(result.state);
           if (result.ok) {
             setMsg("激活成功，正在进入…", "ok");
-          } else {
-            setMsg(result.error || "激活失败", "error");
-            activateBtn.disabled = false;
+            return;
+          }
+          setMsg(result.error || "激活失败", "error");
+        } catch (error) {
+          setMsg(String(error), "error");
+        } finally {
+          activateBtn.disabled = false;
+          checkBtn.disabled = false;
+        }
+      });
+
+      checkBtn.addEventListener("click", async () => {
+        checkBtn.disabled = true;
+        activateBtn.disabled = true;
+        setMsg("正在检查授权…");
+        try {
+          const state = await window.licenseAPI.checkin();
+          render(state);
+          setMsg(
+            state && state.allowed ? "授权有效" : (state && state.message) || "授权不可用",
+            state && state.allowed ? "ok" : "error",
+          );
+        } catch (error) {
+          setMsg(String(error), "error");
+        } finally {
+          checkBtn.disabled = false;
+          activateBtn.disabled = false;
+        }
+      });
+
+      enterBtn.addEventListener("click", async () => {
+        enterBtn.disabled = true;
+        try {
+          const result = await window.licenseAPI.enterApp();
+          if (!result.ok) {
+            setMsg(result.error || "无法进入主界面", "error");
+            enterBtn.disabled = false;
           }
         } catch (error) {
           setMsg(String(error), "error");
-          activateBtn.disabled = false;
+          enterBtn.disabled = false;
         }
       });
     </script>

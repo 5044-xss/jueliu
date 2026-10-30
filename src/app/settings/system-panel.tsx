@@ -57,8 +57,10 @@ export function SystemPanel({
   const [machine, setMachine] = useState<{ code: string; display: string } | null>(
     null,
   );
+  const [license, setLicense] = useState<LicenseState | null>(null);
   const [appVersion, setAppVersion] = useState("");
   const [checking, setChecking] = useState(false);
+  const [checkingLicense, setCheckingLicense] = useState(false);
   const [updateResult, setUpdateResult] = useState<CheckUpdateResult | null>(null);
   const isDesktop = useDesktop();
 
@@ -66,12 +68,61 @@ export function SystemPanel({
     if (!window.licenseAPI) return;
     window.licenseAPI.getMachineId().then(setMachine).catch(() => undefined);
     window.licenseAPI.getVersion().then(setAppVersion).catch(() => undefined);
+    window.licenseAPI
+      .getLicenseState()
+      .then(setLicense)
+      .catch(() => undefined);
+    return window.licenseAPI.onLicenseUpdate(setLicense);
   }, []);
 
+  function machineDisplay() {
+    return license?.machineDisplay ?? machine?.display ?? "—";
+  }
+
+  function licenseSummary(state: LicenseState | null) {
+    if (!isDesktop) return "浏览器预览模式（未打包）";
+    if (!state || state.phase === "loading") return "正在校验授权…";
+    if (state.status === "trial") {
+      const left =
+        state.trialLeftHours != null
+          ? `剩余约 ${state.trialLeftHours} 小时`
+          : state.trialLeftDays != null
+            ? `剩余约 ${state.trialLeftDays} 天`
+            : "";
+      return left ? `试用中 · ${left}` : "试用中";
+    }
+    if (state.status === "active") {
+      const expiry = state.exp
+        ? `有效期至 ${new Date(state.exp).toLocaleDateString("zh-CN")}`
+        : "永久授权";
+      return `已激活 · ${expiry}`;
+    }
+    return state.message || "授权不可用";
+  }
+
   function copyMachineCode() {
-    if (!machine) return;
-    navigator.clipboard.writeText(machine.display);
+    const display = machineDisplay();
+    if (display === "—") return;
+    navigator.clipboard.writeText(display);
     toast.success("已复制机器码");
+  }
+
+  async function checkLicense() {
+    if (!window.licenseAPI) return;
+    setCheckingLicense(true);
+    try {
+      const state = await window.licenseAPI.checkin();
+      setLicense(state);
+      if (state.allowed) {
+        toast.success(state.status === "trial" ? "试用授权有效" : "授权有效");
+      } else {
+        toast.error(state.message || "授权不可用");
+      }
+    } catch {
+      toast.error("检查授权失败");
+    } finally {
+      setCheckingLicense(false);
+    }
   }
 
   async function checkUpdate() {
@@ -114,15 +165,24 @@ export function SystemPanel({
             <ShieldCheck className="size-4" />
             授权与版本
           </CardTitle>
-          <CardDescription>离线签名授权，一码一机，永久有效。</CardDescription>
+          <CardDescription>在线校验 + 离线签名授权，一码一机。</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm">
               {isDesktop ? (
                 <>
-                  <CheckCircle2 className="size-4 text-emerald-500" />
-                  <span>已激活</span>
+                  {license?.allowed ? (
+                    <CheckCircle2 className="size-4 text-emerald-500" />
+                  ) : !license || license.phase === "loading" ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <XCircle className="size-4 text-amber-500" />
+                  )}
+                  <span>{licenseSummary(license)}</span>
+                  {license?.offline && (
+                    <span className="text-xs text-amber-600">离线缓存</span>
+                  )}
                 </>
               ) : (
                 <span className="text-muted-foreground">浏览器预览模式（未打包）</span>
@@ -133,15 +193,19 @@ export function SystemPanel({
             </span>
           </div>
 
+          {license?.warning && (
+            <p className="text-xs text-amber-600">{license.warning}</p>
+          )}
+
           <div className="grid gap-2">
             <Label>本机机器码</Label>
             <div className="flex gap-2 sm:max-w-md">
-              <Input readOnly value={machine?.display ?? "—"} />
+              <Input readOnly value={machineDisplay()} />
               <Button
                 type="button"
                 variant="outline"
                 onClick={copyMachineCode}
-                disabled={!machine}
+                disabled={!isDesktop || machineDisplay() === "—"}
               >
                 <Copy className="size-4" />
                 复制
@@ -200,7 +264,20 @@ export function SystemPanel({
           {isDesktop && (
             <>
               <Separator />
-              <div>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={checkLicense}
+                  disabled={checkingLicense}
+                >
+                  {checkingLicense ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="size-4" />
+                  )}
+                  检查授权
+                </Button>
                 <Button
                   type="button"
                   variant="outline"

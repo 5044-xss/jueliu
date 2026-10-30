@@ -6,6 +6,7 @@ const {
   Menu,
   dialog,
   Notification,
+  powerMonitor,
 } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -14,7 +15,7 @@ const http = require("node:http");
 const { spawn } = require("node:child_process");
 
 const { getMachineCode } = require("./machine-id.cjs");
-const { verifyLicense, loadLicense, saveLicense, clearLicense } = require("./license.cjs");
+const { createLicenseService } = require("./license.cjs");
 
 const isDev = !app.isPackaged;
 const DEV_URL = process.env.ELECTRON_DEV_URL || "http://127.0.0.1:3000";
@@ -23,7 +24,9 @@ const SKIP_LICENSE = process.env.SKIP_LICENSE === "1";
 
 let mainWindow = null;
 let activationWindow = null;
+let licenseService = null;
 let serverProcess = null;
+let startingApp = null;
 let activeJobCount = 0;
 let forceQuit = false;
 
@@ -38,10 +41,6 @@ if (!gotLock) {
     }
   });
   app.whenReady().then(bootstrap);
-}
-
-function licensePath() {
-  return path.join(app.getPath("userData"), "license.key");
 }
 
 function workspaceDir() {
@@ -76,24 +75,57 @@ function standaloneDir() {
 async function bootstrap() {
   Menu.setApplicationMenu(null);
   app.setAppUserModelId("com.5044.jueman");
+
+  licenseService = createLicenseService({
+    userDataDir: app.getPath("userData"),
+    appVersion: app.getVersion(),
+    isPackaged: app.isPackaged,
+    onUpdate: handleLicenseUpdate,
+  });
+
   registerIpc();
 
-  if (isDev || SKIP_LICENSE) {
+  powerMonitor.on("resume", () => {
+    if (!isDev && !SKIP_LICENSE) void licenseService?.poke();
+  });
+  powerMonitor.on("unlock-screen", () => {
+    if (!isDev && !SKIP_LICENSE) void licenseService?.poke();
+  });
+
+  if (SKIP_LICENSE) {
     startApp();
     return;
   }
 
-  const { code } = await getMachineCode();
-  const saved = loadLicense(licensePath());
-  if (saved) {
-    const result = verifyLicense(saved, code);
-    if (result.ok) {
-      startApp();
-      return;
-    }
-    clearLicense(licensePath());
+  if (isDev) {
+    void licenseService.start();
+    startApp();
+    return;
   }
+
+  const state = await licenseService.start();
+  if (state.allowed) {
+    startApp();
+  } else {
+    showActivation();
+  }
+}
+
+function handleLicenseUpdate(state) {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send("license:update", state);
+  }
+
+  if (isDev || SKIP_LICENSE || !licenseService) return;
+  if (!state || state.phase !== "ready" || state.allowed) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
   showActivation();
+  forceQuit = true;
+  stopServer();
+  const win = mainWindow;
+  mainWindow = null;
+  win.close();
 }
 
 function registerIpc() {
@@ -102,25 +134,40 @@ function registerIpc() {
     return { code, display };
   });
 
+  ipcMain.handle("get-license-state", () => licenseService.getState());
+
+  ipcMain.handle("checkin", () => licenseService.refresh({ manual: true }));
+
   ipcMain.handle("activate", async (_event, licenseCode) => {
-    const { code } = await getMachineCode();
-    const result = verifyLicense(licenseCode, code);
-    if (!result.ok) return { ok: false, error: result.error };
-    saveLicense(licensePath(), licenseCode);
-    setTimeout(() => {
+    const result = await licenseService.activate(licenseCode);
+    if (result.ok) {
+      await startApp();
       if (activationWindow && !activationWindow.isDestroyed()) activationWindow.close();
-      startApp();
-    }, 400);
+    }
+    return result;
+  });
+
+  ipcMain.handle("enter-app", async () => {
+    const state = licenseService.getState();
+    if (!state.allowed) {
+      return { ok: false, error: state.message || "当前授权不可用" };
+    }
+    await startApp();
+    if (activationWindow && !activationWindow.isDestroyed()) activationWindow.close();
     return { ok: true };
   });
 
   ipcMain.handle("reset-license", () => {
-    forceQuit = true;
-    clearLicense(licensePath());
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
-    mainWindow = null;
+    const state = licenseService.reset();
     showActivation();
-    return { ok: true };
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      forceQuit = true;
+      stopServer();
+      const win = mainWindow;
+      mainWindow = null;
+      win.close();
+    }
+    return { ok: true, state };
   });
 
   ipcMain.handle("get-version", () => app.getVersion());
@@ -283,7 +330,10 @@ function createWindow(url) {
     }
   });
   mainWindow.on("focus", () => {
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.flashFrame(false);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.flashFrame(false);
+      if (!isDev && !SKIP_LICENSE) void licenseService?.poke();
+    }
   });
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -299,14 +349,14 @@ function showActivation() {
   }
   activationWindow = new BrowserWindow({
     width: 560,
-    height: 460,
+    height: 540,
     resizable: false,
     minimizable: false,
     maximizable: false,
     show: false,
     backgroundColor: "#0b0b0f",
     icon: appIconPath(),
-    title: "掘漫 · 激活",
+    title: "掘流 · 激活",
     webPreferences: {
       preload: preloadPath(),
       contextIsolation: true,
@@ -315,6 +365,9 @@ function showActivation() {
     },
   });
   activationWindow.once("ready-to-show", () => activationWindow.show());
+  activationWindow.on("focus", () => {
+    if (!isDev && !SKIP_LICENSE) void licenseService?.poke();
+  });
   activationWindow.on("closed", () => {
     activationWindow = null;
   });
@@ -322,17 +375,32 @@ function showActivation() {
 }
 
 async function startApp() {
-  if (isDev) {
-    createWindow(DEV_URL);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    mainWindow.focus();
     return;
   }
+  if (startingApp) return startingApp;
+
+  startingApp = (async () => {
+    if (isDev) {
+      createWindow(DEV_URL);
+      return;
+    }
+    try {
+      const port = await findFreePort();
+      await startServer(port);
+      createWindow(`http://127.0.0.1:${port}`);
+    } catch (error) {
+      dialog.showErrorBox("启动失败", String(error.message || error));
+      app.quit();
+    }
+  })();
+
   try {
-    const port = await findFreePort();
-    await startServer(port);
-    createWindow(`http://127.0.0.1:${port}`);
-  } catch (error) {
-    dialog.showErrorBox("启动失败", String(error.message || error));
-    app.quit();
+    await startingApp;
+  } finally {
+    startingApp = null;
   }
 }
 
@@ -427,5 +495,6 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   forceQuit = true;
+  licenseService?.stop();
   stopServer();
 });
