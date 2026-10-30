@@ -368,6 +368,7 @@ function startServer(port) {
     HOSTNAME: "127.0.0.1",
     WORKSPACE_DIR: workspaceDir(),
     FFMPEG_PATH: ffmpegPath(),
+    CLIPBOARD_HELPER: path.join(process.resourcesPath, "clipboard-files.exe"),
   });
 
   serverProcess = spawn(process.execPath, [serverEntry], {

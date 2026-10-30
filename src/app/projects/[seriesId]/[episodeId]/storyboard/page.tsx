@@ -194,7 +194,7 @@ export default function StoryboardPage() {
     previewIssues.errors.length + previewIssues.warnings.length;
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 pb-4">
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto pb-4 lg:overflow-hidden">
       <StoryboardHeader
         hasStoryboard={sb.hasStoryboard}
         hasScript={sb.hasScript}
@@ -258,7 +258,7 @@ export default function StoryboardPage() {
 
       {!sb.busyGenerate && sb.hasStoryboard && previewEntry && previewScene && preview && (
         <div className="flex min-h-0 flex-1 flex-col gap-4">
-          <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:overflow-hidden">
+          <div className="grid shrink-0 grid-cols-1 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:overflow-hidden">
             <StoryboardVideoPanel
               projectId={id}
               entry={previewEntry}

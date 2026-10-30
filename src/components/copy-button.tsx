@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { copyText } from "@/lib/clipboard";
 
 export function CopyButton({
   text,
@@ -19,12 +20,12 @@ export function CopyButton({
   const [copied, setCopied] = useState(false);
 
   async function copy() {
-    try {
-      await navigator.clipboard.writeText(text);
+    const ok = await copyText(text);
+    if (ok) {
       setCopied(true);
       toast.success("已复制");
       setTimeout(() => setCopied(false), 1500);
-    } catch {
+    } else {
       toast.error("复制失败");
     }
   }

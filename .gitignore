@@ -58,3 +58,6 @@ license-private*.json
 # bundled ffmpeg (fetched by scripts/fetch-ffmpeg.mjs, not committed)
 /resources/ffmpeg
 # electron binary downloaded by scripts/fetch-electron.mjs lives in node_modules
+
+# clipboard helper (compiled by scripts/build-clipboard-helper.mjs)
+/resources/clipboard-files.exe

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";import { toast } from "sonner";
 import {
   ChevronDown,
+  Copy,
   ImagePlus,
   Loader2,
   RotateCcw,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { CopyButton } from "@/components/copy-button";
 import { PreviewImage } from "@/components/preview-image";
 import { PromptRepairDialog } from "@/components/prompt-repair-dialog";
 import {
@@ -32,6 +34,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useConfirm } from "@/components/confirm-dialog";
 import { readError } from "@/lib/http";
+import { copyImagesToClipboard } from "@/lib/copy-images";
+import { saveImage } from "@/lib/save-image";
 import { cn } from "@core/client/utils";
 import type {
   StoredSegment,
@@ -75,6 +79,16 @@ function refLabel(
 function isKeyframeOnly(manifest: ManifestItem[]): boolean {
   const starts = manifest.filter((item) => item.role === "start").length;
   return starts > 0 && starts === manifest.length;
+}
+
+function fileSafeName(name: string): string {
+  return (
+    name
+      .replace(/[\\/:*?"<>|\r\n\t]/g, "_")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 60) || "参考图"
+  );
 }
 
 export function SegmentComposer({
@@ -125,6 +139,7 @@ export function SegmentComposer({
   const [sending, setSending] = useState(false);
   const [saving, setSaving] = useState(false);
   const [refBusy, setRefBusy] = useState(false);
+  const [refCopyBusy, setRefCopyBusy] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [durationDraft, setDurationDraft] = useState(() =>
     Math.round(segment.targetMs / 1000),
@@ -509,6 +524,95 @@ export function SegmentComposer({
     if (index >= 0) void removeRef(index);
   }
 
+  async function copyRefImages() {
+    if (refCopyBusy || refBusy) return;
+    const items = manifest.filter((item) => item.viewUrl);
+    if (items.length === 0) {
+      toast.error("没有可复制的参考图");
+      return;
+    }
+    setRefCopyBusy(true);
+    try {
+      const localHost = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(
+        window.location.hostname,
+      );
+      if (localHost) {
+        const res = await fetch("/api/clipboard/images", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId,
+            segmentId: segment.id,
+            platform,
+            keyframeOnly: isKeyframeOnly(manifest),
+          }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          count?: number;
+          error?: string;
+        } | null;
+        if (res.ok && data?.ok) {
+          const count = data.count ?? items.length;
+          const skipped = items.length - count;
+          toast.success(`已复制 ${count} 张参考图`, {
+            description:
+              skipped > 0
+                ? `已按图号顺序写入剪贴板；另有 ${skipped} 张图片缺失，已跳过。`
+                : "已按图号顺序把图片文件写入剪贴板，可直接粘贴到豆包。",
+          });
+          return;
+        }
+      }
+      try {
+        const result = await copyImagesToClipboard(
+          items.map((item) => ({
+            slot: item.slot,
+            label: item.label,
+            url: item.viewUrl as string,
+          })),
+        );
+        const skipped = items.length - result.count;
+        toast.success(`已复制 ${result.count} 张参考图`, {
+          description:
+            skipped > 0
+              ? `已按图号顺序写入剪贴板；另有 ${skipped} 张图片缺失，已跳过。`
+              : "已按图号顺序写入剪贴板，可直接粘贴到支持图文的输入框。",
+        });
+        return;
+      } catch {
+        // 剪贴板写入失败时退回逐张下载。
+      }
+      let exported = 0;
+      for (const item of items) {
+        if (!item.viewUrl) continue;
+        try {
+          await saveImage(
+            item.viewUrl,
+            `${item.slot}_${fileSafeName(item.label)}`,
+          );
+          exported += 1;
+        } catch {
+          // 单张缺失（例如资产图片已被删除）时继续导出其余图片。
+        }
+      }
+      if (exported === 0) {
+        toast.error("参考图读取失败，没有可导出的图片");
+        return;
+      }
+      toast.success(`已按图号顺序导出 ${exported} 张参考图`, {
+        description:
+          exported < items.length
+            ? `另有 ${items.length - exported} 张读取失败，已跳过。`
+            : "当前环境不支持多图剪贴板，已改为逐张下载。",
+      });
+    } catch (error) {
+      toast.error((error as Error).message || "复制参考图失败");
+    } finally {
+      setRefCopyBusy(false);
+    }
+  }
+
   const manifest = rendered?.manifest ?? [];
   const currentSeconds = Math.round(segment.targetMs / 1000);
   const durationOptions = useMemo(() => {
@@ -603,6 +707,21 @@ export function SegmentComposer({
             {refBusy ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
           </button>
         </div>
+        <Button
+          size="xs"
+          variant="outline"
+          onClick={() => void copyRefImages()}
+          disabled={refCopyBusy || refBusy || manifest.length === 0}
+          title="按当前图号顺序复制全部参考图"
+          className="shrink-0"
+        >
+          {refCopyBusy ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <Copy className="size-3" />
+          )}
+          复制全部
+        </Button>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-0.5 [scrollbar-gutter:stable]">
@@ -656,7 +775,7 @@ export function SegmentComposer({
               ? "正在按本段分镜生成提示词…"
               : "输入视频提示词；可自由编辑，保存后复制到第三方生成。"
           }
-          className="min-h-32 w-full flex-1 resize-none rounded-lg border border-input bg-transparent p-2.5 text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+          className="min-h-56 w-full flex-1 resize-none rounded-lg border border-input bg-transparent p-2.5 text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 sm:min-h-44 lg:min-h-32"
         />
 
         {promptStale && (
@@ -761,7 +880,7 @@ export function SegmentComposer({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
           {prompt.trim() && (
             <Button
               variant="ghost"
@@ -787,6 +906,12 @@ export function SegmentComposer({
             <RotateCcw className="size-3.5" />
             还原
           </Button>
+          <CopyButton
+            text={prompt}
+            label="复制提示词"
+            size="sm"
+            variant="ghost"
+          />
           <Button
             onClick={() => void send()}
             disabled={busy || !prompt.trim()}

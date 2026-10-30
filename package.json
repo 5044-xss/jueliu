@@ -11,6 +11,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "icon": "node scripts/gen-icon.mjs",
+    "build:clipboard": "node scripts/build-clipboard-helper.mjs",
     "ffmpeg:fetch": "node scripts/fetch-ffmpeg.mjs",
     "electron": "electron .",
     "electron:dev": "concurrently -k -n next,electron \"next dev -p 3000\" \"wait-on http-get://127.0.0.1:3000 && electron .\"",

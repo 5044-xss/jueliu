@@ -314,7 +314,7 @@ export function SegmentVideo({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex min-h-0 flex-1 flex-col gap-2">
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
           <Badge
             variant={videoPath ? "default" : "secondary"}
             className="shrink-0"
@@ -322,7 +322,7 @@ export function SegmentVideo({
             <Film className="size-3" />
             {videoPath ? "已回传" : "未回传"}
           </Badge>
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">
             <Button
               size="sm"
               variant="outline"

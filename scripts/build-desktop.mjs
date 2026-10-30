@@ -112,6 +112,7 @@ function purgeSensitive() {
 function main() {
   run("node", ["scripts/gen-icon.mjs"]);
   run("node", ["scripts/fetch-ffmpeg.mjs"]);
+  run("node", ["scripts/build-clipboard-helper.mjs"]);
   run("node", ["scripts/fetch-electron.mjs"]);
 
   const moved = hideEnvFiles();

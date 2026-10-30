@@ -20,6 +20,8 @@ files:
 extraResources:
   - from: resources/ffmpeg
     to: ffmpeg
+  - from: resources/clipboard-files.exe
+    to: clipboard-files.exe
   - from: public/appicon.png
     to: appicon.png
 

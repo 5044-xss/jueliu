@@ -37,9 +37,11 @@ function ShotView({
   return (
     <div className="flex flex-col gap-1.5 rounded-lg border p-3 text-sm">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-medium">镜{shot.index + 1}</span>
-        <span className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">
+        <span className="shrink-0 whitespace-nowrap font-medium">
+          镜{shot.index + 1}
+        </span>
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 text-right text-xs text-muted-foreground">
             {(shot.durationMs / 1000).toFixed(1)}s
             {camera && ` · ${camera}`}
           </span>
@@ -48,6 +50,7 @@ function ShotView({
             variant="ghost"
             onClick={onEdit}
             title="编辑本镜"
+            className="shrink-0"
           >
             <Pencil className="size-3" />
           </Button>
