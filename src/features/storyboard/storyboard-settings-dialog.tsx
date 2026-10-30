@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Sparkles, Trash2, Wand2 } from "lucide-react";
+import { Loader2, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,16 +23,12 @@ export function StoryboardSettingsDialog({
   strategies,
   strategyId,
   extra,
-  autoStartFrames,
   hasStoryboard,
   orchestrating,
-  missingStartFrames,
   onVendorChange,
   onStrategyChange,
   onExtraChange,
-  onAutoStartFramesChange,
   onReorchestrate,
-  onGenerateStartFrames,
   onClear,
 }: {
   open: boolean;
@@ -42,16 +38,12 @@ export function StoryboardSettingsDialog({
   strategies: LibraryStoryboardStrategy[];
   strategyId: string;
   extra: string;
-  autoStartFrames: boolean;
   hasStoryboard: boolean;
   orchestrating: boolean;
-  missingStartFrames: number;
   onVendorChange: (vendor: string) => void;
   onStrategyChange: (strategyId: string) => void;
   onExtraChange: (extra: string) => void;
-  onAutoStartFramesChange: (value: boolean) => void;
   onReorchestrate: () => void;
-  onGenerateStartFrames: () => void;
   onClear: () => void;
 }) {
   const selectedVendor = vendors.find((item) => item.id === vendor);
@@ -63,7 +55,7 @@ export function StoryboardSettingsDialog({
         <DialogHeader>
           <DialogTitle>分镜设置</DialogTitle>
           <DialogDescription>
-            默认厂商与策略包会直接用于「生成分镜」和「一键生成视频」。高级操作只在需要时展开。
+            默认厂商与策略包会直接用于「生成分镜」。高级操作只在需要时展开。
           </DialogDescription>
         </DialogHeader>
 
@@ -123,25 +115,6 @@ export function StoryboardSettingsDialog({
           </section>
 
           <section className="flex flex-col gap-2 border-t pt-4">
-            <label className="flex items-start gap-2 rounded-lg border border-border p-3 text-sm">
-              <input
-                type="checkbox"
-                checked={autoStartFrames}
-                onChange={(event) =>
-                  onAutoStartFramesChange(event.target.checked)
-                }
-                className="mt-0.5 size-4 accent-primary"
-              />
-              <span>
-                一键生成视频时自动补硬切/场首首帧
-                <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                  默认关闭。开启后，硬切/场首段缺少起始画面时会先自动出图，产生额外出图费用；连续段仍直接接上一段尾帧，不受此开关影响。
-                </span>
-              </span>
-            </label>
-          </section>
-
-          <section className="flex flex-col gap-2 border-t pt-4">
             <div>
               <p className="text-sm font-medium">高级操作</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
@@ -161,21 +134,6 @@ export function StoryboardSettingsDialog({
                   <Wand2 className="size-3.5" />
                 )}
                 按当前厂商重新编排
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={onGenerateStartFrames}
-                disabled={!hasStoryboard || missingStartFrames === 0}
-                title={
-                  missingStartFrames > 0
-                    ? `为 ${missingStartFrames} 段补 AI 首帧`
-                    : "所有硬切/场首段都已有起始画面"
-                }
-              >
-                <Sparkles className="size-3.5" />
-                补首帧
-                {missingStartFrames > 0 ? `（${missingStartFrames}）` : ""}
               </Button>
               <Button
                 size="sm"

@@ -80,7 +80,7 @@ export function ProjectAspectSwitcher({
           <DialogHeader>
             <DialogTitle>画面比例</DialogTitle>
             <DialogDescription>
-              影响起始画面、视频与最终合成；在生成视频前切换最稳妥。
+              影响起始画面、视频与最终合成；在回传视频前切换最稳妥。
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">

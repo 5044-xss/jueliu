@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ensureCore } from "@/lib/bootstrap";
-import { ComfyClient } from "@/lib/generation/comfy";
-import { createImageClient } from "@/lib/generation/image-client";
 import { getProviderSettings } from "@/lib/settings/providers-server";
 import { serverFetch } from "@/lib/server-fetch";
 import {
@@ -70,7 +68,7 @@ async function testLlm(
     } | null;
     if (res.status === 404 || res.status === 405) {
       // 部分网关（如 OpenCode Go）不提供 /models。这里只确认服务可达，
-      // 不再发对话请求，避免连接检测产生任何 token/出图消费。
+      // 不再发对话请求，避免连接检测产生任何 token 消费。
       return {
         ok: true,
         implemented: true,
@@ -111,54 +109,6 @@ async function testLlm(
   }
 }
 
-async function testImage(conn: ProviderConnection): Promise<CapabilityResult> {
-  const baseUrl = resolveEndpoint(conn, "image");
-  if (!baseUrl) {
-    return { ok: false, implemented: true, message: "未填写接口地址" };
-  }
-  if (!conn.apiKey.trim()) {
-    return { ok: false, implemented: true, message: "未填写 API Key" };
-  }
-  if (/[^\x20-\x7e]/.test(conn.apiKey.trim())) {
-    return {
-      ok: false,
-      implemented: true,
-      message: "API Key 含中文或全角字符，请重新粘贴真实 Key",
-    };
-  }
-  const client = createImageClient({
-    baseUrl,
-    apiKey: conn.apiKey,
-    timeoutMs: 20_000,
-    protocol:
-      presetOf(conn.type, "image")?.protocol === "apimart-image"
-        ? "apimart-image"
-        : "toapis-image",
-  });
-  const result = await client.testConnection();
-  return {
-    ok: result.ok,
-    implemented: true,
-    message: result.ok
-      ? `连通 · HTTP ${result.status}`
-      : result.detail || `HTTP ${result.status}`,
-  };
-}
-
-async function testVideo(conn: ProviderConnection): Promise<CapabilityResult> {
-  const baseUrl = resolveEndpoint(conn, "video");
-  if (!baseUrl) {
-    return { ok: false, implemented: true, message: "未填写实例地址" };
-  }
-  const client = new ComfyClient({ baseUrl, timeoutMs: 30_000 });
-  const result = await client.test();
-  return {
-    ok: result.ok,
-    implemented: true,
-    message: result.ok ? "实例在线" : result.detail || "连接失败",
-  };
-}
-
 export async function POST(request: Request) {
   ensureCore();
   const json = await request.json().catch(() => null);
@@ -188,7 +138,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "连接不存在" }, { status: 404 });
   }
 
-  const owned = capabilitiesOf(conn.type);
+  const owned: Capability[] = capabilitiesOf(conn.type).includes("llm")
+    ? ["llm"]
+    : [];
   const requested = (parsed.data.capabilities?.length
     ? parsed.data.capabilities
     : owned
@@ -213,12 +165,7 @@ export async function POST(request: Request) {
           },
         ] as const;
       }
-      const result =
-        cap === "llm"
-          ? await testLlm(conn, llmModel)
-          : cap === "image"
-            ? await testImage(conn)
-            : await testVideo(conn);
+      const result = await testLlm(conn, llmModel);
       return [cap, result] as const;
     }),
   );

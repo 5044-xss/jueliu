@@ -2,13 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";import { toast } from "sonner";
 import {
-  ArrowUp,
   ChevronDown,
   ImagePlus,
   Loader2,
   RotateCcw,
+  Save,
   Sparkles,
-  Square,
   Stethoscope,
   Upload,
   Wand2,
@@ -85,18 +84,13 @@ export function SegmentComposer({
   assets,
   platform,
   aspectRatio,
-  vendorName,
-  isH3,
   maxRefs,
   minDurationSec,
   maxDurationSec,
   durationStepSec,
   timeRange,
   reloadToken,
-  segmentGenerating = false,
   onRefresh,
-  onCloudStart,
-  onCancelSegment,
   onRegenerateSegment,
   onRestoreSegment,
   onEditBlocking,
@@ -108,18 +102,13 @@ export function SegmentComposer({
   assets: StoredAsset[];
   platform: string;
   aspectRatio: string;
-  vendorName: string;
-  isH3: boolean;
   maxRefs: number;
   minDurationSec: number;
   maxDurationSec: number;
   durationStepSec: number;
   timeRange: string;
   reloadToken: number;
-  segmentGenerating?: boolean;
   onRefresh: () => Promise<void> | void;
-  onCloudStart: () => void;
-  onCancelSegment: (segmentId: string) => void;
   onRegenerateSegment: (segmentId: string) => void;
   onRestoreSegment: (segmentId: string) => void;
   onEditBlocking: (scene: StoredSceneStoryboard) => void;
@@ -317,10 +306,10 @@ export function SegmentComposer({
 
   async function send() {
     if (!prompt.trim()) {
-      toast.error("提示词为空，无法提交");
+      toast.error("提示词为空，无法保存");
       return;
     }
-    if (sending || segmentGenerating) return;
+    if (sending) return;
     setSending(true);
     try {
       if (durationDraft !== Math.round(segment.targetMs / 1000)) {
@@ -333,28 +322,16 @@ export function SegmentComposer({
           },
         );
         if (!durationRes.ok) {
-          throw new Error(await readError(durationRes, "提交时长失败"));
+          throw new Error(await readError(durationRes, "保存时长失败"));
         }
       }
       await savePrompt(prompt, isKeyframeOnly(manifest));
-      if (!isH3) {
-        toast.error("提示词已保存", {
-          description: `当前厂商「${vendorName}」不支持云端生成，请切换 H3，或在预览里回传视频。`,
-        });
-        return;
-      }
-      const res = await fetch(
-        `/api/projects/${projectId}/segments/${segment.id}/generate-video`,
-        { method: "POST" },
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "提交失败");
-      toast.success(segment.videoPath ? "已提交重新生成" : "已提交生成", {
-        description: `${data.mode} · 图片 ${data.refCount} 张（完成后自动回填）`,
+      toast.success("提示词已保存", {
+        description: "可复制到第三方生成视频，完成后回传到预览区。",
       });
       await onRefresh();
     } catch (error) {
-      toast.error((error as Error).message || "提交失败");
+      toast.error((error as Error).message || "保存失败");
     } finally {
       setSending(false);
     }
@@ -376,7 +353,7 @@ export function SegmentComposer({
       setPrompt(promptText);
       setPromptStale(false);
       toast.success("提示词已按意见修改", {
-        description: "检查无误后，再点「重新生成」提交视频。",
+        description: "检查无误后即可复制使用。",
       });
       return true;
     } catch (error) {
@@ -554,7 +531,7 @@ export function SegmentComposer({
   ]);
   const dirty = prompt !== baseline;
   // 只看本段是否在生成：其它段落批量生成时，本段仍可编辑/重新提交。
-  const busy = sending || saving || promptBusy || segmentGenerating;
+  const busy = sending || saving || promptBusy;
 
   if (loading) {
     return (
@@ -637,13 +614,6 @@ export function SegmentComposer({
           </span>
         </div>
 
-        {!isH3 && (
-          <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-5 text-amber-700 dark:text-amber-300">
-            当前厂商「{vendorName}」不支持云端生成；发送只会保存提示词。请切换到 H3，
-            或在左侧预览里回传视频。
-          </p>
-        )}
-
         {!prompt && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed px-2.5 py-1.5 text-[11px] text-muted-foreground">
             {promptBusy ? (
@@ -684,7 +654,7 @@ export function SegmentComposer({
           placeholder={
             promptBusy
               ? "正在按本段分镜生成提示词…"
-              : "输入要提交的视频提示词；可自由编辑，发送时以此为准。"
+              : "输入视频提示词；可自由编辑，保存后复制到第三方生成。"
           }
           className="min-h-32 w-full flex-1 resize-none rounded-lg border border-input bg-transparent p-2.5 text-sm leading-6 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
         />
@@ -739,13 +709,6 @@ export function SegmentComposer({
             <ChevronDown className="size-3" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
-            <DropdownMenuItem
-              onClick={onCloudStart}
-              title="用 Toapi 云端生成该段起始画面并回填"
-            >
-              <Sparkles className="size-4" />
-              云端生成起始画面
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onRegenerateSegment(segment.id)}>
               <Sparkles className="size-4" />
               重新生成本段分镜
@@ -799,7 +762,7 @@ export function SegmentComposer({
         </DropdownMenu>
 
         <div className="ml-auto flex items-center gap-1.5">
-          {prompt.trim() && !segmentGenerating && (
+          {prompt.trim() && (
             <Button
               variant="ghost"
               size="sm"
@@ -824,40 +787,16 @@ export function SegmentComposer({
             <RotateCcw className="size-3.5" />
             还原
           </Button>
-          {segmentGenerating && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onCancelSegment(segment.id)}
-              title="取消本段正在排队/生成的视频"
-            >
-              <Square className="size-3.5" />
-              取消本段
-            </Button>
-          )}
           <Button
             onClick={() => void send()}
             disabled={busy || !prompt.trim()}
-            title={
-              !isH3
-                ? "当前厂商不支持云端生成；点击会先保存提示词"
-                : undefined
-            }
           >
-            {sending || promptBusy || segmentGenerating ? (
+            {sending || promptBusy ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
-              <ArrowUp className="size-4" />
+              <Save className="size-4" />
             )}
-            {sending
-              ? "提交中"
-              : promptBusy
-                ? "编译中"
-                : segmentGenerating
-                  ? "生成中"
-                  : segment.videoPath
-                    ? "重新生成"
-                    : "发送"}
+            {sending ? "保存中" : promptBusy ? "编译中" : "保存提示词"}
           </Button>
         </div>
       </div>

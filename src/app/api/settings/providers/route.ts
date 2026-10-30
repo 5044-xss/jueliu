@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { readGlobalSettings } from "@core/server/settings";
 import { ensureCore } from "@/lib/bootstrap";
-import { getMaskedGenerationSettings } from "@/lib/generation/settings";
 import {
   getMaskedProviderSettings,
   saveProviderSettings,
@@ -12,8 +10,6 @@ export async function GET() {
   ensureCore();
   return NextResponse.json({
     settings: getMaskedProviderSettings(),
-    generation: getMaskedGenerationSettings(),
-    autoGenerateAiPrompt: readGlobalSettings().autoGenerateAiPrompt,
   });
 }
 
@@ -29,14 +25,9 @@ export async function PUT(request: Request) {
   }
 
   try {
-    const saved = saveProviderSettings(parsed.data.settings, {
-      generation: parsed.data.generation,
-      autoGenerateAiPrompt: parsed.data.autoGenerateAiPrompt,
-    });
+    const saved = saveProviderSettings(parsed.data.settings);
     return NextResponse.json({
       settings: maskProviderSettings(saved),
-      generation: getMaskedGenerationSettings(),
-      autoGenerateAiPrompt: readGlobalSettings().autoGenerateAiPrompt,
     });
   } catch (error) {
     return NextResponse.json(

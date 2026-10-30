@@ -13,7 +13,6 @@ import {
   Circle,
   Download,
   Film,
-  Hourglass,
   ImageDown,
   Loader2,
   Maximize2,
@@ -86,7 +85,6 @@ export function SegmentVideo({
   refreshKey = 0,
   onChanged,
   qcPanel,
-  phase = null,
 }: {
   projectId: string;
   segmentId: string;
@@ -95,7 +93,6 @@ export function SegmentVideo({
   refreshKey?: number;
   onChanged?: () => void;
   qcPanel?: ReactNode;
-  phase?: "running" | "queued" | null;
 }) {
   const [frames, setFrames] = useState<FrameInfo[]>([]);
   const [videoPath, setVideoPath] = useState<string | null>(null);
@@ -396,20 +393,8 @@ export function SegmentVideo({
                 本段还没有视频
               </p>
               <p className="mt-1 text-[11px] leading-5 text-neutral-500">
-                可以用云端出片，或第三方生成后把视频回传到这里。
+                在第三方生成视频后，把视频回传到这里。
               </p>
-            </div>
-          )}
-          {phase === "running" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55 text-white backdrop-blur-[1px]">
-              <Loader2 className="size-6 animate-spin" />
-              <span className="text-xs">视频生成中…</span>
-            </div>
-          )}
-          {phase === "queued" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55 text-white backdrop-blur-[1px]">
-              <Hourglass className="size-5" />
-              <span className="text-xs">排队中…</span>
             </div>
           )}
         </div>

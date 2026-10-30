@@ -22,30 +22,15 @@ const FLOW = [
   },
   {
     title: "资产",
-    body: "点「生成资产」，提取角色、场景、道具；再生成参考图（云端出图或上传）。",
+    body: "点「生成资产」，提取角色、场景、道具；复制提示词到第三方出图，再回传到资产视角。",
   },
   {
     title: "分镜",
-    body: "点「生成分镜」；逐段看提示词，生成起始画面或视频，或回传外部素材。",
+    body: "点「生成分镜」；逐段复制提示词到第三方生成视频，再回传到对应段落。",
   },
   {
     title: "合成",
     body: "选段、排序、设转场和字幕，点「合成导出」；完成后打开成片文件夹。",
-  },
-];
-
-const MODES = [
-  {
-    label: "全自动",
-    body: "云端出图 + 云端出片，需要图片、视频连接。",
-  },
-  {
-    label: "半自动",
-    body: "图片云端出，视频去第三方生成后回传。",
-  },
-  {
-    label: "全手动",
-    body: "图片、视频都在第三方生成，再分别回传到资产视角和分镜段落。",
   },
 ];
 
@@ -56,11 +41,11 @@ const FAQ = [
   },
   {
     problem: "401、额度不足、超时",
-    fix: "设置 → 服务商 → 测试连接；模型路由换模型；任务页看失败原因。",
+    fix: "设置 → 服务商 → 测试连接；模型路由换模型。",
   },
   {
-    problem: "出图、出片一直排队",
-    fix: "任务页看进度，也可以取消；云端排队时等待即可。",
+    problem: "图片或视频回传后没显示",
+    fix: "确认文件格式受支持（图片 PNG/JPG，视频 MP4/WebM/MOV），并刷新页面。",
   },
   {
     problem: "合成报 ffmpeg 不可用",
@@ -102,8 +87,8 @@ export function HelpDialog({
                   ：设置 → 本机 → 检测。打包版一般已内置；只生成、不合成可以先跳过。
                 </li>
                 <li>
-                  <span className="font-medium">图片 / 视频模型（可选）</span>
-                  ：想用内置云端出图、出片，就在「服务商」添加对应连接，并在「模型路由」绑定；不配也能走手动回传。
+                  <span className="font-medium">图片 / 视频（手动回传）</span>
+                  ：在第三方平台按提示词生成，再回传到资产视角和分镜段落。
                 </li>
               </ul>
             </section>
@@ -130,18 +115,8 @@ export function HelpDialog({
 
             <section className="flex flex-col gap-2">
               <h3 className="text-sm font-semibold">图片和视频从哪来</h3>
-              <ul className="flex flex-col gap-1.5 leading-relaxed">
-                {MODES.map((mode) => (
-                  <li key={mode.label} className="flex gap-2">
-                    <span className="w-14 shrink-0 font-medium">
-                      {mode.label}
-                    </span>
-                    <span className="text-muted-foreground">{mode.body}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-xs text-muted-foreground">
-                合成和导出始终在本机完成。
+              <p className="leading-relaxed">
+                图片与视频都在第三方平台生成，再分别回传到资产视角和分镜段落。合成和导出在本机完成。
               </p>
             </section>
 

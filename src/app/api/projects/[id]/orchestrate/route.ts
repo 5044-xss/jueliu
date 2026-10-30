@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getProject, updateProject } from "@core/server/projects";
-import { getProjectDb } from "@core/server/db";
 import {
   applyOrchestration,
   planOrchestration,
@@ -86,20 +85,6 @@ export async function POST(request: Request, { params }: Ctx) {
       const project = getProject(id);
       if (!project) {
         return NextResponse.json({ error: "子集不存在" }, { status: 404 });
-      }
-      const runningGeneration = getProjectDb(id)
-        .prepare(
-          `SELECT 1 FROM job
-           WHERE project_id = ? AND status = 'running'
-             AND kind IN ('gen-image', 'gen-video', 'gen-videos')
-           LIMIT 1`,
-        )
-        .get(id);
-      if (runningGeneration) {
-        return NextResponse.json(
-          { error: "云端生成进行中，请先取消或等待完成后再重新编排" },
-          { status: 409 },
-        );
       }
       captureOrchestrationState(id, project.vendor);
       const result = applyOrchestration(id, parsed.data.vendor, options);

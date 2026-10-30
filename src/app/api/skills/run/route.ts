@@ -25,7 +25,6 @@ import {
   updateJobParams,
 } from "@core/server/jobs";
 import { withLock } from "@core/server/lock";
-import { cancelProjectGeneration } from "@/lib/generation/cancel";
 
 export const maxDuration = 300;
 
@@ -81,7 +80,6 @@ export async function POST(request: Request) {
     if (skillId === "story-to-script" && isScript(output)) {
       // 任务可能已在等待期间被新任务取代/取消：丢弃本次结果，避免旧输出覆盖新结果。
       assertJobActive(projectId, jobId);
-      cancelProjectGeneration(projectId);
       const stored = saveScript(projectId, output);
       // 失效级联：剧本变了 → 下游资产、分镜全部失效并清空。
       clearAssets(projectId);
@@ -92,7 +90,6 @@ export async function POST(request: Request) {
 
     if (skillId === "script-to-assets" && isAssetsDraft(output)) {
       assertJobActive(projectId, jobId);
-      cancelProjectGeneration(projectId);
       saveAssetDrafts(projectId, output.assets);
       // 读项目资产库：把已入库的角色/场景/道具基础图回填到本集新资产的基础槽位。
       seedAssetBaseImagesFromLibrary(projectId);
@@ -112,7 +109,6 @@ export async function POST(request: Request) {
         `orchestrate:${projectId}`,
         async () => {
           assertJobActive(projectId, jobId);
-          cancelProjectGeneration(projectId);
           saveStoryboard(projectId, output, assets);
           const applied = applyOrchestration(projectId, project.vendor);
           return { scenes: getStoryboard(projectId), applied };

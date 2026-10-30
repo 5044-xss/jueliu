@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Loader2, Pencil, Plus, Trash2, Zap } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,7 +35,6 @@ import {
   modelsByCapabilityOf,
   presetModelsByCapability,
   presetOf,
-  resolveEndpoint,
   withAutoBindings,
   withoutConnection,
   type Capability,
@@ -59,32 +58,21 @@ function blankConnection(type: ConnectionType): ProviderConnection {
     models: [],
     modelsByCapability: presetModelsByCapability(type),
     baseUrls: {},
-    imageConcurrency: 2,
-    videoConcurrency: 1,
-    imagePollIntervalMs: 3_000,
-    imageTimeoutMs: 600_000,
-    videoTimeoutMs: 1_800_000,
   };
 }
 
 function needsEndpoint(type: ConnectionType): boolean {
-  if (type === "comfyui") return true;
   return capabilitiesOf(type).some(
     (cap) => presetOf(type, cap)?.implemented && !presetOf(type, cap)?.baseUrl,
   );
 }
 
 function keyText(conn: ProviderConnection): string {
-  if (conn.type === "comfyui") {
-    return resolveEndpoint(conn, "video") || "未填写实例地址";
-  }
   return conn.apiKey ? maskApiKeyValue(conn.apiKey) : "未填写 API Key";
 }
 
 function isConfigured(conn: ProviderConnection): boolean {
-  return conn.type === "comfyui"
-    ? Boolean(resolveEndpoint(conn, "video"))
-    : Boolean(conn.apiKey);
+  return Boolean(conn.apiKey);
 }
 
 function ConnectionDialog({
@@ -108,31 +96,13 @@ function ConnectionDialog({
     Partial<Record<Capability, string>>
   >({});
   const [endpoint, setEndpoint] = useState(
-    draft.type === "comfyui"
-      ? draft.baseUrls.video ?? ""
-      : Object.values(draft.baseUrls)[0] ?? "",
-  );
-  const [imageConcurrency, setImageConcurrency] = useState(
-    draft.imageConcurrency,
-  );
-  const [imageTimeoutMin, setImageTimeoutMin] = useState(
-    Math.max(1, Math.round(draft.imageTimeoutMs / 60_000)),
-  );
-  const [imagePollSec, setImagePollSec] = useState(
-    Math.max(1, Math.round(draft.imagePollIntervalMs / 1_000)),
-  );
-  const [videoTimeoutMin, setVideoTimeoutMin] = useState(
-    Math.max(1, Math.round(draft.videoTimeoutMs / 60_000)),
+    Object.values(draft.baseUrls)[0] ?? "",
   );
   const preset = CONNECTION_PRESETS[type];
   const showEndpoint = needsEndpoint(type);
-  const caps = capabilitiesOf(type);
-  const implementedCaps = caps.filter(
-    (cap) => presetOf(type, cap)?.implemented,
+  const caps = capabilitiesOf(type).filter(
+    (cap): cap is "llm" => cap === "llm",
   );
-  const supportsImage = implementedCaps.includes("image");
-  const supportsVideo = implementedCaps.includes("video");
-
   function changeType(next: ConnectionType) {
     const previousPreset = presetModelsByCapability(type);
     const isDefault =
@@ -195,7 +165,7 @@ function ConnectionDialog({
       return;
     }
     if (showEndpoint && !endpoint.trim()) {
-      toast.error(type === "comfyui" ? "请填写实例地址" : "请填写接口地址");
+      toast.error("请填写接口地址");
       return;
     }
 
@@ -218,19 +188,6 @@ function ConnectionDialog({
       models,
       modelsByCapability: scopedModels,
       baseUrls,
-      imageConcurrency: Math.min(
-        8,
-        Math.max(1, Math.round(Number(imageConcurrency) || 1)),
-      ),
-      imageTimeoutMs:
-        Math.min(60, Math.max(1, Math.round(Number(imageTimeoutMin) || 1))) *
-        60_000,
-      imagePollIntervalMs:
-        Math.min(60, Math.max(1, Math.round(Number(imagePollSec) || 1))) *
-        1_000,
-      videoTimeoutMs:
-        Math.min(360, Math.max(1, Math.round(Number(videoTimeoutMin) || 1))) *
-        60_000,
     });
   }
 
@@ -253,7 +210,9 @@ function ConnectionDialog({
               <SelectField
                 value={type}
                 onChange={(next) => changeType(next as ConnectionType)}
-                options={CONNECTION_TYPES.map((value) => ({
+                options={CONNECTION_TYPES.filter(
+                  (value) => CONNECTION_PRESETS[value].capabilities.llm,
+                ).map((value) => ({
                   value,
                   label: CONNECTION_PRESETS[value].label,
                 }))}
@@ -287,85 +246,13 @@ function ConnectionDialog({
 
           {showEndpoint && (
             <div className="grid gap-1.5">
-              <Label>
-                {type === "comfyui" ? "实例地址" : "接口地址"}
-              </Label>
+              <Label>接口地址</Label>
               <Input
                 value={endpoint}
                 onChange={(e) => setEndpoint(e.target.value)}
-                placeholder={
-                  type === "comfyui"
-                    ? "https://xxxx.container.x-gpu.com"
-                    : "https://..."
-                }
+                placeholder="https://..."
               />
             </div>
-          )}
-
-          {(supportsImage || supportsVideo) && (
-            <details className="group rounded-xl border border-border bg-muted/20 px-3 py-2">
-              <summary className="flex cursor-pointer list-none select-none items-center justify-between text-sm [&::-webkit-details-marker]:hidden">
-                高级设置（并发 / 超时 / 轮询）
-                <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
-              </summary>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                {supportsImage && (
-                  <>
-                    <div className="grid gap-1.5">
-                      <Label>图片并发</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={8}
-                        value={imageConcurrency}
-                        onChange={(e) =>
-                          setImageConcurrency(Number(e.target.value))
-                        }
-                      />
-                    </div>
-                    <div className="grid gap-1.5">
-                      <Label>单张超时（分钟）</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={60}
-                        value={imageTimeoutMin}
-                        onChange={(e) =>
-                          setImageTimeoutMin(Number(e.target.value))
-                        }
-                      />
-                    </div>
-                    <div className="grid gap-1.5">
-                      <Label>轮询间隔（秒）</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={60}
-                        value={imagePollSec}
-                        onChange={(e) => setImagePollSec(Number(e.target.value))}
-                      />
-                    </div>
-                  </>
-                )}
-                {supportsVideo && (
-                  <div className="grid gap-1.5">
-                    <Label>单段视频超时（分钟）</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={360}
-                      value={videoTimeoutMin}
-                      onChange={(e) =>
-                        setVideoTimeoutMin(Number(e.target.value))
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                这些参数属于连接本身，不随模型变化。
-              </p>
-            </details>
           )}
 
           <div className="grid gap-3">

@@ -7,30 +7,20 @@ import {
   type LlmProvider,
 } from "@core/server/settings";
 import {
-  getGenerationSettings,
-  saveGenerationSettings,
-  type GenerationSettings,
-} from "@/lib/generation/settings";
-import {
   capabilityBindingSchema,
   connectionSchema,
   CONNECTION_PRESETS,
-  DEFAULT_VIDEO_PARAMS,
   maskApiKeyValue,
   maskProviderSettings,
   normalizeBindings,
   presetOf,
   providerSettingsSchema,
   resolveEndpoint,
-  videoParamsOf,
   type Capability,
-  type CapabilityBinding,
   type CapabilityBindings,
   type ConnectionType,
-  type GenerationOverrides,
   type ProviderConnection,
   type ProviderSettings,
-  type VideoParams,
 } from "./providers";
 
 export const PROVIDERS_SECTION = "providers";
@@ -54,50 +44,12 @@ function readStored(): ProviderSettings | null {
   return stored && stored.version >= MIN_SUPPORTED_VERSION ? stored : null;
 }
 
-function videoParamsFromGeneration(
-  gen: ReturnType<typeof getGenerationSettings>,
-): VideoParams {
-  return {
-    ...DEFAULT_VIDEO_PARAMS,
-    steps: gen.videoSteps,
-    resolution: gen.videoResolution,
-    aspect: gen.videoAspect,
-    sagePreset: gen.sagePreset,
-    sageMaxDurationSec: gen.sageMaxDurationSec,
-    blocksToSwap: gen.blocksToSwap,
-    secondPass: gen.videoSecondPass,
-  };
-}
-
-function migrateStoredSettings(stored: ProviderSettings): ProviderSettings {
-  if (stored.version >= SECTION_VERSION) return stored;
-  const gen = getGenerationSettings();
-  const connections = stored.connections.map((conn) => ({
-    ...conn,
-    imagePollIntervalMs: gen.pollIntervalMs,
-  }));
-  const bindings: CapabilityBindings = { ...stored.bindings };
-  if (bindings.video) {
-    bindings.video = {
-      ...bindings.video,
-      video: videoParamsFromGeneration(gen),
-    };
-  }
-  return {
-    ...stored,
-    version: SECTION_VERSION,
-    connections,
-    bindings,
-  };
-}
-
-/** 读取服务商与能力路由；从未保存过时从旧的 llm/generation 配置迁移。 */
+/** 读取服务商与能力路由；从未保存过时从旧 llm 配置迁移。 */
 export function getProviderSettings(): ProviderSettings {
   const stored = readStored();
   if (stored) {
-    const migrated = migrateStoredSettings(stored);
-    const normalized = normalizeBindings(migrated);
-    if (migrated !== stored || normalized !== migrated) {
+    const normalized = normalizeBindings(stored);
+    if (normalized !== stored) {
       writeSettingsSection<ProviderSettings>(PROVIDERS_SECTION, normalized);
     }
     return normalized;
@@ -123,7 +75,10 @@ function inferType(baseUrl: string, fallback: ConnectionType): ConnectionType {
   return fallback;
 }
 
-function llmTypeFromLegacy(provider: LlmProvider, baseURL: string): ConnectionType {
+function llmTypeFromLegacy(
+  provider: LlmProvider,
+  baseURL: string,
+): ConnectionType {
   if (provider === "dashscope") return "aliyun";
   if (provider === "openai") return "openai";
   return inferType(baseURL, "custom");
@@ -149,113 +104,31 @@ function effectiveEndpoint(
   return presetOf(type, cap)?.baseUrl.trim() ?? "";
 }
 
-interface LegacySeed {
-  cap: Capability;
-  type: ConnectionType;
-  apiKey: string;
-  endpoint: string;
-  model: string;
-  binding?: Partial<CapabilityBinding>;
-  limits?: Partial<
-    Pick<
-      ProviderConnection,
-      | "imageConcurrency"
-      | "imagePollIntervalMs"
-      | "imageTimeoutMs"
-      | "videoTimeoutMs"
-    >
-  >;
-}
-
 function migrateLegacySettings(): ProviderSettings {
   const llm = readGlobalSettings().llm;
-  const gen = getGenerationSettings();
-  const seeds: LegacySeed[] = [];
-
-  if (llm.apiKey.trim() || llm.baseURL.trim() || llm.model.trim()) {
-    seeds.push({
-      cap: "llm",
-      type: llmTypeFromLegacy(llm.provider, llm.baseURL),
-      apiKey: llm.apiKey,
-      endpoint: llm.baseURL,
-      model: llm.model,
-      binding: { temperature: llm.temperature },
-    });
-  }
-
-  if (gen.baseUrl.trim() || gen.apiKey.trim()) {
-    seeds.push({
-      cap: "image",
-      type: inferType(gen.baseUrl, "custom"),
-      apiKey: gen.apiKey,
-      endpoint: gen.baseUrl,
-      model: gen.imageModel,
-      binding: {
-        imageResolution: gen.imageResolution,
-        maxRefImages: gen.maxRefImages,
-      },
-      limits: {
-        imageConcurrency: gen.imageConcurrency,
-        imagePollIntervalMs: gen.pollIntervalMs,
-        imageTimeoutMs: gen.timeoutMs,
-      },
-    });
-  }
-
-  if (gen.comfyUrl.trim()) {
-    seeds.push({
-      cap: "video",
-      type: "comfyui",
-      apiKey: "",
-      endpoint: gen.comfyUrl,
-      model: "minimax-h3",
-      binding: { video: videoParamsFromGeneration(gen) },
-      limits: { videoTimeoutMs: gen.videoTimeoutMs },
-    });
-  }
-
   const connections: ProviderConnection[] = [];
   const bindings: CapabilityBindings = {};
 
-  for (const seed of seeds) {
-    const preset = CONNECTION_PRESETS[seed.type];
-    const endpoint = effectiveEndpoint(seed.type, seed.cap, seed.endpoint);
-    const existing = connections.find(
-      (conn) =>
-        conn.type === seed.type &&
-        conn.apiKey.trim() === seed.apiKey.trim() &&
-        resolveEndpoint(conn, seed.cap) === endpoint,
-    );
-
-    let conn = existing;
-    if (!conn) {
-      const baseUrls: Record<string, string> = {};
-      const presetBase = presetOf(seed.type, seed.cap)?.baseUrl.trim() ?? "";
-      if (endpoint && endpoint !== presetBase) baseUrls[seed.cap] = endpoint;
-      conn = {
-        ...CONNECTION_DEFAULTS,
-        id: `conn-${connections.length + 1}`,
-        type: seed.type,
-        name: uniqueName(preset.label, connections),
-        apiKey: seed.apiKey,
-        baseUrls,
-        ...(seed.limits ?? {}),
-      };
-      connections.push(conn);
-    } else {
-      const presetBase = presetOf(seed.type, seed.cap)?.baseUrl.trim() ?? "";
-      if (endpoint && endpoint !== presetBase) {
-        conn.baseUrls = { ...conn.baseUrls, [seed.cap]: endpoint };
-      }
-      if (seed.limits) conn = { ...conn, ...seed.limits };
-      const idx = connections.findIndex((c) => c.id === conn!.id);
-      if (idx >= 0) connections[idx] = conn;
-    }
-
-    bindings[seed.cap] = capabilityBindingSchema.parse({
+  if (llm.apiKey.trim() || llm.baseURL.trim() || llm.model.trim()) {
+    const type = llmTypeFromLegacy(llm.provider, llm.baseURL);
+    const preset = CONNECTION_PRESETS[type];
+    const endpoint = effectiveEndpoint(type, "llm", llm.baseURL);
+    const presetBase = presetOf(type, "llm")?.baseUrl.trim() ?? "";
+    const baseUrls: Record<string, string> = {};
+    if (endpoint && endpoint !== presetBase) baseUrls.llm = endpoint;
+    const conn: ProviderConnection = {
+      ...CONNECTION_DEFAULTS,
+      id: "conn-1",
+      type,
+      name: uniqueName(preset.label, connections),
+      apiKey: llm.apiKey,
+      baseUrls,
+    };
+    connections.push(conn);
+    bindings.llm = capabilityBindingSchema.parse({
       connectionId: conn.id,
-      model: seed.model,
-      ...(seed.binding ?? {}),
+      model: llm.model,
+      temperature: llm.temperature,
     });
   }
 
@@ -310,29 +183,10 @@ function mergeSecrets(
   });
 }
 
-/**
- * 把路由结果回写到旧的 llm / generation 设置，保证现有生成链路零改动。
- * 第二期接入多协议后，由 provider 适配层直接消费这里的数据。
- */
-function materialize(
-  settings: ProviderSettings,
-  opts: {
-    generation?: GenerationOverrides;
-    autoGenerateAiPrompt?: boolean;
-  },
-): void {
+/** 把文本路由结果回写到 core 的 llm 设置，供现有 LLM 调用链直接消费。 */
+function materialize(settings: ProviderSettings): void {
   const base = readGlobalSettings();
-  const currentGen = getGenerationSettings();
-
   const llmConn = findConnection(settings, settings.bindings.llm?.connectionId);
-  const imageConn = findConnection(
-    settings,
-    settings.bindings.image?.connectionId,
-  );
-  const videoConn = findConnection(
-    settings,
-    settings.bindings.video?.connectionId,
-  );
 
   const llm = {
     provider: llmConn ? llmProviderOf(llmConn.type) : base.llm.provider,
@@ -342,52 +196,11 @@ function materialize(
     temperature: settings.bindings.llm?.temperature ?? base.llm.temperature,
   };
 
-  const imageBinding = settings.bindings.image;
-  const imagePreset = imageConn ? presetOf(imageConn.type, "image") : undefined;
-  const imageProtocol =
-    imagePreset?.protocol === "apimart-image" ||
-    imagePreset?.protocol === "toapis-image"
-      ? imagePreset.protocol
-      : currentGen.imageProtocol;
-  const videoParams = videoParamsOf(settings.bindings.video);
-  const genPatch: Partial<GenerationSettings> = {
-    ...(opts.generation ?? {}),
-    baseUrl: imageConn ? resolveEndpoint(imageConn, "image") : "",
-    imageProtocol,
-    apiKey: imageConn?.apiKey ?? "",
-    imageModel: imageBinding?.model || currentGen.imageModel,
-    imageResolution: imageBinding?.imageResolution ?? currentGen.imageResolution,
-    maxRefImages: imageBinding?.maxRefImages ?? currentGen.maxRefImages,
-    imageConcurrency: imageConn?.imageConcurrency ?? currentGen.imageConcurrency,
-    pollIntervalMs:
-      imageConn?.imagePollIntervalMs ?? currentGen.pollIntervalMs,
-    timeoutMs: imageConn?.imageTimeoutMs ?? currentGen.timeoutMs,
-    comfyUrl: videoConn ? resolveEndpoint(videoConn, "video") : "",
-    videoTimeoutMs: videoConn?.videoTimeoutMs ?? currentGen.videoTimeoutMs,
-    videoSteps: videoParams.steps,
-    videoResolution: videoParams.resolution,
-    videoAspect: videoParams.aspect,
-    sagePreset: videoParams.sagePreset,
-    sageMaxDurationSec: videoParams.sageMaxDurationSec,
-    blocksToSwap: videoParams.blocksToSwap,
-    videoSecondPass: videoParams.secondPass,
-  };
-
-  writeGlobalSettings({
-    llm,
-    ...(opts.autoGenerateAiPrompt === undefined
-      ? {}
-      : { autoGenerateAiPrompt: opts.autoGenerateAiPrompt }),
-  });
-  saveGenerationSettings(genPatch);
+  writeGlobalSettings({ llm });
 }
 
 export function saveProviderSettings(
   input: ProviderSettings,
-  opts: {
-    generation?: GenerationOverrides;
-    autoGenerateAiPrompt?: boolean;
-  } = {},
 ): ProviderSettings {
   const current = getProviderSettings();
   const parsed = providerSettingsSchema.parse({
@@ -397,7 +210,7 @@ export function saveProviderSettings(
   });
   const merged = normalizeBindings(parsed);
   writeSettingsSection<ProviderSettings>(PROVIDERS_SECTION, merged);
-  materialize(merged, opts);
+  materialize(merged);
   return merged;
 }
 

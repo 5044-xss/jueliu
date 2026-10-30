@@ -11,7 +11,6 @@ import { preflightStoryboard } from "@core/server/preflight";
 import { getLatestQcByProject, getQcSummary } from "@core/server/qc";
 import { storyboardDraftSchema } from "@core/shared/schemas/storyboard";
 import { withLock } from "@core/server/lock";
-import { cancelProjectGeneration } from "@/lib/generation/cancel";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -34,7 +33,6 @@ export async function DELETE(_request: Request, { params }: Ctx) {
   if (!projectExists(id)) {
     return NextResponse.json({ error: "项目不存在" }, { status: 404 });
   }
-  cancelProjectGeneration(id);
   clearStoryboard(id);
   return NextResponse.json({ ok: true });
 }

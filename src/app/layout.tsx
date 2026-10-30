@@ -8,8 +8,8 @@ import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "掘漫",
-  description: "本地 AI 漫剧创作工作台 · 内置云端生成",
+  title: "掘流",
+  description: "本地 AI 剧本与分镜提示词工作台 · 第三方素材回传",
 };
 
 export default function RootLayout({
@@ -27,7 +27,7 @@ export default function RootLayout({
                   className="flex h-14 shrink-0 items-center gap-2 px-5 font-semibold"
                 >
                   <Clapperboard className="size-5" />
-                  <span>掘漫</span>
+                  <span>掘流</span>
                 </Link>
                 <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
                   <div className="px-2 pb-2 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
@@ -47,7 +47,7 @@ export default function RootLayout({
                     className="flex items-center gap-2 font-semibold"
                   >
                     <Clapperboard className="size-5" />
-                    <span>掘漫</span>
+                    <span>掘流</span>
                   </Link>
                   <div className="flex items-center gap-2">
                     <NavLinks />

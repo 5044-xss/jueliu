@@ -15,20 +15,9 @@ export const JOB_LABELS: Record<string, string> = {
   repair: "AI 修复",
   "segment-regenerate": "重新生成本段",
   compose: "视频合成",
-  "gen-image": "云端生成起始画面",
-  "gen-start-frames": "批量补首帧",
-  "gen-video": "云端生成视频",
-  "gen-videos": "顺序生成视频",
-  "gen-asset-image": "云端生成资产图",
 };
 
-export const CANCEL_ENDPOINT: Record<string, string> = {
-  "gen-video": "segments/cancel-videos",
-  "gen-videos": "segments/cancel-videos",
-  "gen-image": "segments/cancel-images",
-  "gen-start-frames": "segments/cancel-images",
-  "gen-asset-image": "assets/cancel-images",
-};
+export const CANCEL_ENDPOINT: Record<string, string> = {};
 
 export function jobLabel(kind: string): string {
   return JOB_LABELS[kind] ?? kind;
@@ -54,7 +43,6 @@ export function jobHref(
     case "story-to-script":
       return `${base}/script`;
     case "script-to-assets":
-    case "gen-asset-image":
       return `${base}/assets`;
     case "compose":
       return `${base}/compose`;

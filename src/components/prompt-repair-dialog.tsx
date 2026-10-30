@@ -111,7 +111,7 @@ export function PromptRepairDialog({
         <DialogHeader>
           <DialogTitle>按意见修改提示词</DialogTitle>
           <DialogDescription>
-            描述哪里不对或希望怎么改，AI 只修改当前提示词，不会自动重新生成视频。
+            描述哪里不对或希望怎么改，AI 只修改当前提示词，不会自动生成视频。
           </DialogDescription>
         </DialogHeader>
 

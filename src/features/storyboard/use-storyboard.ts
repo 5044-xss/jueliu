@@ -24,50 +24,14 @@ export interface StoryboardSegmentEntry {
   startMs: number;
 }
 
-const TERMINAL_GEN_STATUS = new Set([
-  "completed",
-  "failed",
-  "cancelled",
-  "qc_failed",
-]);
-
-export function isSegmentGenerating(status: string | null): boolean {
-  return !!status && !TERMINAL_GEN_STATUS.has(status);
-}
-
-export type SegmentGenPhase = "running" | "queued";
-
-/** 顺序批量生成里，当前段是 running，其余待生成段是 queued。 */
-export function segmentGenPhase(
-  status: string | null,
-): SegmentGenPhase | null {
-  if (status === "running" || status === "retrying") return "running";
-  if (status === "queued") return "queued";
-  return null;
-}
-
 async function getJson<T>(url: string, what: string): Promise<T> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(await readError(res, `读取${what}失败`));
   return (await res.json()) as T;
 }
 
-const AUTO_START_FRAMES_KEY = "jueman.storyboard.autoStartFrames";
-
-function readAutoStartFrames(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.localStorage.getItem(AUTO_START_FRAMES_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
 export function useStoryboard(projectId: string) {
   const confirm = useConfirm();
-  const [autoStartFrames, setAutoStartFramesState] = useState(
-    readAutoStartFrames,
-  );
   const [scenes, setScenes] = useState<StoredSceneStoryboard[]>([]);
   const [preflight, setPreflight] = useState<PreflightIssue[]>([]);
   const [qcList, setQcList] = useState<SegmentQcRecord[]>([]);
@@ -84,9 +48,6 @@ export function useStoryboard(projectId: string) {
   const [projectAspectRatio, setProjectAspectRatio] = useState("16:9");
   const [generating, setGenerating] = useState(false);
   const [orchestrating, setOrchestrating] = useState(false);
-  const [batchBusy, setBatchBusy] = useState<"videos" | "start-frames" | null>(
-    null,
-  );
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [framesVersion, setFramesVersion] = useState(0);
   const [promptRevision, setPromptRevision] = useState(0);
@@ -192,30 +153,13 @@ export function useStoryboard(projectId: string) {
     setFramesVersion((value) => value + 1);
   }, [load]);
 
-  const refreshStoryboard = useCallback(async () => {
-    const res = await fetch(`/api/projects/${projectId}/storyboard`);
-    if (!res.ok) return;
-    const data = (await res.json().catch(() => null)) as {
-      scenes?: StoredSceneStoryboard[];
-      preflight?: PreflightIssue[];
-      qc?: SegmentQcRecord[];
-    } | null;
-    if (data?.scenes) setScenes(data.scenes);
-    if (data?.preflight) setPreflight(data.preflight);
-    if (data?.qc) setQcList(data.qc);
-    setFramesVersion((value) => value + 1);
-  }, [projectId]);
-
   const { jobs } = useProjectJobs(projectId, (job) => {
     if (
       job.kind === "script-to-storyboard" ||
       job.kind === "script-to-assets" ||
       job.kind === "story-to-script" ||
       job.kind === "segment-regenerate" ||
-      job.kind === "repair" ||
-      job.kind === "gen-image" ||
-      job.kind === "gen-video" ||
-      job.kind === "gen-videos"
+      job.kind === "repair"
     ) {
       void refresh();
     }
@@ -254,7 +198,6 @@ export function useStoryboard(projectId: string) {
 
   const currentVendor =
     vendorOptions.find((item) => item.id === vendor) ?? null;
-  const isH3 = currentVendor?.platform === "h3";
   const hasStoryboard = scenes.some((scene) => scene.segments.length > 0);
   const returnedCount = allSegments.filter(
     (entry) => entry.segment.videoPath && !entry.segment.stale,
@@ -264,61 +207,12 @@ export function useStoryboard(projectId: string) {
     (sum, entry) => sum + entry.segment.targetMs,
     0,
   );
-  const missingHardCutFrames = allSegments.filter(
-    (entry) =>
-      (!entry.segment.videoPath || entry.segment.stale) &&
-      (entry.isFirstOfScene || entry.segment.hardCut) &&
-      (!entry.segment.firstFrameId ||
-        (entry.segment.stale && entry.segment.firstFrameOrigin !== "manual")),
-  ).length;
-  const pendingVideoCount = allSegments.filter(
-    (entry) => !entry.segment.videoPath || entry.segment.stale,
-  ).length;
   const runningGenerate = isJobRunning(jobs, "script-to-storyboard");
   const runningGenerateJob =
     jobs.find(
       (job) => job.kind === "script-to-storyboard" && job.status === "running",
     ) ?? null;
   const busyGenerate = generating || runningGenerate;
-  const cloudRunning =
-    batchBusy !== null ||
-    isJobRunning(jobs, "gen-image") ||
-    isJobRunning(jobs, "gen-start-frames") ||
-    isJobRunning(jobs, "gen-video") ||
-    isJobRunning(jobs, "gen-videos");
-  // 仅视频任务（含顺序批量）才代表「正在出视频」，避免补首帧时误显示视频生成中。
-  const videoRunning =
-    isJobRunning(jobs, "gen-video") || isJobRunning(jobs, "gen-videos");
-  // 进度按「当前预览段」取，避免并发/批量时显示到别的段上。
-  // 口径与云端一致：总进度 = 已完成节点/总节点，节点进度 = 当前 sampler 步进。
-  const videoProgress = previewEntry?.segment.genProgress ?? null;
-  const videoProgressCurrent =
-    previewEntry?.segment.genProgressCurrent ?? null;
-  // 正在出视频的那一段（批量时不需要先点选才能看到进度）。
-  const runningEntry =
-    (videoRunning
-      ? allSegments.find(
-          (entry) => segmentGenPhase(entry.segment.genStatus) === "running",
-        )
-      : null) ?? null;
-  const generatingSegmentLabel = runningEntry
-    ? `${runningEntry.scene.sceneSlug || `第${runningEntry.scene.sceneIndex}场`} · 第${runningEntry.segment.index}段（${runningEntry.flatIndex + 1}/${allSegments.length}）`
-    : null;
-  const generatingProgress = runningEntry?.segment.genProgress ?? null;
-  const generatingProgressCurrent =
-    runningEntry?.segment.genProgressCurrent ?? null;
-
-  useEffect(() => {
-    if (!cloudRunning) return;
-    // 视频生成时进度变化更快，缩短轮询让分段进度更贴近云端。
-    const timer = setInterval(
-      () => {
-        void refreshStoryboard();
-      },
-      videoRunning ? 2000 : 4000,
-    );
-    return () => clearInterval(timer);
-  }, [cloudRunning, videoRunning, refreshStoryboard]);
 
   const qcBySegment = useMemo(
     () => new Map(qcList.map((item) => [item.segmentId, item])),
@@ -392,166 +286,6 @@ export function useStoryboard(projectId: string) {
       toast.error((error as Error).message || "生成失败");
     } finally {
       setGenerating(false);
-    }
-  }
-
-  async function silentPreflightFix(segmentIds: string[]): Promise<number> {
-    try {
-      const res = await fetch(`/api/projects/${projectId}/storyboard`);
-      if (!res.ok) return 0;
-      const data = (await res.json().catch(() => null)) as {
-        preflight?: PreflightIssue[];
-      } | null;
-      const targets = new Set(segmentIds);
-      const scoped = (data?.preflight ?? []).filter((issue) =>
-        targets.has(issue.segmentId),
-      );
-      const autoHardCut = [
-        ...new Set(
-          scoped
-            .filter(
-              (issue) =>
-                issue.level === "error" && issue.fixAction === "set-hard-cut",
-            )
-            .map((issue) => issue.segmentId),
-        ),
-      ];
-      await Promise.all(
-        autoHardCut.map((segmentId) =>
-          fetch(`/api/projects/${projectId}/segments/${segmentId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ hardCut: true }),
-          }).catch(() => null),
-        ),
-      );
-      if (autoHardCut.length > 0) await refresh();
-      return scoped.filter(
-        (issue) =>
-          issue.level === "error" &&
-          !(
-            issue.fixAction === "set-hard-cut" &&
-            autoHardCut.includes(issue.segmentId)
-          ),
-      ).length;
-    } catch {
-      return 0;
-    }
-  }
-
-  function setAutoStartFrames(value: boolean) {
-    setAutoStartFramesState(value);
-    try {
-      window.localStorage.setItem(AUTO_START_FRAMES_KEY, value ? "1" : "0");
-    } catch {
-      // 偏好保存失败不影响本次生成。
-    }
-  }
-
-  async function generateAllVideos() {
-    if (!isH3) {
-      toast.error("云端生成仅支持 MiniMax H3", {
-        description: "请先在设置里切换厂商，或在预览里手动回传视频。",
-      });
-      return;
-    }
-    if (pendingVideoCount === 0) {
-      toast.info("所有段落都已有视频");
-      return;
-    }
-    setBatchBusy("videos");
-    try {
-      const targetIds = allSegments
-        .filter((entry) => !entry.segment.videoPath || entry.segment.stale)
-        .map((entry) => entry.segment.id);
-      const remaining = await silentPreflightFix(targetIds);
-      if (remaining > 0) {
-        toast.warning(`还有 ${remaining} 个体检问题未自动修复`, {
-          description: "已继续生成，成片完成后会自动质检。",
-        });
-      }
-      const res = await fetch(`/api/projects/${projectId}/segments/generate-videos`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          onlyMissing: true,
-          autoStartFrames,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "提交失败");
-      toast.success(`已开始一键生成 ${data.total} 段视频`, {
-        description: autoStartFrames
-          ? missingHardCutFrames > 0
-            ? `将为 ${missingHardCutFrames} 段自动补首帧，连续段接上一段尾帧。`
-            : "连续段接上一段尾帧，其余段使用已有起始画面。"
-          : "不自动补首帧；连续段仍接上一段尾帧，硬切段直接用已有画面或无首帧生成。",
-      });
-      await refresh();
-    } catch (error) {
-      toast.error((error as Error).message || "提交失败");
-    } finally {
-      setBatchBusy(null);
-    }
-  }
-
-  async function generateStartFrames() {
-    if (!isH3) {
-      toast.error("云端出图仅支持 MiniMax H3");
-      return;
-    }
-    const ok = await confirm({
-      title: "批量补首帧",
-      description:
-        "为所有硬切/场首且缺少起始画面的段落生成 AI 首帧。连续段不在这里出图，会在生成视频时直接接上一段尾帧。",
-      confirmText: "开始补帧",
-    });
-    if (!ok) return;
-    setBatchBusy("start-frames");
-    try {
-      const res = await fetch(
-        `/api/projects/${projectId}/segments/generate-start-frames`,
-        { method: "POST" },
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "提交失败");
-      toast.success(`已开始补首帧：${data.total} 段`);
-    } catch (error) {
-      toast.error((error as Error).message || "提交失败");
-    } finally {
-      setBatchBusy(null);
-    }
-  }
-
-  async function cancelVideos() {
-    try {
-      const res = await fetch(
-        `/api/projects/${projectId}/segments/cancel-videos`,
-        { method: "POST" },
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "取消失败");
-      toast.success("已取消生成");
-      await refresh();
-    } catch (error) {
-      toast.error((error as Error).message || "取消失败");
-    }
-  }
-
-  async function cancelSegmentVideo(segmentId: string) {
-    try {
-      const res = await fetch(
-        `/api/projects/${projectId}/segments/${segmentId}/cancel-video`,
-        { method: "POST" },
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "取消失败");
-      toast.success(
-        data?.cancelled ? "已取消本段生成" : "本段当前没有正在生成的视频",
-      );
-      await refresh();
-    } catch (error) {
-      toast.error((error as Error).message || "取消失败");
     }
   }
 
@@ -771,12 +505,9 @@ export function useStoryboard(projectId: string) {
     setStrategyId,
     extra,
     setExtra,
-    autoStartFrames,
-    setAutoStartFrames,
     projectAspectRatio,
     generating,
     orchestrating,
-    batchBusy,
     setPreviewId,
     previewEntry,
     activeSegmentId,
@@ -785,22 +516,12 @@ export function useStoryboard(projectId: string) {
     promptRevision,
     allSegments,
     currentVendor,
-    isH3,
     hasStoryboard,
     returnedCount,
     staleCount,
     totalTargetMs,
-    pendingVideoCount,
-    missingHardCutFrames,
     runningGenerateJob,
     busyGenerate,
-    cloudRunning,
-    videoRunning,
-    videoProgress,
-    videoProgressCurrent,
-    generatingSegmentLabel,
-    generatingProgress,
-    generatingProgressCurrent,
     qcBySegment,
     previewIssues,
     previewQc,
@@ -811,10 +532,6 @@ export function useStoryboard(projectId: string) {
       setReloadKey((key) => key + 1);
     },
     generateStoryboard,
-    generateAllVideos,
-    generateStartFrames,
-    cancelVideos,
-    cancelSegmentVideo,
     changeVendor,
     reorchestrate,
     clearStoryboard,

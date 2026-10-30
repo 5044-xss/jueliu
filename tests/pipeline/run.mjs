@@ -40,7 +40,6 @@ import {
   isGenericLighting,
   isUnfilmableAction,
 } from "../../packages/core/src/shared/cinematic-audit.ts";
-import { buildH3Workflow } from "../../src/lib/generation/comfy.ts";
 import { STORYBOARD_SKELETON_PROMPT } from "../../packages/core/src/server/skills/prompts.ts";
 import { buildStoryboardSystemPrompt } from "../../packages/core/src/server/skills/assemble-storyboard-prompt.ts";
 import {
@@ -385,47 +384,6 @@ async function runCostumeTextCase(item) {
   }
 }
 
-async function runSubmitPayloadCase(item) {  const built = buildH3Workflow(item.input);
-  const workflow = built.workflow;
-  const promptNode = workflow[item.expect.promptNode ?? "209"];
-  assert.ok(promptNode, "缺少 prompt 节点");
-  assert.equal(promptNode.inputs.value, item.input.prompt, "提示词未进入工作流");
-  const conditional = workflow["167"];
-  assert.ok(conditional, "缺少条件节点 167");
-  if (item.expect.conditionalClass) {
-    assert.equal(
-      conditional.class_type,
-      item.expect.conditionalClass,
-      "条件节点类型",
-    );
-  }
-  if (typeof item.expect.imageCount === "number") {
-    const count = Object.values(workflow).filter(
-      (node) => node.class_type === "LoadImage",
-    ).length;
-    assert.equal(count, item.expect.imageCount, "参考图数量");
-  }
-  if (typeof item.expect.duration === "number") {
-    assert.equal(workflow["555"]?.inputs.duration, item.expect.duration, "时长");
-  }
-  if (item.expect.filenamePrefix) {
-    const save = Object.values(workflow).find(
-      (node) =>
-        node.class_type === "SaveVideo" ||
-        node.class_type === "VHS_VideoCombine",
-    );
-    assert.ok(save, "缺少输出节点");
-    assertContains(
-      String(save.inputs.filename_prefix ?? ""),
-      item.expect.filenamePrefix,
-      "输出文件名",
-    );
-  }
-  if (item.expect.modeContains) {
-    assertContains(built.mode, item.expect.modeContains, "工作流模式");
-  }
-}
-
 async function runDialogueTargetCase(item) {
   const shot = item.input.shot;
   const previous = item.input.previousShot
@@ -696,13 +654,13 @@ const handlers = {
   "h3-blocking": runH3BlockingCase,
   "costume-text": runCostumeTextCase,
   "video-ref": runVideoRefCase,
-  "submit-payload": runSubmitPayloadCase,
 };
 
 function selectedCases() {
   const onlyCase = arg("case");
   const onlyTag = arg("tag");
   return loadCases().filter((item) => {
+    if (item.stage === "submit-payload") return false;
     if (onlyCase && item.id !== onlyCase) return false;
     if (onlyTag && !(item.tags ?? []).includes(onlyTag)) return false;
     return true;

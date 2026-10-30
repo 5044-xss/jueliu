@@ -33,7 +33,7 @@ import { StoryboardSegmentStrip } from "@/features/storyboard/storyboard-segment
 import { StoryboardSettingsDialog } from "@/features/storyboard/storyboard-settings-dialog";
 import { StoryboardShotPanel } from "@/features/storyboard/storyboard-shot-panel";
 import { StoryboardVideoPanel } from "@/features/storyboard/storyboard-video-panel";
-import { useStoryboard, segmentGenPhase } from "@/features/storyboard/use-storyboard";
+import { useStoryboard } from "@/features/storyboard/use-storyboard";
 
 function formatStoryboardText(scenes: StoredSceneStoryboard[]): string {
   if (scenes.length === 0) return "（暂无分镜）";
@@ -83,7 +83,7 @@ function fixActionLabel(action: PreflightIssue["fixAction"]): string {
     case "recompile-prompt":
       return "重新编译";
     case "regenerate-video":
-      return "重生成视频";
+      return "手动回传视频";
     default:
       return "修复";
   }
@@ -112,8 +112,6 @@ export default function StoryboardPage() {
   const previewEntry = sb.previewEntry;
   const preview = previewEntry?.segment ?? null;
   const previewScene = previewEntry?.scene ?? null;
-  const previewPhase =
-    sb.videoRunning && preview ? segmentGenPhase(preview.genStatus) : null;
   const previewNodes = (previewScene?.blocking?.nodes ?? []).map((node) => ({
     id: node.id,
     label: node.label,
@@ -161,41 +159,6 @@ export default function StoryboardPage() {
     }
   }
 
-  async function cloudGenerateStartFrame() {
-    if (!preview) return;
-    try {
-      const res = await fetch(
-        `/api/projects/${id}/segments/${preview.id}/generate-image`,
-        { method: "POST" },
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "提交失败");
-      toast.success("已提交云端生成起始画面", {
-        description: `任务 ${data.taskId} · 参考图 ${data.refCount} 张`,
-      });
-    } catch (error) {
-      toast.error((error as Error).message || "提交失败");
-    }
-  }
-
-  async function cloudGenerateVideo() {
-    if (!preview) return;
-    try {
-      const res = await fetch(
-        `/api/projects/${id}/segments/${preview.id}/generate-video`,
-        { method: "POST" },
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "提交失败");
-      toast.success("已提交生成视频", {
-        description: `${data.mode} · 图片 ${data.refCount} 张`,
-      });
-      await sb.refresh();
-    } catch (error) {
-      toast.error((error as Error).message || "提交失败");
-    }
-  }
-
   async function fixIssue(issue: PreflightIssue) {
     if (!preview) return;
     if (
@@ -214,7 +177,7 @@ export default function StoryboardPage() {
       return;
     }
     if (issue.fixAction === "regenerate-video") {
-      await cloudGenerateVideo();
+      toast.info("请在左侧预览里手动回传视频");
     }
   }
 
@@ -239,25 +202,13 @@ export default function StoryboardPage() {
         returnedCount={sb.returnedCount}
         totalTargetMs={sb.totalTargetMs}
         staleCount={sb.staleCount}
-        pendingVideoCount={sb.pendingVideoCount}
-        missingStartFrames={
-          sb.autoStartFrames ? sb.missingHardCutFrames : 0
-        }
         vendorName={sb.currentVendor?.name ?? sb.vendor}
         strategyName={
           sb.strategies.find((item) => item.id === sb.strategyId)?.name ??
           sb.strategyId
         }
-        isH3={sb.isH3}
         busyGenerate={sb.busyGenerate}
-        cloudRunning={sb.cloudRunning}
-        batchBusy={sb.batchBusy}
-        generatingSegmentLabel={sb.generatingSegmentLabel}
-        generatingProgress={sb.generatingProgress}
-        generatingProgressCurrent={sb.generatingProgressCurrent}
         onGenerateStoryboard={() => void sb.generateStoryboard()}
-        onGenerateVideos={() => void sb.generateAllVideos()}
-        onCancelVideos={() => void sb.cancelVideos()}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenSource={() => setSourceOpen(true)}
       />
@@ -314,15 +265,9 @@ export default function StoryboardPage() {
               nextSegmentId={nextSegmentId}
               qc={sb.previewQc}
               framesVersion={sb.framesVersion}
-              phase={previewPhase}
-              progress={sb.videoProgress}
-              progressCurrent={sb.videoProgressCurrent}
               busy={qcBusy}
               onRefresh={sb.refresh}
               onRunQc={(segmentId) => void runQc(segmentId)}
-              onCancelSegment={(segmentId) =>
-                void sb.cancelSegmentVideo(segmentId)
-              }
               onOpenPreflight={() => setPreflightOpen(true)}
             />
 
@@ -366,8 +311,6 @@ export default function StoryboardPage() {
                     assets={sb.assets}
                     platform={sb.currentVendor?.platform ?? "h3"}
                     aspectRatio={sb.projectAspectRatio}
-                    vendorName={sb.currentVendor?.name ?? sb.vendor}
-                    isH3={sb.isH3}
                     maxRefs={sb.currentVendor?.maxRefImages ?? 9}
                     minDurationSec={Math.max(
                       1,
@@ -383,12 +326,7 @@ export default function StoryboardPage() {
                     )}
                     timeRange={`${String(Math.floor(previewEntry.startMs / 60000)).padStart(2, "0")}:${String(Math.floor((previewEntry.startMs % 60000) / 1000)).padStart(2, "0")}–${String(Math.floor((previewEntry.startMs + preview.targetMs) / 60000)).padStart(2, "0")}:${String(Math.floor(((previewEntry.startMs + preview.targetMs) % 60000) / 1000)).padStart(2, "0")}`}
                     reloadToken={composerReloadKey + sb.promptRevision}
-                    segmentGenerating={previewPhase !== null}
                     onRefresh={sb.refresh}
-                    onCloudStart={() => void cloudGenerateStartFrame()}
-                    onCancelSegment={(segmentId) =>
-                      void sb.cancelSegmentVideo(segmentId)
-                    }
                     onRegenerateSegment={(segmentId) =>
                       void sb.regenerateSegment(segmentId)
                     }
@@ -408,7 +346,6 @@ export default function StoryboardPage() {
             entries={sb.allSegments}
             activeId={preview.id}
             totalTargetMs={sb.totalTargetMs}
-            videoRunning={sb.videoRunning}
             qcBySegment={sb.qcBySegment}
             onSelect={sb.setPreviewId}
           />
@@ -423,16 +360,12 @@ export default function StoryboardPage() {
         strategies={sb.strategies}
         strategyId={sb.strategyId}
         extra={sb.extra}
-        autoStartFrames={sb.autoStartFrames}
         hasStoryboard={sb.hasStoryboard}
         orchestrating={sb.orchestrating}
-        missingStartFrames={sb.missingHardCutFrames}
         onVendorChange={(vendor) => void sb.changeVendor(vendor)}
         onStrategyChange={sb.setStrategyId}
         onExtraChange={sb.setExtra}
-        onAutoStartFramesChange={sb.setAutoStartFrames}
         onReorchestrate={() => void sb.reorchestrate()}
-        onGenerateStartFrames={() => void sb.generateStartFrames()}
         onClear={() => void sb.clearStoryboard()}
       />
 
@@ -460,7 +393,7 @@ export default function StoryboardPage() {
           <DialogHeader>
             <DialogTitle>本段体检与修复</DialogTitle>
             <DialogDescription>
-              生成视频前会自动处理可安全修复的问题；成片完成后会自动质检。
+              回传视频前可先处理可安全修复的问题；回传后会自动质检。
             </DialogDescription>
           </DialogHeader>
           {preview && issueCount > 0 ? (

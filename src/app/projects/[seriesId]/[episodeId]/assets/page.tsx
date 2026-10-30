@@ -8,7 +8,6 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  CloudUpload,
   Copy,
   FileText,
   Library,
@@ -19,7 +18,6 @@ import {
   RotateCcw,
   Sparkles,
   Trash2,
-  XCircle,
 } from "lucide-react";
 import {
   AddToLibraryButton,
@@ -268,7 +266,6 @@ function AssetEditDialog({
   seriesId,
   asset,
   style,
-  runningViewIds,
   onClose,
   onSaved,
 }: {
@@ -276,7 +273,6 @@ function AssetEditDialog({
   seriesId: string;
   asset: StoredAsset;
   style: string;
-  runningViewIds: Set<string>;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -306,7 +302,6 @@ function AssetEditDialog({
   const [deletedViewIds, setDeletedViewIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [imgVersion, setImgVersion] = useState(0);
-  const [genBusy, setGenBusy] = useState<string | null>(null);
   // 反打必须等分镜轴线确定后再补：先确认本资产对应场次已经生成分镜。
   const [storyboardReady, setStoryboardReady] = useState<boolean | null>(null);
   const [reverseHint, setReverseHint] = useState("");
@@ -410,23 +405,6 @@ function AssetEditDialog({
       return;
     }
     onClose();
-  }
-
-  async function genView(viewId: string) {
-    setGenBusy(viewId);
-    try {
-      await post(
-        `/api/projects/${projectId}/assets/views/${viewId}/generate-image`,
-        {},
-      );
-      toast.success("已提交云端出图", {
-        description: "后台生成中（受并发限制排队），完成后重开弹窗可见",
-      });
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setGenBusy(null);
-    }
   }
 
   function patchVariant(vi: number, patch: Partial<VariantDraft>) {
@@ -605,13 +583,13 @@ function AssetEditDialog({
     });
   }
 
-  // 基础造型的视角：本身是成品图，同时也是其它造型出图时的参考图。
+  // 基础造型的视角：本身是成品图，同时也是其它造型的参考图。
   function renderViews(vi: number, v: VariantDraft) {
     return (
       <div className="mt-1 flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-muted-foreground">
-            视角（{v.views.length}）· 出图 / 回传 / 入库
+            视角（{v.views.length}）· 回传 / 入库
           </span>
           {v.id && canAddView && (
             <div className="flex items-center gap-1">
@@ -703,7 +681,7 @@ function AssetEditDialog({
                   onChange={(e) =>
                     patchView(vi, i, { prompt: e.target.value })
                   }
-                  placeholder="视角补充提示（可选，会参与出图）"
+                  placeholder="视角补充提示（可选，会参与提示词）"
                   className="h-7 text-xs"
                 />
               </div>
@@ -716,20 +694,6 @@ function AssetEditDialog({
                     className="h-24 w-full rounded object-contain"
                   />
                   <div className="flex flex-wrap items-center gap-1">
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() => genView(vw.id as string)}
-                      disabled={genBusy === vw.id || runningViewIds.has(vw.id)}
-                      title="用 Toapi 云端出图（自动拼提示词 + 参考同资产其它视角）"
-                    >
-                      {genBusy === vw.id || runningViewIds.has(vw.id) ? (
-                        <Loader2 className="size-3 animate-spin" />
-                      ) : (
-                        <CloudUpload className="size-3" />
-                      )}
-                      {runningViewIds.has(vw.id) ? "生成中" : "云端出图"}
-                    </Button>
                     <ImageSourceButton
                       projectId={projectId}
                       seriesId={seriesId}
@@ -756,7 +720,7 @@ function AssetEditDialog({
     );
   }
 
-  // 妆造 / 其它变体的成品图：紧凑只读网格，只保留出图 / 回传 / 入库。
+  // 妆造 / 其它变体的成品图：紧凑只读网格，只保留回传 / 入库。
   function renderVariantViews(vi: number, v: VariantDraft) {
     if (!v.id) {
       return (
@@ -766,10 +730,6 @@ function AssetEditDialog({
               保存后自动生成默认视角
             </div>
             <div className="flex flex-wrap items-center gap-1">
-              <Button size="xs" variant="outline" disabled title="保存后可用">
-                <CloudUpload className="size-3" />
-                云端出图
-              </Button>
               <ImageSourceButton
                 projectId={projectId}
                 seriesId={seriesId}
@@ -783,7 +743,7 @@ function AssetEditDialog({
               />
             </div>
             <p className="text-[11px] text-muted-foreground">
-              先「保存」，再回来即可出图 / 回传 / 入库。
+              先「保存」，再回来即可回传 / 入库。
             </p>
           </div>
         </div>
@@ -817,20 +777,6 @@ function AssetEditDialog({
                   className="h-24 w-full rounded object-contain"
                 />
                 <div className="flex flex-wrap items-center gap-1">
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={() => genView(vw.id as string)}
-                    disabled={genBusy === vw.id || runningViewIds.has(vw.id)}
-                    title="用 Toapi 云端出图（自动拼提示词 + 参考基础造型图）"
-                  >
-                    {genBusy === vw.id || runningViewIds.has(vw.id) ? (
-                      <Loader2 className="size-3 animate-spin" />
-                    ) : (
-                      <CloudUpload className="size-3" />
-                    )}
-                    {runningViewIds.has(vw.id) ? "生成中" : "云端出图"}
-                  </Button>
                   <ImageSourceButton
                     projectId={projectId}
                     seriesId={seriesId}
@@ -1025,10 +971,10 @@ function AssetEditDialog({
                     参考图 · {BASE_LABEL[asset.type]}
                   </p>
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    每个{term}都固定以这张基础图为参考出图
+                    每个{term}都以这张基础图为参考
                     {baseImageView?.imagePath
                       ? "。"
-                      : "（请先在「基础造型」区出图）。"}
+                      : "（请先在「基础造型」区回传基础图）。"}
                   </p>
                 </div>
               </div>
@@ -1077,8 +1023,6 @@ export default function AssetsPage() {
   const [editAsset, setEditAsset] = useState<StoredAsset | null>(null);
   const [activeType, setActiveType] =
     useState<StoredAsset["type"]>("character");
-  const [batchGen, setBatchGen] = useState(false);
-  const [cardGenId, setCardGenId] = useState<string | null>(null);
   const [modeBusyId, setModeBusyId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState(id);
 
@@ -1130,12 +1074,9 @@ export default function AssetsPage() {
   const { jobs } = useProjectJobs(id, (job) => {
     // 剧本重生成会清空资产，资产重生成会覆盖资产，两者都要刷新页面数据。
     if (job.status === "running") return;
-    if (
-      job.kind !== "script-to-assets" &&
-      job.kind !== "story-to-script" &&
-      job.kind !== "gen-asset-image"
-    )
+    if (job.kind !== "script-to-assets" && job.kind !== "story-to-script") {
       return;
+    }
     load().then((data) => {
       setAssets(data.assets);
       setStyle(data.style);
@@ -1148,19 +1089,6 @@ export default function AssetsPage() {
     jobs.find((j) => j.kind === "script-to-assets" && j.status === "running") ??
     null;
   const busy = generating || running;
-  // 有出图任务在跑时禁用批量入口，避免重复点击把未出完的视角再次提交。
-  const imageRunning = isJobRunning(jobs, "gen-asset-image");
-  // 正在出图的视角：精确置灰对应资产的「生图 / 云端出图」按钮。
-  const runningViewIds = new Set(
-    jobs
-      .filter(
-        (job) =>
-          job.kind === "gen-asset-image" &&
-          job.status === "running" &&
-          job.targetId,
-      )
-      .map((job) => job.targetId as string),
-  );
   const llmMissing = useLlmConfigured() === "missing";
   const confirm = useConfirm();
 
@@ -1226,30 +1154,12 @@ export default function AssetsPage() {
       await refresh();
       toast.success(
         mode === "sheet" ? "已切换为四视图" : "已切换为单图全身照",
-        { description: "已出的旧图保留，下次出图按新构图生成" },
+        { description: "已回传的旧图保留，后续按新构图使用" },
       );
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
       setModeBusyId(null);
-    }
-  }
-
-  async function genCardImage(assetId: string, viewId: string | null) {
-    if (!viewId) return;
-    setCardGenId(assetId);
-    try {
-      await post(
-        `/api/projects/${id}/assets/views/${viewId}/generate-image`,
-        {},
-      );
-      toast.success("已提交云端出图", {
-        description: "后台生成中（受并发限制排队），完成后自动刷新",
-      });
-    } catch (error) {
-      toast.error((error as Error).message);
-    } finally {
-      setCardGenId(null);
     }
   }
 
@@ -1291,34 +1201,6 @@ export default function AssetsPage() {
       await post(`/api/projects/${id}/assets/restore`, {});
       await refresh();
       toast.success("已全部还原");
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  }
-
-  async function generateAllImages() {
-    setBatchGen(true);
-    try {
-      const data = await post(`/api/projects/${id}/assets/generate-images`, {
-        onlyMissing: true,
-      });
-      toast.success(`已提交 ${data.enqueued} 个视角出图`, {
-        description: `共 ${data.total} 个视角，跳过 ${data.skipped} 个已有图，完成后自动刷新`,
-      });
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBatchGen(false);
-    }
-  }
-
-  async function cancelImages() {
-    try {
-      const data = await post(`/api/projects/${id}/assets/cancel-images`, {});
-      toast.success(
-        data?.cancelled ? "已取消出图" : "没有正在进行的出图",
-      );
-      await refresh();
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -1376,30 +1258,10 @@ export default function AssetsPage() {
         <div>
           <h2 className="text-base font-medium">资产</h2>
           <p className="text-sm text-muted-foreground">
-            角色：基础造型 + 妆造，默认每套造型一张单图全身照（竖版 3:4），可在卡片「参考图」处切换为四视图（横版 16:9）；场景：每个时段先出「全景」主视角空镜，俯瞰按需、反打等分镜轴线确定后再补。
+            角色：基础造型 + 妆造，默认每套造型一张单图全身照（竖版 3:4），可在卡片「参考图」处切换为四视图（横版 16:9）；场景：每个时段准备「全景」主视角空镜，俯瞰按需、反打等分镜轴线确定后再补。图片可在第三方生成后回传。
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {assets.length > 0 && (
-            <Button
-              variant="outline"
-              onClick={generateAllImages}
-              disabled={busy || batchGen || imageRunning}
-            >
-              {batchGen ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <CloudUpload className="size-4" />
-              )}
-              一键出图
-            </Button>
-          )}
-          {imageRunning && (
-            <Button variant="outline" onClick={cancelImages}>
-              <XCircle className="size-4" />
-              取消出图
-            </Button>
-          )}
           {assets.length > 0 && (
             <Button variant="outline" onClick={ensureViews} disabled={busy}>
               <Plus className="size-4" />
@@ -1511,9 +1373,6 @@ export default function AssetsPage() {
                 .filter((a) => a.type === activeType)
                 .map((asset) => {
                   const baseView = firstView(asset);
-                  const assetRunning = asset.variants.some((variant) =>
-                    variant.views.some((view) => runningViewIds.has(view.id)),
-                  );
                   const extraCount = Math.max(asset.variants.length - 1, 0);
                   const baseKinds = [
                     ...new Set(
@@ -1615,11 +1474,7 @@ export default function AssetsPage() {
                                     { value: "single", label: "单图（全身照）" },
                                     { value: "sheet", label: "四视图" },
                                   ]}
-                                  disabled={
-                                    modeBusyId === asset.id ||
-                                    busy ||
-                                    imageRunning
-                                  }
+                                  disabled={modeBusyId === asset.id || busy}
                                   className="h-7 w-32 text-xs"
                                   aria-label="角色参考图模式"
                                 />
@@ -1630,30 +1485,6 @@ export default function AssetsPage() {
                             )}
                           </div>
                           <div className="flex shrink-0 items-center gap-1">
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              onClick={() =>
-                                genCardImage(asset.id, baseView?.id ?? null)
-                              }
-                              disabled={
-                                !baseView?.id ||
-                                cardGenId === asset.id ||
-                                assetRunning
-                              }
-                              title={
-                                assetRunning
-                                  ? "该资产正在生成中"
-                                  : "云端生成基础图（自动带上参考图）"
-                              }
-                            >
-                              {cardGenId === asset.id || assetRunning ? (
-                                <Loader2 className="size-3 animate-spin" />
-                              ) : (
-                                <CloudUpload className="size-3" />
-                              )}
-                              {assetRunning ? "生成中" : "生图"}
-                            </Button>
                             <ImageSourceButton
                               projectId={id}
                               seriesId={seriesId}
@@ -1745,7 +1576,6 @@ export default function AssetsPage() {
           seriesId={seriesId}
           asset={editAsset}
           style={style}
-          runningViewIds={runningViewIds}
           onClose={() => setEditAsset(null)}
           onSaved={() => {
             setEditAsset(null);

@@ -1,15 +1,12 @@
 "use client";
 
 import { useRef } from "react";
-import { Film, Hourglass, Loader2 } from "lucide-react";
+import { Film } from "lucide-react";
 import { cn } from "@core/client/utils";
 import { PREVIEW_THUMB_CLASS } from "@/components/preview-image";
 import type { SegmentQcRecord } from "@core/shared/qc";
 import type { StoredSegment } from "@core/shared/schemas/storyboard";
-import {
-  segmentGenPhase,
-  type StoryboardSegmentEntry,
-} from "./use-storyboard";
+import type { StoryboardSegmentEntry } from "./use-storyboard";
 
 function clock(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000));
@@ -72,7 +69,6 @@ export function StoryboardSegmentStrip({
   entries,
   activeId,
   totalTargetMs,
-  videoRunning,
   qcBySegment,
   onSelect,
 }: {
@@ -80,7 +76,6 @@ export function StoryboardSegmentStrip({
   entries: StoryboardSegmentEntry[];
   activeId: string | null;
   totalTargetMs: number;
-  videoRunning: boolean;
   qcBySegment: Map<string, SegmentQcRecord>;
   onSelect: (segmentId: string) => void;
 }) {
@@ -95,9 +90,6 @@ export function StoryboardSegmentStrip({
       <div className="flex gap-3 overflow-x-auto pb-1">
         {entries.map(({ scene, segment }) => {
           const active = segment.id === activeId;
-          const phase = segmentGenPhase(segment.genStatus);
-          const running = videoRunning && phase === "running";
-          const queued = videoRunning && phase === "queued";
           const qc = qcBySegment.get(segment.id);
           const total = segment.shots.reduce(
             (sum, shot) => sum + shot.durationMs,
@@ -134,35 +126,7 @@ export function StoryboardSegmentStrip({
                     {linkLabel(segment)}
                   </span>
                 )}
-                {running && (
-                  <span className="absolute inset-0 flex items-center justify-center gap-1 bg-black/40 text-[10px] text-white">
-                    <Loader2 className="size-3 animate-spin" />
-                    {typeof segment.genProgress === "number"
-                      ? `${segment.genProgress}%`
-                      : "生成中"}
-                  </span>
-                )}
-                {running && typeof segment.genProgress === "number" && (
-                  <span className="absolute inset-x-0 bottom-0 h-1 bg-black/40">
-                    {typeof segment.genProgressCurrent === "number" && (
-                      <span
-                        className="absolute inset-y-0 left-0 bg-white/50 transition-all"
-                        style={{ width: `${segment.genProgressCurrent}%` }}
-                      />
-                    )}
-                    <span
-                      className="absolute inset-y-0 left-0 bg-emerald-400 transition-all"
-                      style={{ width: `${segment.genProgress}%` }}
-                    />
-                  </span>
-                )}
-                {queued && (
-                  <span className="absolute inset-0 flex items-center justify-center gap-1 bg-black/40 text-[10px] text-white">
-                    <Hourglass className="size-3" />
-                    排队中
-                  </span>
-                )}
-                {segment.stale && !running && !queued && (
+                {segment.stale && (
                   <span className="absolute bottom-1 left-1 rounded bg-amber-500/90 px-1 py-0.5 text-[10px] font-medium leading-3 text-black">
                     已过期
                   </span>
@@ -179,40 +143,28 @@ export function StoryboardSegmentStrip({
                 <span
                   className={cn(
                     "flex items-center gap-1 text-xs",
-                    running
-                      ? "text-blue-600 dark:text-blue-400"
-                      : queued
-                        ? "text-sky-600 dark:text-sky-400"
-                        : segment.stale
-                          ? "text-amber-700 dark:text-amber-400"
-                          : segment.videoPath
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : "text-muted-foreground",
+                    segment.stale
+                      ? "text-amber-700 dark:text-amber-400"
+                      : segment.videoPath
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-muted-foreground",
                   )}
                 >
                   <span
                     className={cn(
                       "size-1.5 rounded-full",
-                      running
-                        ? "bg-blue-500"
-                        : queued
-                          ? "bg-sky-500"
-                          : segment.stale
-                            ? "bg-amber-500"
-                            : segment.videoPath
-                              ? "bg-emerald-500"
-                              : "bg-muted-foreground/40",
+                      segment.stale
+                        ? "bg-amber-500"
+                        : segment.videoPath
+                          ? "bg-emerald-500"
+                          : "bg-muted-foreground/40",
                     )}
                   />
-                  {running
-                    ? "生成中"
-                    : queued
-                      ? "排队中"
-                      : segment.stale
-                        ? "已过期"
-                        : segment.videoPath
-                          ? "已生成"
-                          : "未生成"}
+                  {segment.stale
+                    ? "已过期"
+                    : segment.videoPath
+                      ? "已回传"
+                      : "未回传"}
                 </span>
                 {qc && (
                   <span

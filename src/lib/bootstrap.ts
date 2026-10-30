@@ -1,7 +1,6 @@
 import path from "node:path";
 import { configureCore, registerDbExtensions } from "@core/server/setup";
 import { ensureColumn, type Db } from "@core/server/db/extensions";
-import { registerGenerationSettings } from "@/lib/generation/settings";
 import { installServerProxyFetch } from "@/lib/server-fetch";
 import { registerProviderSettings } from "@/lib/settings/providers-server";
 
@@ -59,7 +58,6 @@ export function ensureCore(): void {
   });
 
   // 接缝C：产品设置段。
-  registerGenerationSettings();
   registerProviderSettings();
 }
 
