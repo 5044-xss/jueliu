@@ -4,6 +4,11 @@ import type { JobRecord } from "./types";
 
 const HEARTBEAT_STALE_MS = 2 * 60 * 1000;
 const FINISHED_KEEP_MS = 24 * 60 * 60 * 1000;
+// 移动端切后台时 WebView 定时器会暂停，心跳可能长时间不更新。
+// 只要当前运行时里任务还在跑，就不能按心跳判死；这里只兜底一个绝对上限。
+const ACTIVE_JOB_MAX_MS = 45 * 60 * 1000;
+
+const activeJobIds = new Set<string>();
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -64,6 +69,7 @@ async function failJob(
   message: string,
   finishedAt: string,
 ): Promise<void> {
+  activeJobIds.delete(jobId);
   await db.jobs.update(jobId, {
     status: "failed" satisfies JobStatus,
     message,
@@ -77,6 +83,13 @@ async function recoverInterruptedJobs(): Promise<void> {
   const now = Date.now();
   const finishedAt = new Date(now).toISOString();
   for (const record of running) {
+    if (activeJobIds.has(record.id)) {
+      const startedAt = Date.parse(record.startedAt);
+      if (Number.isFinite(startedAt) && now - startedAt > ACTIVE_JOB_MAX_MS) {
+        await failJob(record.id, "任务超时，请重试", finishedAt);
+      }
+      continue;
+    }
     if (isOrphanedByReload(record)) {
       await failJob(
         record.id,
@@ -144,6 +157,7 @@ export const jobRepository = {
         (job) => job.kind === kind && job.status === "running",
       );
       if (replaced.length > 0) {
+        replaced.forEach((job) => activeJobIds.delete(job.id));
         await db.jobs.bulkPut(
           replaced.map((job) => ({
             ...job,
@@ -171,6 +185,7 @@ export const jobRepository = {
       ownerRunId: runId,
     };
     await db.jobs.add(record);
+    activeJobIds.add(record.id);
     return record.id;
   },
 
@@ -180,6 +195,7 @@ export const jobRepository = {
     message = "",
   ): Promise<void> {
     const current = await db.jobs.get(jobId);
+    activeJobIds.delete(jobId);
     if (!current || current.status !== "running") return;
     await db.jobs.update(jobId, {
       status,
@@ -251,6 +267,8 @@ export const jobRepository = {
   },
 
   async removeProjectJobs(projectId: string): Promise<void> {
+    const records = await db.jobs.where("projectId").equals(projectId).toArray();
+    records.forEach((record) => activeJobIds.delete(record.id));
     await db.jobs.where("projectId").equals(projectId).delete();
   },
 };

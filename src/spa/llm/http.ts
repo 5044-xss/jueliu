@@ -56,6 +56,34 @@ function nativeBody(body: BodyInit | null | undefined): unknown {
   }
 }
 
+const NATIVE_TIMEOUT_MS = 40 * 60 * 1000;
+
+// CapacitorHttp 不认 AbortSignal，长任务里一旦原生层不回调就会永远转圈。
+// 这里额外用 signal 做一层 race，保证上层至少能拿到超时错误。
+function withAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) {
+    return Promise.reject(new DOMException("Aborted", "AbortError"));
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener("abort", onAbort);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 // 移动端 WebView 直连第三方 LLM 会被 CORS 拦截（尤其是自定义请求头），
 // 因此原生端统一走 CapacitorHttp，由系统网络栈发起请求。
 async function nativeLlmFetch(
@@ -64,15 +92,18 @@ async function nativeLlmFetch(
   headers: Record<string, string>,
 ): Promise<Response> {
   try {
-    const result = await CapacitorHttp.request({
-      url,
-      method: (init?.method || "GET").toUpperCase(),
-      headers,
-      data: nativeBody(init?.body),
-      connectTimeout: 30_000,
-      readTimeout: 5 * 60 * 1000,
-      responseType: "text",
-    });
+    const result = await withAbort(
+      CapacitorHttp.request({
+        url,
+        method: (init?.method || "GET").toUpperCase(),
+        headers,
+        data: nativeBody(init?.body),
+        connectTimeout: 30_000,
+        readTimeout: NATIVE_TIMEOUT_MS,
+        responseType: "text",
+      }),
+      init?.signal ?? undefined,
+    );
     const body =
       typeof result.data === "string"
         ? result.data
@@ -82,6 +113,7 @@ async function nativeLlmFetch(
       headers: result.headers,
     });
   } catch (error) {
+    if ((error as Error).name === "AbortError") throw error;
     throw new Error(
       `网络请求失败：${(error as Error).message || "请检查网络或代理设置"}`,
     );
@@ -115,7 +147,7 @@ export async function llmFetch(
     method: init?.method || "GET",
     headers,
     body,
-    timeoutMs: 5 * 60 * 1000,
+    timeoutMs: 40 * 60 * 1000,
   });
   if (!result.ok) {
     throw new Error(result.error || "网络请求失败");

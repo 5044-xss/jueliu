@@ -1488,6 +1488,11 @@ export default function AssetsPage() {
                             )}
                           </div>
                           <div className="flex shrink-0 items-center gap-1">
+                            <CopyButton
+                              text={displayPrompt}
+                              label="复制"
+                              title="复制完整提示词（锚点 + 变化 + 构图 + 风格）"
+                            />
                             <ImageSourceButton
                               projectId={id}
                               seriesId={seriesId}
@@ -1542,7 +1547,7 @@ export default function AssetsPage() {
                         </div>
 
                         <span className="text-[10px] font-medium tracking-wide text-muted-foreground">
-                          完整提示词（含妆造 / 构图 / 风格，复制请点「编辑」）
+                          完整提示词（含妆造 / 构图 / 风格）
                         </span>
                         <p
                           className="line-clamp-2 text-xs leading-5 text-muted-foreground"

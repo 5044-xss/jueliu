@@ -51,6 +51,8 @@ import {
 } from "./media";
 import { BUILTIN_SKILL_PROMPTS } from "@core/server/skills/prompts";
 import { llmFetch } from "../llm/http";
+import { isNativeMobile } from "../platform/runtime";
+import { acquireScreenWakeLock } from "../platform/wake-lock";
 import {
   maskApiKeyValue,
   resolveEndpoint,
@@ -101,6 +103,9 @@ async function withJob(
 ): Promise<Response> {
   const jobId = await jobRepository.startJob(projectId, kind);
   const stopHeartbeat = jobRepository.startHeartbeat(jobId);
+  const releaseWakeLock = isNativeMobile()
+    ? await acquireScreenWakeLock()
+    : () => undefined;
   try {
     const response = await run(jobId);
     if (response.ok) {
@@ -126,6 +131,7 @@ async function withJob(
     throw cause;
   } finally {
     stopHeartbeat();
+    releaseWakeLock();
   }
 }
 

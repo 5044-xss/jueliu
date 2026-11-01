@@ -52,7 +52,8 @@ async function requestOnce(
   if (!key) throw new Error("请先在设置中填写 API Key");
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5 * 60 * 1000);
+  // 对齐桌面端：剧本/分镜是长任务，单次请求最长给 40 分钟；超时后不再重试。
+  const timer = setTimeout(() => controller.abort(), 40 * 60 * 1000);
   try {
     const response = await llmFetch(endpointOf(config.baseUrl), {
       method: "POST",
@@ -152,6 +153,7 @@ export async function generateStructured<T>({
         continue;
       }
       lastError = message;
+      if (/超时|timeout|timed out|ETIMEDOUT|APIConnectionTimeout|aborted/i.test(message)) break;
     }
   }
 
