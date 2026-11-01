@@ -8,12 +8,14 @@ export default function LibraryLayout({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-6">
-      <PageHeader
-        eyebrow="Library"
-        accent="lime"
-        title="资源库"
-        description="全局可复用资源：资产参考图、风格预设与技能提示词。保存在本机浏览器本地。"
-      />
+      <div className="rounded-2xl bg-block-mint p-4 sm:p-5">
+        <PageHeader
+          eyebrow="Library"
+          accent="lime"
+          title="资源库"
+          description="全局可复用资源：资产参考图、风格预设与技能提示词。保存在本机浏览器本地。"
+        />
+      </div>
       <div className="sticky top-0 z-40 -mx-4 shrink-0 bg-background px-4 lg:-mx-6 lg:px-6 2xl:-mx-8 2xl:px-8">
         <LibraryTabs />
       </div>

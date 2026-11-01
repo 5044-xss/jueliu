@@ -347,31 +347,33 @@ export default function HomePage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-6 pb-6">
-      <PageHeader
-        eyebrow="Projects"
-        title="项目"
-        description="一部剧对应一个项目，其下按集拆分为子集，保存在本机浏览器本地。"
-        actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => importInputRef.current?.click()}
-              disabled={importing}
-            >
-              {importing ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Upload className="size-4" />
-              )}
-              导入项目
-            </Button>
-            <Button onClick={openCreate}>
-              <Plus className="size-4" />
-              新建项目
-            </Button>
-          </div>
-        }
-      />
+      <div className="rounded-2xl bg-block-cream p-4 sm:p-5">
+        <PageHeader
+          eyebrow="Projects"
+          title="项目"
+          description="一部剧对应一个项目，其下按集拆分为子集，保存在本机浏览器本地。"
+          actions={
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => importInputRef.current?.click()}
+                disabled={importing}
+              >
+                {importing ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Upload className="size-4" />
+                )}
+                导入项目
+              </Button>
+              <Button onClick={openCreate}>
+                <Plus className="size-4" />
+                新建项目
+              </Button>
+            </div>
+          }
+        />
+      </div>
       <input
         ref={importInputRef}
         type="file"
