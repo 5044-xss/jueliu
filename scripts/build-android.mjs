@@ -38,7 +38,7 @@ try {
   );
   const outDir = path.join(root, "release-local");
   fs.mkdirSync(outDir, { recursive: true });
-  const apkOut = path.join(outDir, `Jueliu-Android-${version}.apk`);
+  const apkOut = path.join(outDir, `掘流-${version}-android.apk`);
   fs.copyFileSync(apkSrc, apkOut);
   console.log(`\n✓ Android Debug APK：${apkOut}`);
 } catch (error) {

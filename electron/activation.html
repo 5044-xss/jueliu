@@ -6,292 +6,596 @@
     <title>掘流 · 激活</title>
     <style>
       :root {
-        color-scheme: dark;
+        --canvas: #ffffff;
+        --soft: #f7f7f5;
+        --line: #e2e2de;
+        --ink: #000000;
+        --dim: #6b6b67;
+        --ok: #1ea64a;
+        --warn: #b2740e;
+        --err: #d22a2a;
+        color-scheme: light;
       }
       * {
         box-sizing: border-box;
       }
+      [hidden] {
+        display: none !important;
+      }
+      html,
+      body {
+        height: 100%;
+      }
       body {
         margin: 0;
-        font-family: "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
-        background: #0b0b0f;
-        color: #e7e7ea;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 100vh;
+        background: var(--soft);
+        color: var(--ink);
+        font:
+          14px/1.5 Inter,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          "Microsoft YaHei",
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
         -webkit-user-select: none;
         user-select: none;
+        overflow-y: auto;
+      }
+      .page {
+        display: flex;
+        min-height: 100%;
+      }
+      .inner {
+        margin: auto;
+        width: 100%;
+        max-width: 576px;
+        padding: 40px 20px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 24px;
+      }
+      .logo {
+        display: grid;
+        width: 44px;
+        height: 44px;
+        place-items: center;
+        border-radius: 12px;
+        background: var(--ink);
+        color: #fff;
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .brand-title {
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .brand-sub {
+        font-family: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo,
+          Consolas, monospace;
+        font-size: 10px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--dim);
       }
       .card {
-        width: 100%;
-        padding: 28px 36px 32px;
+        padding: 32px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: var(--canvas);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        transition:
+          border-color 0.2s ease,
+          box-shadow 0.2s ease;
+      }
+      .card:hover {
+        border-color: rgba(0, 0, 0, 0.18);
+      }
+      .section-title {
+        font-family: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo,
+          Consolas, monospace;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--dim);
       }
       h1 {
-        font-size: 20px;
-        margin: 0 0 6px;
-        font-weight: 600;
+        margin: 8px 0 0;
+        font-size: 24px;
+        font-weight: 300;
+        letter-spacing: -0.02em;
       }
-      p.sub {
-        margin: 0 0 18px;
-        color: #9a9aa5;
-        font-size: 13px;
+      .desc {
+        margin: 6px 0 0;
+        font-size: 14px;
         line-height: 1.6;
+        color: var(--dim);
       }
       .status {
         display: flex;
         align-items: flex-start;
-        gap: 8px;
-        margin-bottom: 18px;
-        padding: 10px 12px;
-        border-radius: 8px;
-        border: 1px solid #26262f;
-        background: #121218;
-        color: #b9b9c3;
-        font-size: 12.5px;
-        line-height: 1.55;
+        gap: 10px;
+        margin-top: 16px;
+        padding: 12px 16px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--soft);
+        color: var(--dim);
+        font-size: 13px;
+        line-height: 1.5;
         -webkit-user-select: text;
         user-select: text;
       }
-      .status .dot {
+      .status .icon {
+        display: flex;
         flex: 0 0 auto;
-        width: 7px;
-        height: 7px;
-        margin-top: 5px;
-        border-radius: 50%;
-        background: #8b8b97;
+        margin-top: 2px;
+      }
+      .status .body {
+        min-width: 0;
+        flex: 1;
+      }
+      .status .text {
+        color: var(--ink);
+        word-break: break-word;
+      }
+      .status .detail {
+        margin-top: 4px;
+        font-family: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo,
+          Consolas, monospace;
+        font-size: 10.5px;
+        color: var(--dim);
+        word-break: break-word;
+      }
+      .status .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+        margin-top: 4px;
+        font-size: 10.5px;
+        color: var(--dim);
       }
       .status.ok {
-        border-color: rgba(74, 222, 128, 0.28);
-        background: rgba(74, 222, 128, 0.07);
-        color: #b9f0cb;
+        border-color: rgba(30, 166, 74, 0.2);
+        background: rgba(30, 166, 74, 0.05);
       }
-      .status.ok .dot {
-        background: #4ade80;
+      .status.ok .icon {
+        color: var(--ok);
       }
       .status.warn {
-        border-color: rgba(251, 191, 36, 0.3);
-        background: rgba(251, 191, 36, 0.07);
-        color: #f3d799;
+        border-color: rgba(178, 116, 14, 0.25);
+        background: rgba(178, 116, 14, 0.05);
       }
-      .status.warn .dot {
-        background: #fbbf24;
+      .status.warn .icon {
+        color: var(--warn);
       }
-      .status.error {
-        border-color: rgba(255, 107, 107, 0.3);
-        background: rgba(255, 107, 107, 0.07);
-        color: #ffb0b0;
+      .status.err {
+        border-color: rgba(210, 42, 42, 0.2);
+        background: rgba(210, 42, 42, 0.05);
       }
-      .status.error .dot {
-        background: #ff6b6b;
+      .status.err .icon {
+        color: var(--err);
+      }
+      .form {
+        margin-top: 24px;
+        padding-top: 24px;
+        border-top: 1px solid var(--line);
       }
       label {
         display: block;
-        font-size: 12px;
-        color: #9a9aa5;
         margin-bottom: 6px;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--dim);
       }
       .machine {
         display: flex;
         gap: 8px;
-        margin-bottom: 16px;
       }
       .machine code {
+        display: flex;
         flex: 1;
-        background: #15151c;
-        border: 1px solid #26262f;
+        min-width: 0;
+        align-items: center;
+        overflow: hidden;
+        padding: 10px 14px;
+        border: 1px solid var(--line);
         border-radius: 8px;
-        padding: 10px 12px;
+        background: var(--soft);
+        color: var(--ink);
+        font-family: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo,
+          Consolas, monospace;
         font-size: 14px;
-        letter-spacing: 1px;
-        color: #d7d7de;
-      }
-      button {
-        cursor: pointer;
-        border: none;
-        border-radius: 8px;
-        font-size: 13px;
-        font-family: inherit;
-      }
-      button:disabled {
-        opacity: 0.55;
-        cursor: default;
-      }
-      #copyBtn {
-        background: #26262f;
-        color: #d7d7de;
-        padding: 0 14px;
-      }
-      #code {
-        width: 100%;
-        background: #15151c;
-        border: 1px solid #26262f;
-        border-radius: 8px;
-        padding: 12px;
-        color: #e7e7ea;
-        font-size: 13px;
-        font-family: "Consolas", monospace;
-        resize: none;
-        height: 82px;
-        outline: none;
+        letter-spacing: 0.08em;
+        white-space: nowrap;
+        text-overflow: ellipsis;
         -webkit-user-select: text;
         user-select: text;
       }
-      #code:focus {
-        border-color: #4f7cff;
+      .icon-btn {
+        display: grid;
+        flex: 0 0 auto;
+        width: 40px;
+        height: 40px;
+        place-items: center;
+        padding: 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--canvas);
+        color: var(--ink);
+        cursor: pointer;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        transition: background 0.15s ease;
+      }
+      .icon-btn:hover:not(:disabled) {
+        background: var(--soft);
+      }
+      .hint {
+        margin: 6px 0 0;
+        font-size: 11px;
+        line-height: 1.6;
+        color: var(--dim);
+      }
+      textarea {
+        width: 100%;
+        min-height: 92px;
+        padding: 10px 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--canvas);
+        color: var(--ink);
+        font-family: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo,
+          Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        resize: vertical;
+        outline: none;
+        word-break: break-all;
+        transition:
+          border-color 0.15s ease,
+          box-shadow 0.15s ease;
+        -webkit-user-select: text;
+        user-select: text;
+      }
+      textarea::placeholder {
+        color: rgba(107, 107, 103, 0.6);
+      }
+      textarea:focus {
+        border-color: rgba(0, 0, 0, 0.5);
+        box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.05);
       }
       .actions {
         display: flex;
-        gap: 10px;
-        margin-top: 14px;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
       }
-      #activateBtn {
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        height: 36px;
+        padding: 0 18px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--canvas);
+        color: var(--ink);
+        font: 500 14px/1 inherit;
+        cursor: pointer;
+        white-space: nowrap;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        transition:
+          background 0.15s ease,
+          opacity 0.15s ease;
+      }
+      .btn:hover:not(:disabled) {
+        background: var(--soft);
+      }
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .btn.primary {
         flex: 1;
-        padding: 11px;
-        background: #4f7cff;
+        border-color: transparent;
+        background: var(--ink);
         color: #fff;
-        font-size: 14px;
-        font-weight: 600;
+        box-shadow: 0 8px 20px -12px rgba(0, 0, 0, 0.5);
       }
-      #checkBtn {
+      .btn.primary:hover:not(:disabled) {
+        background: rgba(0, 0, 0, 0.85);
+      }
+      .btn .btn-icon {
+        display: inline-flex;
         flex: 0 0 auto;
-        padding: 0 16px;
-        background: #26262f;
-        color: #d7d7de;
       }
-      #enterBtn {
-        width: 100%;
-        margin-top: 10px;
-        padding: 11px;
-        background: #1f8f5f;
-        color: #fff;
-        font-size: 14px;
-        font-weight: 600;
+      .btn .spinner {
+        animation: spin 1s linear infinite;
       }
-      #msg {
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .msg {
+        min-height: 16px;
         margin-top: 10px;
         font-size: 12px;
-        min-height: 16px;
-        text-align: center;
         line-height: 1.5;
+        color: var(--dim);
+        text-align: center;
+        -webkit-user-select: text;
+        user-select: text;
       }
-      #msg.error {
-        color: #ff6b6b;
+      .msg.error {
+        color: var(--err);
       }
-      #msg.ok {
-        color: #4ade80;
+      .msg.ok {
+        color: var(--ok);
       }
-      #msg.warn {
-        color: #fbbf24;
+      .msg.warn {
+        color: var(--warn);
+      }
+      .footer {
+        margin-top: 24px;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+        font-size: 11px;
+        line-height: 1.6;
+        color: var(--dim);
+      }
+      svg {
+        display: block;
+        flex: 0 0 auto;
       }
     </style>
   </head>
   <body>
-    <div class="card">
-      <h1>激活掘流</h1>
-      <p class="sub">
-        请将下方机器码发送给卖家开通授权或试用；收到激活码后粘贴到下方激活。
-      </p>
+    <div class="page">
+      <div class="inner">
+        <div class="brand">
+          <div class="logo">掘</div>
+          <div>
+            <div class="brand-title">掘流</div>
+            <div class="brand-sub">License Activation</div>
+          </div>
+        </div>
 
-      <div id="statusBox" class="status">
-        <span class="dot"></span>
-        <span id="statusText">正在读取授权状态…</span>
+        <div class="card">
+          <span class="section-title">Authorization</span>
+          <h1>激活掘流</h1>
+          <p class="desc" id="desc">
+            本机尚未授权。请将机器码发送给卖家获取激活码，或申请试用。
+          </p>
+
+          <div id="statusBox" class="status">
+            <span class="icon" id="statusIcon"></span>
+            <div class="body">
+              <div class="text" id="statusText">正在读取授权状态…</div>
+              <div class="detail" id="statusDetail" hidden></div>
+              <div class="meta" id="statusMeta"></div>
+            </div>
+          </div>
+
+          <div class="form">
+            <label>本机机器码</label>
+            <div class="machine">
+              <code id="machineCode">获取中…</code>
+              <button id="copyBtn" class="icon-btn" type="button" title="复制机器码">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                  <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                </svg>
+              </button>
+            </div>
+            <p class="hint">
+              把机器码发送给卖家获取激活码。一码一机，更换硬件后需要重新签发。
+            </p>
+
+            <label for="code" style="margin-top: 16px">激活码</label>
+            <textarea
+              id="code"
+              placeholder="粘贴激活码…"
+              spellcheck="false"
+              maxlength="8000"
+            ></textarea>
+            <p class="hint" id="activeHint" hidden>
+              当前已授权。如需更换授权，直接粘贴新的激活码即可。
+            </p>
+
+            <div class="actions">
+              <button id="activateBtn" class="btn primary" type="button">
+                <span class="btn-icon" id="activateIcon"></span>
+                <span id="activateLabel">激活</span>
+              </button>
+              <button id="checkBtn" class="btn" type="button">
+                <span class="btn-icon" id="checkIcon"></span>
+                <span id="checkLabel">检查授权</span>
+              </button>
+            </div>
+            <div id="msg" class="msg" role="status"></div>
+          </div>
+
+          <p class="footer">
+            授权与机器码绑定，一码一机。更换硬件后请联系卖家重新签发，客户端不提供自助换绑。
+          </p>
+        </div>
       </div>
-
-      <label>本机机器码</label>
-      <div class="machine">
-        <code id="machineCode">获取中…</code>
-        <button id="copyBtn" type="button">复制</button>
-      </div>
-
-      <label>激活码</label>
-      <textarea id="code" placeholder="粘贴激活码…"></textarea>
-
-      <div class="actions">
-        <button id="activateBtn" type="button">激活</button>
-        <button id="checkBtn" type="button">检查授权</button>
-      </div>
-      <button id="enterBtn" type="button" hidden>进入主界面</button>
-
-      <div id="msg" role="status"></div>
     </div>
+
     <script>
+      const ICONS = {
+        shieldCheck: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>`,
+        shieldAlert: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>`,
+        wifiOff: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/></svg>`,
+        key: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>`,
+        refresh: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>`,
+        spinner: `<svg class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`,
+      };
+
       const machineCodeEl = document.getElementById("machineCode");
       const copyBtn = document.getElementById("copyBtn");
       const codeEl = document.getElementById("code");
       const activateBtn = document.getElementById("activateBtn");
+      const activateIcon = document.getElementById("activateIcon");
+      const activateLabel = document.getElementById("activateLabel");
       const checkBtn = document.getElementById("checkBtn");
-      const enterBtn = document.getElementById("enterBtn");
+      const checkIcon = document.getElementById("checkIcon");
+      const checkLabel = document.getElementById("checkLabel");
       const statusBox = document.getElementById("statusBox");
+      const statusIcon = document.getElementById("statusIcon");
       const statusText = document.getElementById("statusText");
+      const statusDetail = document.getElementById("statusDetail");
+      const statusMeta = document.getElementById("statusMeta");
+      const descEl = document.getElementById("desc");
+      const activeHint = document.getElementById("activeHint");
       const msgEl = document.getElementById("msg");
 
-      let rawCode = "";
-      let currentState = null;
+      activateIcon.innerHTML = ICONS.key;
+      checkIcon.innerHTML = ICONS.refresh;
+      statusIcon.innerHTML = ICONS.shieldAlert;
+
+      let entering = false;
 
       function setMsg(text, kind) {
         msgEl.textContent = text || "";
-        msgEl.className = kind || "";
+        msgEl.className = "msg" + (kind ? " " + kind : "");
+      }
+
+      async function autoEnter() {
+        if (entering) return;
+        entering = true;
+        try {
+          const result = await window.licenseAPI.enterApp();
+          if (!result.ok) {
+            entering = false;
+            setMsg(result.error || "无法进入主界面", "error");
+          }
+        } catch (error) {
+          entering = false;
+          setMsg(String(error), "error");
+        }
       }
 
       function formatTime(value) {
-        if (typeof value !== "number" || !Number.isFinite(value)) return "";
-        return new Date(value).toLocaleString("zh-CN", { hour12: false });
+        if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+        return new Intl.DateTimeFormat("zh-CN", {
+          timeZone: "Asia/Shanghai",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })
+          .format(new Date(value))
+          .replace(/\//g, "-");
       }
 
       function describe(state) {
         if (!state) return "正在读取授权状态…";
         if (state.phase === "loading") return state.message || "正在校验授权…";
-
-        const parts = [];
-        if (state.status === "trial") {
-          if (Number.isFinite(state.trialLeftHours)) {
-            parts.push("试用剩余约 " + state.trialLeftHours + " 小时");
-          } else if (Number.isFinite(state.trialLeftDays)) {
-            parts.push("试用剩余约 " + state.trialLeftDays + " 天");
-          }
-        } else if (state.status === "active") {
-          parts.push(state.exp ? "有效期至 " + formatTime(state.exp) : "永久授权");
-          if (state.sn) parts.push("编号 " + state.sn);
-        } else if (state.status === "pending" && state.nbf) {
-          parts.push("将于 " + formatTime(state.nbf) + " 生效");
-        } else if (state.status === "expired" && state.exp) {
-          parts.push("已于 " + formatTime(state.exp) + " 到期");
+        if (!state.status) return "正在校验授权…";
+        if (state.allowed) {
+          return "当前授权有效。如需更换授权，直接粘贴新的激活码即可。";
         }
+        if (state.status === "pending") {
+          return (
+            "授权将于 " +
+            formatTime(state.nbf) +
+            " 生效，到时间后点击“检查授权”即可。"
+          );
+        }
+        if (state.status === "expired") {
+          return "授权或试用已结束。续期后点击“检查授权”即可恢复使用。";
+        }
+        if (state.status === "revoked") {
+          return "该授权已被吊销，本地授权状态已清除。请联系卖家处理。";
+        }
+        if (state.status === "invalid" || state.status === "error") {
+          return state.message || "激活码无效，请确认激活码与当前机器码匹配。";
+        }
+        return "本机尚未授权。请将机器码发送给卖家获取激活码，或申请试用。";
+      }
 
-        let text = state.message || "授权状态未知";
-        if (parts.length) text += " · " + parts.join(" · ");
-        if (state.offline) text += "（离线）";
-        return text;
+      function renderMeta(state) {
+        const parts = [];
+        if (state.status === "pending" && state.nbf) {
+          parts.push("生效时间 " + formatTime(state.nbf));
+        }
+        if (state.exp) parts.push("到期时间 " + formatTime(state.exp));
+        if (state.sn) parts.push("编号 " + state.sn);
+        if (state.offline) parts.push("离线校验");
+        statusMeta.textContent = parts.join("　");
       }
 
       function render(state) {
         if (!state) return;
-        currentState = state;
+
         if (state.machineDisplay) {
-          rawCode = state.machineCode || rawCode;
           machineCodeEl.textContent = state.machineDisplay;
         }
-        statusText.textContent = describe(state);
-        const kind = state.allowed
-          ? state.warning || state.offline
-            ? "warn"
-            : "ok"
-          : state.status === "error"
-            ? "error"
-            : state.status === "trial"
-              ? "warn"
-              : "";
+
+        statusText.textContent = state.message || "未知授权状态";
+        const detail =
+          state.error &&
+          state.error !== state.message &&
+          !state.error.startsWith(state.message)
+            ? state.error
+            : "";
+        statusDetail.textContent = detail;
+        statusDetail.hidden = !detail;
+        renderMeta(state);
+
+        const failed =
+          state.status === "error" || (!state.allowed && state.offline === true);
+        const pending = state.status === "pending";
+        const kind =
+          state.phase === "loading" || !state.status
+            ? ""
+            : state.allowed
+              ? state.warning || state.offline
+                ? "warn"
+                : "ok"
+              : failed
+                ? "err"
+                : pending
+                  ? "warn"
+                  : state.status === "trial"
+                    ? "warn"
+                    : "err";
         statusBox.className = "status" + (kind ? " " + kind : "");
-        if (state.warning) setMsg(state.warning, "warn");
-        enterBtn.hidden = !state.allowed;
+        statusIcon.innerHTML = state.allowed
+          ? ICONS.shieldCheck
+          : failed
+            ? ICONS.wifiOff
+            : ICONS.shieldAlert;
+
+        descEl.textContent = describe(state);
+        activeHint.hidden = state.status !== "active";
+        if (state.warning && state.allowed) setMsg(state.warning, "warn");
+        if (state.allowed) void autoEnter();
       }
 
       window.licenseAPI
         .getMachineId()
         .then(({ code, display }) => {
-          rawCode = code;
-          machineCodeEl.textContent = display;
+          machineCodeEl.textContent = display || code || "获取失败";
         })
         .catch(() => {
           machineCodeEl.textContent = "获取失败";
@@ -306,10 +610,14 @@
         window.licenseAPI.onLicenseUpdate(render);
       }
 
-      copyBtn.addEventListener("click", () => {
-        if (rawCode) {
-          navigator.clipboard.writeText(rawCode);
+      copyBtn.addEventListener("click", async () => {
+        const value = machineCodeEl.textContent || "";
+        if (!value || value === "获取中…" || value === "获取失败") return;
+        try {
+          await navigator.clipboard.writeText(value);
           setMsg("已复制机器码", "ok");
+        } catch {
+          setMsg("复制失败，请手动选择复制", "error");
         }
       });
 
@@ -321,7 +629,9 @@
         }
         activateBtn.disabled = true;
         checkBtn.disabled = true;
-        setMsg("校验中…");
+        activateIcon.innerHTML = ICONS.spinner;
+        activateLabel.textContent = "激活中…";
+        setMsg("");
         try {
           const result = await window.licenseAPI.activate(value);
           if (result.state) render(result.state);
@@ -335,18 +645,24 @@
         } finally {
           activateBtn.disabled = false;
           checkBtn.disabled = false;
+          activateIcon.innerHTML = ICONS.key;
+          activateLabel.textContent = "激活";
         }
       });
 
       checkBtn.addEventListener("click", async () => {
         checkBtn.disabled = true;
         activateBtn.disabled = true;
-        setMsg("正在检查授权…");
+        checkIcon.innerHTML = ICONS.spinner;
+        checkLabel.textContent = "检查中…";
+        setMsg("");
         try {
           const state = await window.licenseAPI.checkin();
           render(state);
           setMsg(
-            state && state.allowed ? "授权有效" : (state && state.message) || "授权不可用",
+            state && state.allowed
+              ? "授权有效"
+              : (state && state.message) || "授权不可用",
             state && state.allowed ? "ok" : "error",
           );
         } catch (error) {
@@ -354,20 +670,8 @@
         } finally {
           checkBtn.disabled = false;
           activateBtn.disabled = false;
-        }
-      });
-
-      enterBtn.addEventListener("click", async () => {
-        enterBtn.disabled = true;
-        try {
-          const result = await window.licenseAPI.enterApp();
-          if (!result.ok) {
-            setMsg(result.error || "无法进入主界面", "error");
-            enterBtn.disabled = false;
-          }
-        } catch (error) {
-          setMsg(String(error), "error");
-          enterBtn.disabled = false;
+          checkIcon.innerHTML = ICONS.refresh;
+          checkLabel.textContent = "检查授权";
         }
       });
     </script>

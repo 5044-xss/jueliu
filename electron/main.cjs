@@ -944,13 +944,15 @@ function showActivation() {
     return;
   }
   activationWindow = new BrowserWindow({
-    width: 560,
-    height: 540,
-    resizable: false,
-    minimizable: false,
-    maximizable: false,
+    width: 1120,
+    height: 760,
+    minWidth: 720,
+    minHeight: 560,
+    resizable: true,
+    minimizable: true,
+    maximizable: true,
     show: false,
-    backgroundColor: "#0b0b0f",
+    backgroundColor: "#f7f7f5",
     icon: appIconPath(),
     title: "掘流 · 激活",
     webPreferences: {

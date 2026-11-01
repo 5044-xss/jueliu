@@ -1,212 +1,108 @@
-import { useState, type FormEvent } from "react";
-import {
-  Copy,
-  KeyRound,
-  Loader2,
-  RefreshCw,
-  ShieldCheck,
-} from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { localLicense } from "../license/service";
+import { ShieldAlert, ShieldCheck, WifiOff } from "lucide-react";
+import type { LocalLicenseState } from "../license/service";
+import { ActivationForm } from "../license/ActivationForm";
+import { formatDateTime } from "../license/format";
 import { useLicense } from "../license/use-license";
-import { platformLabel } from "../platform/runtime";
 
-function formatDate(value: number | null): string {
-  if (!value) return "长期";
-  return new Date(value).toLocaleDateString("zh-CN");
+function descriptionOf(state: LocalLicenseState): string {
+  if (state.allowed) {
+    return "当前授权有效。如需更换授权，直接粘贴新的激活码即可。";
+  }
+  switch (state.status) {
+    case "pending":
+      return `授权将于 ${formatDateTime(state.nbf)} 生效，到时间后点击“检查授权”即可。`;
+    case "expired":
+      return "授权或试用已结束。续期后点击“检查授权”即可恢复使用。";
+    case "revoked":
+      return "该授权已被吊销，本地授权状态已清除。请联系卖家处理。";
+    case "invalid":
+    case "error":
+      return state.message || "激活码无效，请确认激活码与当前机器码匹配。";
+    default:
+      return "本机尚未授权。请将机器码发送给卖家获取激活码，或申请试用。";
+  }
+}
+
+function Callout({ state }: { state: LocalLicenseState }) {
+  const pending = state.status === "pending";
+  const failed = state.status === "error" || (!state.allowed && state.offline);
+  const active = state.allowed;
+  const Icon = active ? ShieldCheck : failed ? WifiOff : ShieldAlert;
+
+  const tone = active
+    ? "border-emerald-600/20 bg-emerald-600/5 text-emerald-700"
+    : pending
+      ? "border-amber-500/25 bg-amber-500/5 text-amber-700"
+      : failed
+        ? "border-border bg-surface-soft text-muted-foreground"
+        : "border-destructive/20 bg-destructive/5 text-destructive";
+
+  return (
+    <div
+      className={`mt-4 flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm ${tone}`}
+    >
+      <Icon className="mt-0.5 size-4 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div className="break-words text-foreground">
+          {state.message || "未知授权状态"}
+        </div>
+        {state.error &&
+          state.error !== state.message &&
+          !state.error.startsWith(state.message) && (
+            <div className="mt-1 break-words font-mono text-[10.5px] text-muted-foreground">
+              {state.error}
+            </div>
+          )}
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-muted-foreground">
+          {pending && state.nbf && (
+            <span>生效时间 {formatDateTime(state.nbf)}</span>
+          )}
+          {state.exp && <span>到期时间 {formatDateTime(state.exp)}</span>}
+          {state.sn && <span className="font-mono">{state.sn}</span>}
+          {state.offline && <span>离线校验</span>}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function ActivationPage() {
   const license = useLicense();
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-
-  async function copyDevice() {
-    if (!license.deviceDisplay) return;
-    try {
-      await navigator.clipboard.writeText(license.deviceCode ?? "");
-      toast.success("设备码已复制");
-    } catch {
-      toast.error("复制失败，请手动选择");
-    }
-  }
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (busy) return;
-    setBusy(true);
-    try {
-      if (window.licenseAPI) {
-        const result = await window.licenseAPI.activate(code);
-        if (result.ok) toast.success("激活成功");
-        else toast.error(result.error || result.state?.message || "激活失败");
-        return;
-      }
-      const result = await localLicense.activate(code);
-      if (result.ok) {
-        toast.success("激活成功");
-      } else {
-        toast.error(result.error || "激活失败");
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function refresh() {
-    if (refreshing) return;
-    setRefreshing(true);
-    try {
-      if (window.licenseAPI) {
-        const state = await window.licenseAPI.checkin();
-        if (state.allowed) toast.success(state.message || "授权有效");
-        else toast.error(state.message || "未找到授权或试用");
-      } else {
-        const state = await localLicense.refresh();
-        if (state.allowed) toast.success(state.message || "授权有效");
-        else toast.error(state.message || "未找到授权或试用");
-      }
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
-  async function reset() {
-    if (window.licenseAPI) {
-      await window.licenseAPI.resetLicense();
-    } else {
-      await localLicense.reset();
-    }
-    setCode("");
-  }
 
   return (
-    <div className="flex min-h-full items-center justify-center bg-background px-4 py-8 safe-top safe-bottom">
-      <div className="w-full max-w-md">
+    <div className="h-dvh min-h-0 overflow-y-auto bg-surface-soft">
+      <div className="mx-auto flex min-h-full w-full max-w-xl flex-col justify-center px-5 py-10">
         <div className="mb-6 flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <KeyRound className="size-5" />
+          <div className="grid size-11 place-items-center rounded-xl bg-primary text-base font-bold text-primary-foreground">
+            掘
           </div>
           <div>
-            <h1 className="text-lg font-semibold">激活掘流</h1>
-            <p className="text-xs text-muted-foreground">
-              {platformLabel()} · 本地授权 + 在线试用
-            </p>
+            <div className="text-lg font-semibold tracking-tight">掘流</div>
+            <div className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
+              License Activation
+            </div>
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="size-4" />
-              设备码
-            </CardTitle>
-            <CardDescription>
-              把 16 位设备码发给管理员生成激活码，一机一码。
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex items-center gap-2 rounded-xl border bg-muted/40 px-3 py-2.5">
-              <code className="min-w-0 flex-1 break-all font-mono text-xs">
-                {license.deviceDisplay || (license.phase === "loading" ? "读取中…" : "—")}
-              </code>
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                onClick={copyDevice}
-                disabled={!license.deviceDisplay}
-                title="复制设备码"
-              >
-                <Copy className="size-4" />
-              </Button>
-            </div>
+        <div className="rounded-[20px] border border-border bg-card p-6 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:border-foreground/20 sm:p-8">
+          <span className="font-mono text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+            Authorization
+          </span>
+          <h1 className="mt-2 text-2xl font-light tracking-tight">激活掘流</h1>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+            {descriptionOf(license)}
+          </p>
 
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[11px] leading-relaxed text-muted-foreground">
-                管理员开通试用后无需激活码，联网刷新即可生效。
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={refresh}
-                disabled={refreshing}
-              >
-                {refreshing ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="size-4" />
-                )}
-                刷新
-              </Button>
-            </div>
+          <Callout state={license} />
 
-            {license.error && (
-              <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs leading-relaxed text-destructive">
-                {license.error}
-              </div>
-            )}
+          <div className="mt-6 border-t border-border pt-6">
+            <ActivationForm autoFocus />
+          </div>
 
-            {license.status === "expired" && (
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs leading-relaxed text-amber-700">
-                授权已于 {formatDate(license.exp)} 过期，请输入新的激活码。
-              </div>
-            )}
-
-            <form className="flex flex-col gap-3" onSubmit={submit}>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="activation-code">激活码</Label>
-                <Input
-                  id="activation-code"
-                  value={code}
-                  onChange={(event) => setCode(event.target.value)}
-                  placeholder="粘贴管理员发来的激活码"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-              </div>
-              <Button type="submit" disabled={busy || !code.trim()}>
-                {busy ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <KeyRound className="size-4" />
-                )}
-                激活
-              </Button>
-            </form>
-
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>产品：{license.product}</span>
-              {license.code && (
-                <button
-                  type="button"
-                  className="underline underline-offset-2 hover:text-foreground"
-                  onClick={reset}
-                >
-                  清除激活
-                </button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <p className="mt-4 text-center text-[11px] leading-relaxed text-muted-foreground">
-          授权与设备码绑定，一码一机。
-          <br />
-          更换设备或重装系统后请联系管理员重新签发。
-        </p>
+          <p className="mt-6 border-t border-border pt-4 text-[11px] leading-relaxed text-muted-foreground">
+            授权与机器码绑定，一码一机。更换硬件后请联系卖家重新签发，客户端不提供自助换绑。
+          </p>
+        </div>
       </div>
     </div>
   );
