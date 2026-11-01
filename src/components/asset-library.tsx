@@ -187,7 +187,6 @@ export function ImageSourceDialog({
                   disabled={busy}
                   className="flex flex-col gap-1.5 rounded-lg border p-2 text-left transition-colors hover:bg-muted/50 disabled:opacity-50"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={libraryImageUrl(item)}
                     alt={item.name}

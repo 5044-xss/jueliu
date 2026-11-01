@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("licenseAPI", {
   getMachineId: () => ipcRenderer.invoke("get-machine-id"),
@@ -20,4 +20,37 @@ contextBridge.exposeInMainWorld("licenseAPI", {
   setActiveJobs: (count) => ipcRenderer.invoke("set-active-jobs", count),
   flashFrame: () => ipcRenderer.invoke("flash-frame"),
   notifyJob: (payload) => ipcRenderer.invoke("notify-job", payload),
+});
+
+contextBridge.exposeInMainWorld("desktopAPI", {
+  media: {
+    getPathForFile: (file) => {
+      try {
+        return webUtils.getPathForFile(file);
+      } catch {
+        return "";
+      }
+    },
+    importFile: (payload) => ipcRenderer.invoke("media:import", payload),
+    importBuffer: (payload) => ipcRenderer.invoke("media:import-buffer", payload),
+    remove: (relativePath) => ipcRenderer.invoke("media:remove", relativePath),
+    openRoot: () => ipcRenderer.invoke("media:open-root"),
+    openFolder: (payload) => ipcRenderer.invoke("media:open-folder", payload),
+    reveal: (relativePath) => ipcRenderer.invoke("media:reveal", relativePath),
+    url: async (relativePath) =>
+      `jueman-media://media/${String(relativePath)
+        .split("/")
+        .filter(Boolean)
+        .map(encodeURIComponent)
+        .join("/")}`,
+  },
+  qc: {
+    run: (input) => ipcRenderer.invoke("qc:run", input),
+  },
+  compose: {
+    run: (input) => ipcRenderer.invoke("compose:run", input),
+  },
+  llm: {
+    fetch: (payload) => ipcRenderer.invoke("llm:fetch", payload),
+  },
 });

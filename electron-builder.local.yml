@@ -1,0 +1,39 @@
+appId: com.5044.jueman
+productName: 掘流
+copyright: Copyright © 2026 掘流
+
+directories:
+  output: release-local
+  buildResources: build-resources
+
+npmRebuild: false
+asar: true
+electronDist: node_modules/electron/dist
+
+files:
+  - electron/**/*
+  - dist/desktop/**/*
+  - package.json
+  - "!node_modules"
+
+extraResources:
+  - from: resources/ffmpeg
+    to: ffmpeg
+  - from: public/appicon.png
+    to: appicon.png
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build-resources/icon.ico
+  artifactName: Jueliu-Local-Setup-${version}.exe
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 掘流

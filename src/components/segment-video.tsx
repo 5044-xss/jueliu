@@ -9,6 +9,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import {
+  AlertTriangle,
   CheckCircle2,
   Circle,
   Download,
@@ -100,9 +101,11 @@ export function SegmentVideo({
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
+  const [playErrorFor, setPlayErrorFor] = useState<string | null>(null);
   const [previewFrameId, setPreviewFrameId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirm();
+  const videoKey = videoPath ? `${version}-${videoPath}` : "";
 
   const load = useCallback(async () => {
     // refreshKey 只用于触发重新读取（父级在起始画面变化后递增）。
@@ -380,12 +383,27 @@ export function SegmentVideo({
 
         <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl border bg-black lg:aspect-auto lg:min-h-0 lg:flex-1">
           {videoPath ? (
-            <video
-              key={version}
-              controls
-              src={`/api/projects/${projectId}/segments/${segmentId}/video`}
-              className="size-full object-contain"
-            />
+            <div className="relative size-full">
+              <video
+                key={videoKey}
+                controls
+                src={`/api/projects/${projectId}/segments/${segmentId}/video?v=${videoPath}`}
+                className="size-full object-contain"
+                onLoadedMetadata={() => setPlayErrorFor(null)}
+                onError={() => setPlayErrorFor(videoKey)}
+              />
+              {playErrorFor === videoKey && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80 px-6 text-center">
+                  <AlertTriangle className="size-5 text-amber-400" />
+                  <p className="text-xs font-medium text-neutral-200">
+                    视频无法播放
+                  </p>
+                  <p className="text-[11px] leading-5 text-neutral-400">
+                    文件可能已被移动或占用，请重新回传该段视频。
+                  </p>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="max-w-[260px] px-4 text-center">
               <Film className="mx-auto size-6 text-neutral-500" />
@@ -426,7 +444,6 @@ export function SegmentVideo({
                     title={`${frameTitle(frame)} · ${status.text}`}
                     className={`${PREVIEW_THUMB_CLASS} group text-left outline-none focus-visible:ring-2 focus-visible:ring-ring`}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={`/api/projects/${projectId}/frames/${frame.id}/image?v=${version}`}
                       alt={frameTitle(frame)}
@@ -509,7 +526,6 @@ export function SegmentVideo({
         }
       >
         {previewFrame ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={`/api/projects/${projectId}/frames/${previewFrame.id}/image?v=${version}`}
             alt={frameTitle(previewFrame)}

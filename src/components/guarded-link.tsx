@@ -1,8 +1,8 @@
 "use client";
 
 import type { ComponentProps } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useRouter } from "@/spa/compat/navigation";
+import Link from "@/spa/compat/link";
 import { useConfirm } from "@/components/confirm-dialog";
 import { hasUnsavedChanges } from "@/lib/unsaved-guard";
 

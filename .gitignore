@@ -13,12 +13,12 @@
 # testing
 /coverage
 
-# next.js
-/.next/
-/out/
-
 # production
 /build
+
+# shared Vite app output / Capacitor copy
+/dist/
+/release-local/
 
 # misc
 .DS_Store
@@ -38,7 +38,6 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
 
 # local workspace (projects, media, settings)
 /workspace

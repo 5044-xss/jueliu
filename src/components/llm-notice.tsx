@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import Link from "@/spa/compat/link";
 import { AlertTriangle, KeyRound } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 

@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import Link from "@/spa/compat/link";
+import { usePathname } from "@/spa/compat/navigation";
 import { cn } from "@core/client/utils";
 
 const TABS = [

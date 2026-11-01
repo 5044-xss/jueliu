@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/spa/compat/navigation";
 import { toast } from "sonner";
 import { Loader2, Ratio } from "lucide-react";
 import { Button } from "@/components/ui/button";

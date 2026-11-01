@@ -1,26 +1,45 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
+import globals from "globals";
+import reactHooks from "eslint-plugin-react-hooks";
+import tseslint from "typescript-eslint";
 
-const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
-  // Override default ignores of eslint-config-next.
-  globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
-    // Electron 主进程为 CommonJS，不适用 TS 的 import 规则
-    "electron/**",
-    "release/**",
-    "build-resources/**",
-    "resources/**",
-    "keys/**",
-    // 工作区产物与一次性脚本不入版本库，也不参与 lint
-    "workspace/**",
-  ]),
-]);
-
-export default eslintConfig;
+export default tseslint.config(
+  {
+    linterOptions: {
+      reportUnusedDisableDirectives: "off",
+    },
+  },
+  {
+    ignores: [
+      "dist/**",
+      "release/**",
+      "release-local/**",
+      "build-resources/**",
+      "resources/**",
+      "keys/**",
+      "electron/**",
+      "android/**",
+      "ios/**",
+      "workspace/**",
+    ],
+  },
+  tseslint.configs.base,
+  {
+    files: ["src/**/*.{ts,tsx}", "packages/**/*.ts", "tests/**/*.mjs", "scripts/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+    },
+    plugins: {
+      "react-hooks": reactHooks,
+    },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+    },
+  },
+);

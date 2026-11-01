@@ -71,7 +71,99 @@ declare global {
     }>;
   }
 
+  interface DesktopMediaImportPayload {
+    projectId: string;
+    name: string;
+    mime: string;
+    kind: "image" | "video" | "file";
+  }
+
+  interface DesktopMediaImportResult {
+    id: string;
+    relativePath: string;
+    name: string;
+    mime: string;
+    size: number;
+    createdAt: string;
+  }
+
+  interface DesktopQcResult {
+    ok: boolean;
+    durationMs: number | null;
+    width: number | null;
+    height: number | null;
+    codec: string | null;
+    fps: number | null;
+    hasAudio: boolean;
+    size: number;
+    warnings: string[];
+    error?: string;
+  }
+
+  interface DesktopComposeResult extends DesktopMediaImportResult {
+    durationMs?: number | null;
+  }
+
+  interface DesktopMediaAPI {
+    getPathForFile(file: File): string;
+    importFile(
+      payload: DesktopMediaImportPayload & { sourcePath: string },
+    ): Promise<DesktopMediaImportResult>;
+    importBuffer(
+      payload: DesktopMediaImportPayload & { buffer: ArrayBuffer },
+    ): Promise<DesktopMediaImportResult>;
+    remove(relativePath: string): Promise<{ ok: boolean; error?: string }>;
+    openRoot(): Promise<{ ok: boolean; error?: string }>;
+    openFolder(payload: {
+      projectId: string;
+      subpath?: string;
+    }): Promise<{ ok: boolean; error?: string }>;
+    reveal(relativePath: string): Promise<{ ok: boolean; error?: string }>;
+    url(relativePath: string): Promise<string>;
+  }
+
+  interface DesktopQCAPI {
+    run(input: { relativePath: string }): Promise<DesktopQcResult>;
+  }
+
+  interface DesktopComposeAPI {
+    run(input: {
+      projectId: string;
+      items: { relativePath: string }[];
+      transition?: string;
+      transitionMs?: number;
+      subtitles?: boolean;
+      cues?: { startMs: number; endMs: number; text: string }[];
+      width?: number;
+      height?: number;
+    }): Promise<DesktopComposeResult>;
+  }
+
+  interface DesktopLlmAPI {
+    fetch(payload: {
+      url: string;
+      method?: string;
+      headers?: Record<string, string>;
+      body?: string;
+      timeoutMs?: number;
+    }): Promise<{
+      ok: boolean;
+      status?: number;
+      headers?: Record<string, string>;
+      body?: string;
+      error?: string;
+    }>;
+  }
+
+  interface DesktopAPI {
+    media: DesktopMediaAPI;
+    qc: DesktopQCAPI;
+    compose: DesktopComposeAPI;
+    llm: DesktopLlmAPI;
+  }
+
   interface Window {
     licenseAPI?: LicenseAPI;
+    desktopAPI?: DesktopAPI;
   }
 }

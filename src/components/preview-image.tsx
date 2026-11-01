@@ -90,7 +90,6 @@ export function PreviewImage({
 
   return (
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
         alt={alt}
@@ -104,7 +103,6 @@ export function PreviewImage({
         title={title ?? alt}
         description={description}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
           alt={alt}

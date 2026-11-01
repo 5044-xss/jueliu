@@ -1185,7 +1185,6 @@ function AssetThumb({ projectId, view }: { projectId: string; view: StoredView }
     );
   }
   return (
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={`/api/projects/${projectId}/assets/views/${view.id}/image`}
       alt={view.label}

@@ -1,9 +1,6 @@
-<!-- BEGIN:nextjs-agent-rules -->
+# 掘流开发约定
 
-# This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->
+- 桌面端、移动端和 Web 端共用 `src/spa` 的 Vite + React 应用。
+- 业务数据保存在本地 IndexedDB，服务端只负责鉴权与必要的 LLM 转发。
+- Next.js 已从运行时移除，不要再引入 `next` 依赖或 `src/app` 目录。
+- 提交前运行 `npm run typecheck`、`npm run lint`、`npm run build:app:desktop`。

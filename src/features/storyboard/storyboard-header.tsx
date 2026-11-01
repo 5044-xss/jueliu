@@ -51,11 +51,11 @@ export function StoryboardHeader({
   onOpenSource: () => void;
 }) {
   return (
-    <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl bg-block-mint p-5">
+    <div className="flex shrink-0 flex-col gap-2 rounded-xl bg-block-mint p-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:rounded-2xl sm:p-5">
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           <h2 className="text-base font-medium">分镜</h2>
-          <span className="rounded-full border border-border bg-background/60 px-2 py-0.5 text-[11px] text-muted-foreground">
+          <span className="hidden rounded-full border border-border bg-background/60 px-2 py-0.5 text-[11px] text-muted-foreground sm:inline">
             {vendorName} · {strategyName}
           </span>
           {hasStoryboard && (
@@ -64,7 +64,7 @@ export function StoryboardHeader({
             </span>
           )}
         </div>
-        <p className="mt-0.5 text-sm text-muted-foreground">
+        <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">
           {hasStoryboard
             ? `已回传 ${returnedCount}/${storyboardCount} 段视频${
                 staleCount > 0 ? ` · ${staleCount} 段已过期` : ""
@@ -73,7 +73,7 @@ export function StoryboardHeader({
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-1.5">
+      <div className="flex items-center justify-end gap-1.5 overflow-x-auto pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0">
         <Button size="sm" variant="outline" onClick={onOpenSettings}>
           <Settings2 className="size-4" />
           设置

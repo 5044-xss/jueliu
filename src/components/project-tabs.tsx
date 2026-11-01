@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname } from "@/spa/compat/navigation";
 import { GuardedLink } from "@/components/guarded-link";
 import { NextStepLink } from "@/components/next-step";
 import { cn } from "@core/client/utils";
@@ -16,12 +16,17 @@ const TABS = [
 export function ProjectTabs({
   seriesId,
   episodeId,
+  hideCompose = false,
 }: {
   seriesId: string;
   episodeId: string;
+  hideCompose?: boolean;
 }) {
+  const tabs = hideCompose
+    ? TABS.filter((tab) => tab.key !== "compose")
+    : TABS;
   const pathname = usePathname();
-  const active = TABS.find(
+  const active = tabs.find(
     (tab) => pathname === `/projects/${seriesId}/${episodeId}/${tab.key}`,
   );
   const nextStep = active && "next" in active ? active.next : null;
@@ -29,7 +34,7 @@ export function ProjectTabs({
   return (
     <div className="flex items-center justify-between gap-3">
       <nav className="inline-flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-full bg-muted p-1">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const href = `/projects/${seriesId}/${episodeId}/${tab.key}`;
           const isActive = pathname === href;
           return (

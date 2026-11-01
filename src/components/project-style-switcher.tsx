@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/spa/compat/navigation";
 import { toast } from "sonner";
 import { Loader2, Lock, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";

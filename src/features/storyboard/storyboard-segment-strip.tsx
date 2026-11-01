@@ -45,7 +45,7 @@ function SegmentThumb({
   return (
     <video
       ref={videoRef}
-      src={`/api/projects/${projectId}/segments/${segment.id}/video#t=0.1`}
+      src={`/api/projects/${projectId}/segments/${segment.id}/video?v=${segment.videoPath}#t=0.1`}
       muted
       loop
       playsInline
